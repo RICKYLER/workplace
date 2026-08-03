@@ -2,12 +2,13 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./schema";
 
 export async function getDb() {
-  const { env } = await import("cloudflare:workers");
-  if (!env.DB) {
-    throw new Error(
-      "Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in .openai/hosting.json to `DB` or let your control plane inject the real binding values before using the database."
-    );
+  try {
+    const { env } = await import("cloudflare:workers" as any);
+    if (env?.DB) {
+      return drizzle(env.DB, { schema });
+    }
+  } catch {
+    // cloudflare:workers unavailable in standard Next.js environment
   }
-
-  return drizzle(env.DB, { schema });
+  throw new Error("Database binding unavailable in standard local dev mode.");
 }

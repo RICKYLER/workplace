@@ -121,7 +121,7 @@ const navGroups: { title: string; items: NavItem[] }[] = [
   {
     title: "SYSTEM",
     items: [
-      { id: "ai", label: "AI Assistant", icon: "✦", disabled: true },
+      { id: "ai", label: "AI Assistant", icon: "✦", disabled: false },
       { id: "settings", label: "Settings", icon: "⚙" },
     ],
   },
@@ -404,7 +404,9 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
             <ProjectsView projects={filteredProjects} query={query} setQuery={setQuery} setShowAdd={setShowAdd} setSelectedProject={setSelectedProject} />
           ) : active === "workflow" ? (
             <WorkflowView projects={projects} setSelectedProject={setSelectedProject} />
-          ) : active === "ai" ? null : (
+          ) : active === "ai" ? (
+            <AIAssistantView projects={projects} />
+          ) : (
             <TrackerView id={active} label={activeLabel} onAdd={() => setShowAdd(true)} onUpload={() => fileRef.current?.click()} />
           )}
         </div>
@@ -468,3 +470,283 @@ function VaultModal({ close, unlocked, unlock }: { close: () => void; unlocked: 
   const [pin, setPin] = useState("");
   return <div className="overlay vault-overlay"><section className="modal vault-modal"><button className="close" onClick={close}>×</button>{!unlocked ? <><div className="vault-lock">⌁</div><p className="eyebrow">PRIVATE · ARA ONLY</p><h2>Commission Vault</h2><p>Your solo commissions are separated from the dashboard, global search, reports, and ordinary exports.</p><label>Separate 6-digit PIN<div className="pin-input"><input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••••" /><button className="primary" disabled={pin.length !== 6} onClick={unlock}>Unlock</button></div></label><div className="secure-note">Preview protection only. A live PIN will be encrypted and securely configured before importing real commission data.</div></> : <><div className="vault-unlocked"><span>✓</span> Vault unlocked</div><p className="eyebrow">PRIVATE COMMISSION SUMMARY</p><h2>Solo Commission</h2><div className="vault-metrics"><div><span>Expected</span><strong>₱ •••,•••</strong></div><div><span>Received</span><strong>₱ •••,•••</strong></div><div><span>Pending</span><strong>₱ •••,•••</strong></div></div><p className="empty-vault">No live commission records have been imported.</p><button className="primary full-button" onClick={() => placeholderAction("Commission record creator")}>＋ Add Commission Record</button></>}</section></div>;
 }
+
+function renderFormattedMarkdown(content: string) {
+  const lines = content.split("\n");
+  const blocks: React.ReactNode[] = [];
+  let i = 0;
+
+  const formatInline = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
+        return <strong key={idx}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Table detection (lines starting and ending with |)
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      const tableLines: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith("|") && lines[i].trim().endsWith("|")) {
+        tableLines.push(lines[i].trim());
+        i++;
+      }
+
+      if (tableLines.length >= 2) {
+        const headerCells = tableLines[0]
+          .split("|")
+          .map((c) => c.trim())
+          .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+
+        const dataRows = tableLines
+          .slice(1)
+          .filter((rowLine) => !/^\|[\s\-:|]+\|$/.test(rowLine))
+          .map((rowLine) =>
+            rowLine
+              .split("|")
+              .map((c) => c.trim())
+              .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
+          );
+
+        blocks.push(
+          <div key={`table-${i}`} className="ai-table-container">
+            <table className="ai-markdown-table">
+              <thead>
+                <tr>
+                  {headerCells.map((h, hIdx) => (
+                    <th key={hIdx}>{formatInline(h)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dataRows.map((row, rIdx) => (
+                  <tr key={rIdx}>
+                    {row.map((cell, cIdx) => (
+                      <td key={cIdx}>
+                        {cell.toLowerCase().includes("in fabrication") ||
+                        cell.toLowerCase().includes("for pdi") ||
+                        cell.toLowerCase().includes("delivery") ||
+                        cell.toLowerCase().includes("pending") ||
+                        cell.toLowerCase().includes("completed") ? (
+                          <Status>{cell}</Status>
+                        ) : (
+                          formatInline(cell)
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+    }
+
+    // Headings
+    if (trimmed.startsWith("### ")) {
+      blocks.push(<h3 key={`h3-${i}`}>{formatInline(trimmed.replace(/^###\s+/, ""))}</h3>);
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith("## ")) {
+      blocks.push(<h2 key={`h2-${i}`}>{formatInline(trimmed.replace(/^##\s+/, ""))}</h2>);
+      i++;
+      continue;
+    }
+
+    // Bullet lists
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ") || trimmed.startsWith("• ")) {
+      const listItems: string[] = [];
+      while (
+        i < lines.length &&
+        (lines[i].trim().startsWith("- ") ||
+          lines[i].trim().startsWith("* ") ||
+          lines[i].trim().startsWith("• "))
+      ) {
+        listItems.push(lines[i].trim().replace(/^[\-\*\•]\s+/, ""));
+        i++;
+      }
+      blocks.push(
+        <ul key={`ul-${i}`} className="ai-bullet-list">
+          {listItems.map((item, itemIdx) => (
+            <li key={itemIdx}>{formatInline(item)}</li>
+          ))}
+        </ul>
+      );
+      continue;
+    }
+
+    // Numbered list items
+    if (/^\d+\.\s+/.test(trimmed)) {
+      blocks.push(
+        <p key={`num-${i}`} className="list-item">
+          <strong>{trimmed.match(/^\d+\./)?.[0]}</strong> {formatInline(trimmed.replace(/^\d+\.\s+/, ""))}
+        </p>
+      );
+      i++;
+      continue;
+    }
+
+    // Paragraphs
+    if (trimmed.length > 0) {
+      blocks.push(<p key={`p-${i}`}>{formatInline(trimmed)}</p>);
+    }
+    i++;
+  }
+
+  return blocks;
+}
+
+function AIAssistantView({ projects }: { projects: Project[] }) {
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
+    {
+      role: "assistant",
+      content: `Hello Ara! 👋 I am **Haven AI**, your dedicated CV Sales Admin Assistant.
+
+I have full visibility into your active commercial vehicle projects, unit availability, delivery schedules, and pending documents.
+
+How can I help you today? You can choose a quick action below or type any question!`,
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, loading]);
+
+  const sendMessage = async (textToSend?: string) => {
+    const text = textToSend || input;
+    if (!text.trim() || loading) return;
+
+    const newMessages = [...messages, { role: "user" as const, content: text }];
+    setMessages(newMessages);
+    if (!textToSend) setInput("");
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: newMessages,
+          projectsContext: projects,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.content) {
+        setMessages([...newMessages, { role: "assistant", content: data.content }]);
+      } else {
+        setMessages([
+          ...newMessages,
+          { role: "assistant", content: "Apologies, I encountered an issue processing your request. Please try again." },
+        ]);
+      }
+    } catch {
+      setMessages([
+        ...newMessages,
+        { role: "assistant", content: "Network error while connecting to AI assistant." },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const chips = [
+    "📊 Summarize active projects",
+    "🚚 Which units are ready for delivery?",
+    "⚠️ Show urgent tasks & missing documents",
+    "📝 Draft client follow-up email",
+    "💰 Sales & commission advice",
+  ];
+
+  return (
+    <>
+      <div className="module-hero">
+        <div>
+          <p className="eyebrow">INTELLIGENT WORKSPACE</p>
+          <h1>Haven AI Assistant</h1>
+          <p>Real-time commercial vehicle sales intelligence & workspace assistant.</p>
+        </div>
+        <div className="ai-status-badge">
+          <span className="online-dot" /> Haven AI Connected
+        </div>
+      </div>
+
+      <section className="panel ai-chat-panel">
+        <div className="ai-messages-list">
+          {messages.map((msg, index) => (
+            <div key={index} className={`ai-message-row ${msg.role}`}>
+              <div className="ai-avatar">{msg.role === "user" ? "👤" : "✦"}</div>
+              <div className="ai-message-bubble">
+                <div className="ai-message-header">
+                  <strong>{msg.role === "user" ? "Ara Mae Marcillo" : "Haven AI"}</strong>
+                </div>
+                <div className="ai-message-body">
+                  {renderFormattedMarkdown(msg.content)}
+                </div>
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="ai-message-row assistant">
+              <div className="ai-avatar">✦</div>
+              <div className="ai-message-bubble loading-bubble">
+                <span className="pulse-dot" />
+                <span className="pulse-dot" />
+                <span className="pulse-dot" />
+                <em>AI is analyzing workspace data...</em>
+              </div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        <div className="ai-chips-bar">
+          <small>Suggested Prompts:</small>
+          <div className="ai-chips-scroll">
+            {chips.map((chip) => (
+              <button key={chip} className="ai-chip" onClick={() => sendMessage(chip)} disabled={loading}>
+                {chip}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <form
+          className="ai-input-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            sendMessage();
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Ask AI Assistant about projects, delivery targets, documents, or draft emails..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={loading}
+          />
+          <button type="submit" className="primary" disabled={!input.trim() || loading}>
+            Send ↵
+          </button>
+        </form>
+      </section>
+    </>
+  );
+}
+
