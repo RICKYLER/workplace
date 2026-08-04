@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import RhpsWorkspace from "./rhps-workspace";
+
 
 type Project = {
   id: number;
@@ -171,8 +173,12 @@ function Status({ children }: { children: string }) {
 }
 
 export default function WorkspaceApp({ authenticatedName }: { authenticatedName: string | null }) {
+  const [activeUser, setActiveUser] = useState<"Ara Mae Marcillo" | "Robert Herrero">("Ara Mae Marcillo");
+  const [activeWorkspace, setActiveWorkspace] = useState<"CV_SALES" | "RHPS">("CV_SALES");
   const [entered, setEntered] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+
   const [sessionMinutes, setSessionMinutes] = useState(15);
   const [active, setActive] = useState("dashboard");
   const [projects, setProjects] = useState<Project[]>(demoProjects);
@@ -283,6 +289,11 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
 
   function enterWorkspace(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (activeUser === "Robert Herrero") {
+      setActiveWorkspace("RHPS");
+    } else {
+      setActiveWorkspace("CV_SALES");
+    }
     setEntered(true);
   }
 
@@ -347,80 +358,146 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
         <section className="login-panel">
           <div className="login-box">
             <div className="brand-mark">CV</div>
-            <p className="eyebrow">PRIVATE WORKSPACE</p>
-            <h1>Welcome to your<br /><em>Safe Haven.</em></h1>
-            <p className="login-copy">Everything you need to keep projects moving—organized, calm, and beautifully clear.</p>
+            <p className="eyebrow">BUSINESS SYSTEMS PORTAL</p>
+            <h1>Welcome back.<br /><em>Select Account.</em></h1>
+            <p className="login-copy">Select your private user account & operating system to sign in.</p>
+            
             <form onSubmit={enterWorkspace}>
-              <label>Username</label>
-              <div className="input-shell"><span>♙</span><input required defaultValue={authenticatedName ?? "Ara Mae Marcillo"} aria-label="Username" /></div>
+              <label>Select User Account & Workspace OS</label>
+              <div className="account-selector-row">
+                <button
+                  type="button"
+                  className={`account-card ${activeUser === "Ara Mae Marcillo" ? "selected" : ""}`}
+                  onClick={() => {
+                    setActiveUser("Ara Mae Marcillo");
+                    setActiveWorkspace("CV_SALES");
+                  }}
+                >
+                  <span className="account-icon">🏢</span>
+                  <div className="account-details">
+                    <strong>Ara Mae Marcillo</strong>
+                    <small>CV Sales Admin OS</small>
+                  </div>
+                  {activeUser === "Ara Mae Marcillo" && <b className="check">✓</b>}
+                </button>
+
+                <button
+                  type="button"
+                  className={`account-card ${activeUser === "Robert Herrero" ? "selected" : ""}`}
+                  onClick={() => {
+                    setActiveUser("Robert Herrero");
+                    setActiveWorkspace("RHPS");
+                  }}
+                >
+                  <span className="account-icon">🎹</span>
+                  <div className="account-details">
+                    <strong>Robert Herrero</strong>
+                    <small>RHPS OS (Piano Services)</small>
+                  </div>
+                  {activeUser === "Robert Herrero" && <b className="check">✓</b>}
+                </button>
+              </div>
+
+
               <label>Password</label>
               <div className="input-shell"><span>◇</span><input required type={showPassword ? "text" : "password"} placeholder="Enter your secure password" aria-label="Password" /><button type="button" className="eye" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? "◌" : "◉"}</button></div>
               <div className="session-note"><span>●</span> Secure private session · Auto-lock after 15 minutes</div>
-              <button className="primary login-button" type="submit">Enter Workspace <span>→</span></button>
+              <button className="primary login-button" type="submit">
+                Sign in to {activeUser === "Robert Herrero" ? "RHPS OS" : "CV Sales Admin OS"} <span>→</span>
+              </button>
             </form>
-            <p className="login-foot">CV SALES ADMIN OS <i>•</i> ARA’S SAFE HAVEN</p>
+            <p className="login-foot">
+              {activeUser === "Robert Herrero" ? "RHPS OS • ROBERT'S PIANO & SERVICES" : "CV SALES ADMIN OS • ARA’S SAFE HAVEN"}
+            </p>
           </div>
         </section>
       </main>
     );
   }
 
-  const activeLabel = navGroups.flatMap((g) => g.items).find((item) => item.id === active)?.label ?? "Dashboard";
 
+  // If Robert Herrero logged in → RHPS OS
+  if (activeWorkspace === "RHPS") {
+    return (
+      <div className="workspace-wrapper">
+        <RhpsWorkspace activeUser="Robert Herrero" onLockWorkspace={() => setEntered(false)} />
+      </div>
+    );
+  }
+
+  // ── ARA MAE MARCILLO → CV SALES ADMIN OS ────────────────────────────────
   return (
-    <main className={`workspace density-${density} font-${fontSize}`} data-theme={theme} style={{ ...(fontColor ? { "--ink": fontColor } : {}), ...(backgroundColor ? { "--page": backgroundColor } : {}) } as React.CSSProperties}>
-      <aside className={`sidebar ${mobileNav ? "mobile-open" : ""}`}>
-        <div className="side-brand"><div className="brand-mark small">CV</div><div><strong>CV Sales Admin</strong><span>Ara’s Safe Haven</span></div><button className="mobile-close" onClick={() => setMobileNav(false)}>×</button></div>
+    <div className="workspace" data-theme={theme} data-density={density} data-font-size={fontSize} style={{ ...(fontColor ? { "--font-color": fontColor } as React.CSSProperties : {}), ...(backgroundColor ? { "--bg-color": backgroundColor } as React.CSSProperties : {}) }}>
+      {toast && <div className="toast">{toast}</div>}
+
+      {/* SIDEBAR */}
+      <aside className="sidebar">
+        <div className="side-brand">
+          <span className="brand-mark small">CV</span>
+          <div>
+            <strong>CV Sales Admin OS</strong>
+            <span>ARA'S SAFE HAVEN</span>
+          </div>
+        </div>
         <nav>
           {navGroups.map((group) => (
-            <div className="nav-group" key={group.title}>
-              <p>{group.title}</p>
+            <div key={group.title} className="nav-group">
+              <p className="nav-group-title">{group.title}</p>
               {group.items.map((item) => (
-                <button key={item.id} className={`${active === item.id ? "active" : ""} ${item.disabled ? "disabled" : ""}`} onClick={() => { if (!item.disabled) { setActive(item.id); setMobileNav(false); if (item.id === "settings") setShowSettings(true); } }}>
-                  <span className="nav-icon">{item.icon}</span><span>{item.label}</span>{item.count ? <b>{item.count}</b> : null}{item.disabled ? <small>SOON</small> : null}
+                <button
+                  key={item.id}
+                  className={active === item.id ? "nav-item active" : "nav-item"}
+                  onClick={() => { setActive(item.id); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  disabled={item.disabled}
+                >
+                  <span className="nav-icon">{item.icon}</span>
+                  <span>{item.label}</span>
+                  {item.count ? <b className="nav-count">{item.count}</b> : null}
                 </button>
               ))}
             </div>
           ))}
         </nav>
-        <button className="help-card" onClick={() => setToast("Help center is ready for your company guides.")}><span>?</span><div><strong>Need a hand?</strong><small>Open help center</small></div></button>
       </aside>
 
-      <section className="main-area">
+      {/* MAIN AREA (OFFSETS BY SIDEBAR WIDTH 238PX) */}
+      <div className="main-area">
+        {/* TOPBAR */}
         <header className="topbar">
-          <button className="hamburger" onClick={() => setMobileNav(true)}>☰</button>
-          <div className="global-search"><span>⌕</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search projects, units, CS, VIN, clients…" /><kbd>⌘ K</kbd></div>
-          <button className="icon-button" aria-label="Notifications" onClick={() => setToast("Notifications panel is ready for alerts and reminders.")}>♢<i /></button>
-          <div className="profile-wrap">
-            <button className="profile-button" onClick={() => setMenuOpen(!menuOpen)}><Image src="/ara-mae.png" alt="Ara Mae Marcillo" width={35} height={35} /><span><strong>Ara Mae Marcillo</strong><small>CV Sales Admin</small></span><b>⌄</b></button>
-            {menuOpen && <div className="profile-menu"><button onClick={() => { setShowVault(true); setMenuOpen(false); }}>Private Commission Vault <span>⌁</span></button><button onClick={() => { setShowSettings(true); setMenuOpen(false); }}>Workspace Settings <span>⚙</span></button><button onClick={() => setEntered(false)}>Lock Workspace <span>↗</span></button></div>}
+          <div className="brand">
+            <strong>CV Sales Admin OS</strong>
+            <small style={{ marginLeft: 8, opacity: 0.7 }}>· Ara Mae Marcillo</small>
+          </div>
+          <div className="topbar-right" style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+            <button className="secondary" onClick={() => setShowVault(true)}>⌁ Commission Vault</button>
+            <button className="secondary" onClick={() => setShowSettings(true)}>⚙ Settings</button>
+            <button className="secondary" onClick={() => setEntered(false)}>🔒 Lock</button>
           </div>
         </header>
 
-        <div className="content">
-          {active === "dashboard" ? (
-            <Dashboard projects={filteredProjects} setActive={setActive} setShowAdd={setShowAdd} setSelectedProject={setSelectedProject} />
-          ) : active === "projects" ? (
-            <ProjectsView projects={filteredProjects} query={query} setQuery={setQuery} setShowAdd={setShowAdd} setSelectedProject={setSelectedProject} />
-          ) : active === "workflow" ? (
-            <WorkflowView projects={projects} setSelectedProject={setSelectedProject} />
-          ) : active === "ai" ? (
-            <AIAssistantView projects={projects} />
-          ) : (
-            <TrackerView id={active} label={activeLabel} onAdd={() => setShowAdd(true)} onUpload={() => fileRef.current?.click()} />
+        {/* MAIN CONTENT */}
+        <main className="content">
+          {active === "dashboard" && <Dashboard projects={filteredProjects} setActive={setActive} setShowAdd={setShowAdd} setSelectedProject={setSelectedProject} />}
+          {active === "projects" && <ProjectsView projects={filteredProjects} query={query} setQuery={setQuery} setShowAdd={setShowAdd} setSelectedProject={setSelectedProject} />}
+          {active === "workflow" && <WorkflowView projects={filteredProjects} setSelectedProject={setSelectedProject} />}
+          {active === "ai" && <AIAssistantView projects={filteredProjects} />}
+          {!["dashboard", "projects", "workflow", "ai"].includes(active) && (
+            <TrackerView id={active} label={navGroups.flatMap((g) => g.items).find((i) => i.id === active)?.label ?? active} onAdd={() => placeholderAction("Add record")} onUpload={() => fileRef.current?.click()} />
           )}
-        </div>
-      </section>
+        </main>
+      </div>
 
-      <input ref={fileRef} type="file" className="hidden-input" onChange={uploadFile} accept=".pdf,.xlsx,.xls,.csv,.doc,.docx,.jpg,.jpeg,.png" />
+      {/* MODALS */}
       {showAdd && <AddProjectModal close={() => setShowAdd(false)} submit={addProject} />}
       {selectedProject && <ProjectDrawer project={selectedProject} close={() => setSelectedProject(null)} />}
-      {showSettings && <SettingsDrawer close={() => { setShowSettings(false); setActive("dashboard"); }} theme={theme} setTheme={setTheme} density={density} setDensity={setDensity} fontSize={fontSize} setFontSize={setFontSize} fontColor={fontColor} setFontColor={setFontColor} backgroundColor={backgroundColor} setBackgroundColor={setBackgroundColor} sessionMinutes={sessionMinutes} setSessionMinutes={setSessionMinutes} />}
-      {showVault && <VaultModal close={() => { setShowVault(false); setVaultUnlocked(false); }} unlocked={vaultUnlocked} unlock={() => setVaultUnlocked(true)} />}
-      {toast && <div className="toast"><span>✓</span>{toast}</div>}
-    </main>
+      {showSettings && <SettingsDrawer close={() => setShowSettings(false)} theme={theme} setTheme={setTheme} density={density} setDensity={setDensity} fontSize={fontSize} setFontSize={setFontSize} fontColor={fontColor} setFontColor={setFontColor} backgroundColor={backgroundColor} setBackgroundColor={setBackgroundColor} sessionMinutes={sessionMinutes} setSessionMinutes={setSessionMinutes} />}
+      {showVault && <VaultModal close={() => setShowVault(false)} unlocked={vaultUnlocked} unlock={() => setVaultUnlocked(true)} />}
+
+      <input ref={fileRef} type="file" hidden onChange={uploadFile} />
+    </div>
   );
 }
+
 
 function Dashboard({ projects, setActive, setShowAdd, setSelectedProject }: { projects: Project[]; setActive: (v: string) => void; setShowAdd: (v: boolean) => void; setSelectedProject: (v: Project) => void }) {
   const cards = [["Active Projects", String(projects.length), "+2 this month", "▦", "plum"], ["Physical Units", String(projects.reduce((n, p) => n + p.quantity, 0)), "Across all projects", "◇", "rose"], ["Pending Documents", "7", "3 need attention", "▤", "amber"], ["In Fabrication", "7", "2 nearing target", "⚙", "blue"], ["Ready for Delivery", "4", "Within 15 days", "⌁", "green"], ["Pending Billing", "3", "Follow-up required", "◒", "lavender"]];
@@ -749,4 +826,6 @@ How can I help you today? You can choose a quick action below or type any questi
     </>
   );
 }
+
+
 
