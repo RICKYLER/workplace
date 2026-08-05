@@ -59,6 +59,14 @@ export type Lead = {
   assignedOwner: string;
   recordMode: RecordMode;
   email?: string;
+  facebookName?: string;
+  existingCustomerId?: string;
+  pianoBrand?: string;
+  photosVideos?: string[];
+  budgetRange?: string;
+  accessParkingTravelNotes?: string;
+  notes?: string;
+  followUpDate?: string;
 };
 
 export type EstimateStatus =
@@ -456,6 +464,12 @@ export type InventoryUnit = {
   price: number;
   status: "In Stock" | "Reserved" | "Sold" | "Under Repair";
   recordMode: RecordMode;
+  notes?: string;
+  photos?: string[];
+  reservedBy?: string;
+  reservedUntil?: string;
+  soldDate?: string;
+  soldTo?: string;
 };
 
 export type DocumentType = "Estimate" | "Quotation" | "Job Order" | "Service Report" | "Invoice" | "Payment Acknowledgment";
@@ -526,9 +540,9 @@ const demoCustomers: Customer[] = [
 ];
 
 const demoLeads: Lead[] = [
-  { id: "LEAD-001", createdDate: "2026-08-01", source: "Website", customerName: "Maria Santos", contactNumber: "0918-123-4567", locationCity: "Bajada, Davao City", inquiryType: "Tuning", pianoType: "Grand (Steinway Model M)", mainConcern: "Full tuning and pitch raise A440", preferredSchedule: "Mornings", status: "Converted to Estimate", nextAction: "Send formal Estimate", assignedOwner: "Robert Herrero", recordMode: "ACTUAL" },
-  { id: "LEAD-002", createdDate: "2026-08-03", source: "Referral", customerName: "Davao Concert Hall", contactNumber: "0920-987-6543", locationCity: "Davao City", inquiryType: "Assessment", pianoType: "Concert Grand", mainConcern: "Concert grand tuning & hammer voicing", preferredSchedule: "Weekends", status: "New Lead", nextAction: "Schedule On-Site Visit", assignedOwner: "Robert Herrero", recordMode: "ACTUAL" },
-  { id: "LEAD-003", createdDate: "2026-08-03", source: "Walk-In", customerName: "Dr. Gabriel Cruz", contactNumber: "0917-888-1234", locationCity: "Matina, Davao City", inquiryType: "Repair", pianoType: "Kawai Upright", mainConcern: "Sticky key regulation & pedal alignment", preferredSchedule: "Afternoons", status: "Qualified", nextAction: "Send Estimate", assignedOwner: "Robert Herrero", recordMode: "ACTUAL" },
+  { id: "LEAD-001", createdDate: "2026-08-01", source: "Website", customerName: "Maria Santos", contactNumber: "0918-123-4567", locationCity: "Bajada, Davao City", inquiryType: "Tuning", pianoType: "Grand (Steinway Model M)", mainConcern: "Full tuning and pitch raise A440", preferredSchedule: "Mornings", status: "Converted to Estimate", nextAction: "Send formal Estimate", assignedOwner: "Robert Herrero", recordMode: "ACTUAL", email: "maria@example.com", budgetRange: "₱15,000 – ₱20,000", followUpDate: "2026-08-05" },
+  { id: "LEAD-002", createdDate: "2026-08-03", source: "Referral", customerName: "Davao Concert Hall", contactNumber: "0920-987-6543", locationCity: "Davao City", inquiryType: "Assessment", pianoType: "Concert Grand", mainConcern: "Concert grand tuning & hammer voicing", preferredSchedule: "Weekends", status: "New Lead", nextAction: "Schedule On-Site Visit", assignedOwner: "Robert Herrero", recordMode: "ACTUAL", pianoBrand: "Steinway", accessParkingTravelNotes: "Security clearance required at front gate" },
+  { id: "LEAD-003", createdDate: "2026-08-03", source: "Walk-In", customerName: "Dr. Gabriel Cruz", contactNumber: "0917-888-1234", locationCity: "Matina, Davao City", inquiryType: "Repair", pianoType: "Kawai Upright", mainConcern: "Sticky key regulation & pedal alignment", preferredSchedule: "Afternoons", status: "Qualified", nextAction: "Send Estimate", assignedOwner: "Robert Herrero", recordMode: "ACTUAL", facebookName: "Gabriel Cruz Music", existingCustomerId: "CUST-001", photosVideos: ["photo-reference-1.jpg"], notes: "Walk-in lead from existing customer referral." },
 ];
 
 const demoEstimates: Estimate[] = [
@@ -1767,6 +1781,197 @@ export default function RhpsWorkspace({
   const [showCustomerModal, setShowCustomerModal] = useState<boolean>(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<Customer | null>(null);
+
+  // --- CRM LEADS MODULE STATE & HANDLERS ---
+  const [showLeadModal, setShowLeadModal] = useState<boolean>(false);
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [leadCreatedDate, setLeadCreatedDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [leadSource, setLeadSource] = useState<Lead["source"]>("Website");
+  const [leadCustomerName, setLeadCustomerName] = useState<string>("");
+  const [leadContactNumber, setLeadContactNumber] = useState<string>("");
+  const [leadLocationCity, setLeadLocationCity] = useState<string>("");
+  const [leadInquiryType, setLeadInquiryType] = useState<Lead["inquiryType"]>("Tuning");
+  const [leadPianoType, setLeadPianoType] = useState<string>("");
+  const [leadMainConcern, setLeadMainConcern] = useState<string>("");
+  const [leadPreferredSchedule, setLeadPreferredSchedule] = useState<string>("");
+  const [leadStatus, setLeadStatus] = useState<Lead["status"]>("New Lead");
+  const [leadNextAction, setLeadNextAction] = useState<string>("");
+  const [leadAssignedOwner, setLeadAssignedOwner] = useState<string>("Robert Herrero");
+  const [leadFacebookName, setLeadFacebookName] = useState<string>("");
+  const [leadEmail, setLeadEmail] = useState<string>("");
+  const [leadExistingCustomerId, setLeadExistingCustomerId] = useState<string>("");
+  const [leadPianoBrand, setLeadPianoBrand] = useState<string>("");
+  const [leadBudgetRange, setLeadBudgetRange] = useState<string>("");
+  const [leadAccessNotes, setLeadAccessNotes] = useState<string>("");
+  const [leadNotes, setLeadNotes] = useState<string>("");
+  const [leadFollowUpDate, setLeadFollowUpDate] = useState<string>("");
+  const [leadMediaInput, setLeadMediaInput] = useState<string>("");
+  const [leadMediaItems, setLeadMediaItems] = useState<string[]>([]);
+
+  const openCreateLeadModal = () => {
+    setEditingLead(null);
+    setLeadCreatedDate(new Date().toISOString().split("T")[0]);
+    setLeadSource("Website");
+    setLeadCustomerName("");
+    setLeadContactNumber("");
+    setLeadLocationCity("");
+    setLeadInquiryType("Tuning");
+    setLeadPianoType("");
+    setLeadMainConcern("");
+    setLeadPreferredSchedule("");
+    setLeadStatus("New Lead");
+    setLeadNextAction("");
+    setLeadAssignedOwner("Robert Herrero");
+    setLeadFacebookName("");
+    setLeadEmail("");
+    setLeadExistingCustomerId("");
+    setLeadPianoBrand("");
+    setLeadBudgetRange("");
+    setLeadAccessNotes("");
+    setLeadNotes("");
+    setLeadFollowUpDate("");
+    setLeadMediaInput("");
+    setLeadMediaItems([]);
+    setShowLeadModal(true);
+  };
+
+  const openEditLeadModal = (lead: Lead) => {
+    setEditingLead(lead);
+    setLeadCreatedDate(lead.createdDate);
+    setLeadSource(lead.source);
+    setLeadCustomerName(lead.customerName);
+    setLeadContactNumber(lead.contactNumber);
+    setLeadLocationCity(lead.locationCity);
+    setLeadInquiryType(lead.inquiryType);
+    setLeadPianoType(lead.pianoType);
+    setLeadMainConcern(lead.mainConcern);
+    setLeadPreferredSchedule(lead.preferredSchedule);
+    setLeadStatus(lead.status);
+    setLeadNextAction(lead.nextAction);
+    setLeadAssignedOwner(lead.assignedOwner);
+    setLeadFacebookName(lead.facebookName || "");
+    setLeadEmail(lead.email || "");
+    setLeadExistingCustomerId(lead.existingCustomerId || "");
+    setLeadPianoBrand(lead.pianoBrand || "");
+    setLeadBudgetRange(lead.budgetRange || "");
+    setLeadAccessNotes(lead.accessParkingTravelNotes || "");
+    setLeadNotes(lead.notes || "");
+    setLeadFollowUpDate(lead.followUpDate || "");
+    setLeadMediaItems(lead.photosVideos || []);
+    setLeadMediaInput("");
+    setShowLeadModal(true);
+  };
+
+  const handleLeadMediaFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const readTasks = Array.from(files).map(
+      (file) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+          reader.onerror = () => reject(new Error("Failed to read media file."));
+          reader.readAsDataURL(file);
+        })
+    );
+
+    Promise.all(readTasks)
+      .then((encodedMedia) => {
+        const validMedia = encodedMedia.filter((item) => item);
+        if (validMedia.length > 0) {
+          setLeadMediaItems((prev) => [...validMedia, ...prev]);
+          showToast(`📎 ${validMedia.length} media item(s) uploaded.`);
+        }
+      })
+      .catch(() => showToast("⚠️ Unable to read one or more selected media files."));
+
+    e.target.value = "";
+  };
+
+  const handleAddLeadMediaItem = () => {
+    const clean = leadMediaInput.trim();
+    if (!clean) return;
+    setLeadMediaItems((prev) => [clean, ...prev]);
+    setLeadMediaInput("");
+  };
+
+  const handleRemoveLeadMediaItem = (item: string) => {
+    setLeadMediaItems((prev) => prev.filter((entry) => entry !== item));
+  };
+
+  const handleSaveLeadSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!leadCustomerName.trim() || !leadContactNumber.trim() || !leadLocationCity.trim() || !leadPianoType.trim() || !leadMainConcern.trim() || !leadPreferredSchedule.trim() || !leadNextAction.trim() || !leadAssignedOwner.trim()) {
+      showToast("⚠️ Please fill in all required lead fields.");
+      return;
+    }
+
+    if (editingLead) {
+      setLeads(
+        leads.map((item) =>
+          item.id === editingLead.id
+            ? {
+                ...item,
+                createdDate: leadCreatedDate,
+                source: leadSource,
+                customerName: leadCustomerName.trim(),
+                contactNumber: leadContactNumber.trim(),
+                locationCity: leadLocationCity.trim(),
+                inquiryType: leadInquiryType,
+                pianoType: leadPianoType.trim(),
+                mainConcern: leadMainConcern.trim(),
+                preferredSchedule: leadPreferredSchedule.trim(),
+                status: leadStatus,
+                nextAction: leadNextAction.trim(),
+                assignedOwner: leadAssignedOwner.trim(),
+                facebookName: leadFacebookName.trim() || undefined,
+                email: leadEmail.trim() || undefined,
+                existingCustomerId: leadExistingCustomerId.trim() || undefined,
+                pianoBrand: leadPianoBrand.trim() || undefined,
+                photosVideos: leadMediaItems.length ? leadMediaItems : undefined,
+                budgetRange: leadBudgetRange.trim() || undefined,
+                accessParkingTravelNotes: leadAccessNotes.trim() || undefined,
+                notes: leadNotes.trim() || undefined,
+                followUpDate: leadFollowUpDate || undefined,
+              }
+            : item
+        )
+      );
+      showToast(`💾 Lead ${editingLead.id} updated.`);
+    } else {
+      const newLeadId = `LEAD-${String(leads.length + 1).padStart(3, "0")}`;
+      const newLead: Lead = {
+        id: newLeadId,
+        createdDate: leadCreatedDate,
+        source: leadSource,
+        customerName: leadCustomerName.trim(),
+        contactNumber: leadContactNumber.trim(),
+        locationCity: leadLocationCity.trim(),
+        inquiryType: leadInquiryType,
+        pianoType: leadPianoType.trim(),
+        mainConcern: leadMainConcern.trim(),
+        preferredSchedule: leadPreferredSchedule.trim(),
+        status: leadStatus,
+        nextAction: leadNextAction.trim(),
+        assignedOwner: leadAssignedOwner.trim(),
+        recordMode: "ACTUAL",
+        facebookName: leadFacebookName.trim() || undefined,
+        email: leadEmail.trim() || undefined,
+        existingCustomerId: leadExistingCustomerId.trim() || undefined,
+        pianoBrand: leadPianoBrand.trim() || undefined,
+        photosVideos: leadMediaItems.length ? leadMediaItems : undefined,
+        budgetRange: leadBudgetRange.trim() || undefined,
+        accessParkingTravelNotes: leadAccessNotes.trim() || undefined,
+        notes: leadNotes.trim() || undefined,
+        followUpDate: leadFollowUpDate || undefined,
+      };
+      setLeads([newLead, ...leads]);
+      showToast(`✨ Lead ${newLeadId} created.`);
+    }
+
+    setShowLeadModal(false);
+  };
 
   // --- ESTIMATES MODULE STATE & HANDLERS ---
   const [estimateFilter, setEstimateFilter] = useState<"All" | "Draft" | "Sent to Customer" | "Approved" | "Declined" | "Revision Requested" | "Converted to Quotation">("All");
@@ -3759,6 +3964,296 @@ export default function RhpsWorkspace({
     setShowCloseLostModal(false);
   };
 
+  // --- INVENTORY MODULE STATE & HANDLERS ---
+  const [showInventoryModal, setShowInventoryModal] = useState<boolean>(false);
+  const [editingInventory, setEditingInventory] = useState<InventoryUnit | null>(null);
+  const [inventoryActionTarget, setInventoryActionTarget] = useState<InventoryUnit | null>(null);
+  const [showReserveModal, setShowReserveModal] = useState<boolean>(false);
+  const [showReleaseReserveModal, setShowReleaseReserveModal] = useState<boolean>(false);
+  const [showMarkSoldModal, setShowMarkSoldModal] = useState<boolean>(false);
+  const [showAdjustPriceModal, setShowAdjustPriceModal] = useState<boolean>(false);
+
+  const [invBrand, setInvBrand] = useState<string>("");
+  const [invModel, setInvModel] = useState<string>("");
+  const [invSerialNo, setInvSerialNo] = useState<string>("");
+  const [invCondition, setInvCondition] = useState<InventoryUnit["condition"]>("Refurbished");
+  const [invPrice, setInvPrice] = useState<number>(0);
+  const [invStatus, setInvStatus] = useState<InventoryUnit["status"]>("In Stock");
+  const [invRecordMode, setInvRecordMode] = useState<RecordMode>("ACTUAL");
+  const [invNotes, setInvNotes] = useState<string>("");
+  const [invPhotoInput, setInvPhotoInput] = useState<string>("");
+  const [invPhotos, setInvPhotos] = useState<string[]>([]);
+
+  const [reserveByInput, setReserveByInput] = useState<string>("");
+  const [reserveUntilInput, setReserveUntilInput] = useState<string>("");
+  const [reserveNotesInput, setReserveNotesInput] = useState<string>("");
+
+  const [markSoldToInput, setMarkSoldToInput] = useState<string>("");
+  const [markSoldDateInput, setMarkSoldDateInput] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [markSoldNotesInput, setMarkSoldNotesInput] = useState<string>("");
+
+  const [adjustPriceInput, setAdjustPriceInput] = useState<number>(0);
+  const [adjustPriceReasonInput, setAdjustPriceReasonInput] = useState<string>("");
+
+  const openCreateInventoryModal = () => {
+    setEditingInventory(null);
+    setInvBrand("");
+    setInvModel("");
+    setInvSerialNo("");
+    setInvCondition("Refurbished");
+    setInvPrice(0);
+    setInvStatus("In Stock");
+    setInvRecordMode("ACTUAL");
+    setInvNotes("");
+    setInvPhotos([]);
+    setInvPhotoInput("");
+    setShowInventoryModal(true);
+  };
+
+  const openEditInventoryModal = (inv: InventoryUnit) => {
+    setEditingInventory(inv);
+    setInvBrand(inv.brand);
+    setInvModel(inv.model);
+    setInvSerialNo(inv.serialNumber);
+    setInvCondition(inv.condition);
+    setInvPrice(inv.price);
+    setInvStatus(inv.status);
+    setInvRecordMode(inv.recordMode);
+    setInvNotes(inv.notes || "");
+    setInvPhotos(inv.photos || []);
+    setInvPhotoInput("");
+    setShowInventoryModal(true);
+  };
+
+  const handleAddPhotoToDraft = () => {
+    const clean = invPhotoInput.trim();
+    if (!clean) return;
+    setInvPhotos((prev) => [clean, ...prev]);
+    setInvPhotoInput("");
+  };
+
+  const handleInventoryPhotoFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const readTasks = Array.from(files).map(
+      (file) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+          reader.onerror = () => reject(new Error("Failed to read image file."));
+          reader.readAsDataURL(file);
+        })
+    );
+
+    Promise.all(readTasks)
+      .then((encodedPhotos) => {
+        const validPhotos = encodedPhotos.filter((p) => p);
+        if (validPhotos.length > 0) {
+          setInvPhotos((prev) => [...validPhotos, ...prev]);
+          showToast(`📷 ${validPhotos.length} photo(s) uploaded.`);
+        }
+      })
+      .catch(() => {
+        showToast("⚠️ Unable to read one or more selected photos.");
+      });
+
+    e.target.value = "";
+  };
+
+  const handleRemovePhotoFromDraft = (photo: string) => {
+    setInvPhotos((prev) => prev.filter((p) => p !== photo));
+  };
+
+  const handleSaveInventorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invBrand.trim() || !invModel.trim() || !invSerialNo.trim()) {
+      showToast("⚠️ Brand, model, and serial number are required.");
+      return;
+    }
+
+    if (invPrice <= 0) {
+      showToast("⚠️ Please set a valid inventory price.");
+      return;
+    }
+
+    const normalizedSerial = invSerialNo.trim();
+    const duplicateSerial = inventory.some((unit) => {
+      if (editingInventory && unit.id === editingInventory.id) return false;
+      return unit.serialNumber.trim().toLowerCase() === normalizedSerial.toLowerCase();
+    });
+
+    if (duplicateSerial) {
+      showToast("⚠️ Serial number already exists in inventory.");
+      return;
+    }
+
+    if (editingInventory) {
+      setInventory(
+        inventory.map((item) =>
+          item.id === editingInventory.id
+            ? {
+                ...item,
+                brand: invBrand.trim(),
+                model: invModel.trim(),
+                serialNumber: normalizedSerial,
+                condition: invCondition,
+                price: invPrice,
+                status: invStatus,
+                recordMode: invRecordMode,
+                notes: invNotes.trim() || undefined,
+                photos: invPhotos.length ? invPhotos : undefined,
+              }
+            : item
+        )
+      );
+      showToast(`💾 Inventory unit ${editingInventory.id} updated.`);
+    } else {
+      const newInvId = `RHPS-INV-${String(inventory.length + 1).padStart(3, "0")}`;
+      const newInvObj: InventoryUnit = {
+        id: newInvId,
+        brand: invBrand.trim(),
+        model: invModel.trim(),
+        serialNumber: normalizedSerial,
+        condition: invCondition,
+        price: invPrice,
+        status: invStatus,
+        recordMode: invRecordMode,
+        notes: invNotes.trim() || undefined,
+        photos: invPhotos.length ? invPhotos : undefined,
+      };
+      setInventory([newInvObj, ...inventory]);
+      showToast(`✨ Inventory unit ${newInvId} added.`);
+    }
+
+    setShowInventoryModal(false);
+  };
+
+  const openReserveInventoryModal = (inv: InventoryUnit) => {
+    setInventoryActionTarget(inv);
+    setReserveByInput(inv.reservedBy || "");
+    setReserveUntilInput(inv.reservedUntil || new Date().toISOString().split("T")[0]);
+    setReserveNotesInput("");
+    setShowReserveModal(true);
+  };
+
+  const handleReserveInventorySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inventoryActionTarget) return;
+
+    if (!reserveByInput.trim()) {
+      showToast("⚠️ Reserved by is required.");
+      return;
+    }
+
+    setInventory(
+      inventory.map((item) =>
+        item.id === inventoryActionTarget.id
+          ? {
+              ...item,
+              status: "Reserved",
+              reservedBy: reserveByInput.trim(),
+              reservedUntil: reserveUntilInput || undefined,
+              notes: reserveNotesInput.trim() ? `${item.notes ? `${item.notes} | ` : ""}Reserved: ${reserveNotesInput.trim()}` : item.notes,
+            }
+          : item
+      )
+    );
+    showToast(`🔒 ${inventoryActionTarget.id} reserved for ${reserveByInput.trim()}.`);
+    setShowReserveModal(false);
+  };
+
+  const openReleaseReservationModal = (inv: InventoryUnit) => {
+    setInventoryActionTarget(inv);
+    setShowReleaseReserveModal(true);
+  };
+
+  const handleReleaseReservation = () => {
+    if (!inventoryActionTarget) return;
+    setInventory(
+      inventory.map((item) =>
+        item.id === inventoryActionTarget.id
+          ? {
+              ...item,
+              status: "In Stock",
+              reservedBy: undefined,
+              reservedUntil: undefined,
+            }
+          : item
+      )
+    );
+    showToast(`🔓 Reservation released for ${inventoryActionTarget.id}.`);
+    setShowReleaseReserveModal(false);
+  };
+
+  const openMarkSoldModal = (inv: InventoryUnit) => {
+    setInventoryActionTarget(inv);
+    setMarkSoldToInput(inv.soldTo || "");
+    setMarkSoldDateInput(inv.soldDate || new Date().toISOString().split("T")[0]);
+    setMarkSoldNotesInput("");
+    setShowMarkSoldModal(true);
+  };
+
+  const handleMarkSoldSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inventoryActionTarget) return;
+
+    if (!markSoldToInput.trim()) {
+      showToast("⚠️ Buyer name is required to mark an item sold.");
+      return;
+    }
+
+    setInventory(
+      inventory.map((item) =>
+        item.id === inventoryActionTarget.id
+          ? {
+              ...item,
+              status: "Sold",
+              soldTo: markSoldToInput.trim(),
+              soldDate: markSoldDateInput || undefined,
+              reservedBy: undefined,
+              reservedUntil: undefined,
+              notes: markSoldNotesInput.trim() ? `${item.notes ? `${item.notes} | ` : ""}Sold: ${markSoldNotesInput.trim()}` : item.notes,
+            }
+          : item
+      )
+    );
+    showToast(`✅ ${inventoryActionTarget.id} marked as SOLD.`);
+    setShowMarkSoldModal(false);
+  };
+
+  const openAdjustPriceModal = (inv: InventoryUnit) => {
+    setInventoryActionTarget(inv);
+    setAdjustPriceInput(inv.price);
+    setAdjustPriceReasonInput("");
+    setShowAdjustPriceModal(true);
+  };
+
+  const handleAdjustPriceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inventoryActionTarget) return;
+
+    if (adjustPriceInput <= 0) {
+      showToast("⚠️ Please provide a valid new price.");
+      return;
+    }
+
+    setInventory(
+      inventory.map((item) =>
+        item.id === inventoryActionTarget.id
+          ? {
+              ...item,
+              price: adjustPriceInput,
+              notes: adjustPriceReasonInput.trim() ? `${item.notes ? `${item.notes} | ` : ""}Price Adjusted: ${adjustPriceReasonInput.trim()}` : item.notes,
+            }
+          : item
+      )
+    );
+
+    showToast(`💰 Price adjusted for ${inventoryActionTarget.id} to ₱${adjustPriceInput.toLocaleString()}.`);
+    setShowAdjustPriceModal(false);
+  };
+
   // Customer Modal Form State
   const [custName, setCustName] = useState<string>("");
   const [custContact, setCustContact] = useState<string>("");
@@ -4542,28 +5037,76 @@ Total Invoices: ${invoices.length}
 
           {/* 2. CRM LEADS */}
           {activeTab === "crm_leads" && (
-            <div className="rhps-view">
-              <h2>CRM Leads</h2>
+            <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <h2 style={{ margin: 0 }}>CRM Leads</h2>
+                  <p className="subtitle" style={{ margin: "4px 0 0" }}>
+                    Capture new leads with all required contact, inquiry, scheduling, and follow-up details.
+                  </p>
+                </div>
+                <button
+                  className="primary"
+                  style={{ padding: "8px 18px", borderRadius: 10, fontSize: 13, background: "#0f172a", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                  onClick={openCreateLeadModal}
+                >
+                  ＋ Add Lead
+                </button>
+              </div>
               <table className="rhps-table">
                 <thead>
                   <tr>
                     <th>Lead ID</th>
+                    <th>Date Created</th>
+                    <th>Lead Source</th>
                     <th>Customer Name</th>
                     <th>Contact Number</th>
                     <th>Location / City</th>
                     <th>Inquiry Type</th>
+                    <th>Piano Type</th>
+                    <th>Main Concern</th>
+                    <th>Preferred Schedule</th>
                     <th>Status</th>
+                    <th>Next Action</th>
+                    <th>Assigned Owner</th>
+                    <th>Follow-Up</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {leads.map((lead) => (
                     <tr key={lead.id}>
                       <td><strong>{lead.id}</strong></td>
+                      <td>{lead.createdDate}</td>
+                      <td>{lead.source}</td>
                       <td>{lead.customerName}</td>
                       <td>{lead.contactNumber}</td>
                       <td>{lead.locationCity}</td>
                       <td>{lead.inquiryType}</td>
+                      <td>{lead.pianoType}</td>
+                      <td>{lead.mainConcern}</td>
+                      <td>{lead.preferredSchedule}</td>
                       <td>{lead.status}</td>
+                      <td>{lead.nextAction}</td>
+                      <td>{lead.assignedOwner}</td>
+                      <td>{lead.followUpDate || "N/A"}</td>
+                      <td style={{ textAlign: "right" }}>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
+                          <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 10px" }} onClick={() => openEditLeadModal(lead)}>
+                            ✏️ Edit Details
+                          </button>
+                          <button
+                            className="secondary-sm"
+                            style={{ fontSize: 11, padding: "4px 10px", background: "#dcfce7", color: "#15803d", border: "1px solid #86efac", fontWeight: 800 }}
+                            onClick={() => {
+                              setLeads(leads.map((item) => item.id === lead.id ? { ...item, status: "Converted to Estimate" } : item));
+                              showToast(`✅ Lead ${lead.id} converted to Estimate!`);
+                            }}
+                          >
+                            ✓ Resolve
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -7658,7 +8201,17 @@ Total Invoices: ${invoices.length}
           {/* 15. INVENTORY */}
           {activeTab === "inventory" && (
             <div className="rhps-view">
-              <h2>Store Inventory Units</h2>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+                <h2 style={{ margin: 0 }}>Store Inventory Units</h2>
+                <button
+                  className="primary"
+                  style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700 }}
+                  onClick={() => openCreateInventoryModal()}
+                >
+                  ➕ Add Unit
+                </button>
+              </div>
+
               <table className="rhps-table">
                 <thead>
                   <tr>
@@ -7668,6 +8221,10 @@ Total Invoices: ${invoices.length}
                     <th>Condition</th>
                     <th>Price</th>
                     <th>Status</th>
+                    <th>Reserved Info</th>
+                    <th>Sold Info</th>
+                    <th>Photos</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -7679,6 +8236,55 @@ Total Invoices: ${invoices.length}
                       <td>{inv.condition}</td>
                       <td>₱{inv.price.toLocaleString()}</td>
                       <td>{inv.status}</td>
+                      <td style={{ fontSize: 12 }}>
+                        {inv.reservedBy ? (
+                          <>
+                            <div><strong>{inv.reservedBy}</strong></div>
+                            <div style={{ color: "#64748b" }}>Until: {inv.reservedUntil || "N/A"}</div>
+                          </>
+                        ) : (
+                          <span style={{ color: "#94a3b8" }}>None</span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: 12 }}>
+                        {inv.soldTo ? (
+                          <>
+                            <div><strong>{inv.soldTo}</strong></div>
+                            <div style={{ color: "#64748b" }}>Date: {inv.soldDate || "N/A"}</div>
+                          </>
+                        ) : (
+                          <span style={{ color: "#94a3b8" }}>Not Sold</span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: 12 }}>{inv.photos?.length || 0} photo(s)</td>
+                      <td>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
+                          <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
+                            ✏️ Edit Details
+                          </button>
+                          <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
+                            📷 Upload Photos
+                          </button>
+                          {inv.status !== "Reserved" && inv.status !== "Sold" && (
+                            <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dbeafe", border: "1px solid #93c5fd", color: "#1d4ed8" }} onClick={() => openReserveInventoryModal(inv)}>
+                              🔒 Reserve
+                            </button>
+                          )}
+                          {inv.status === "Reserved" && (
+                            <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#fef3c7", border: "1px solid #fcd34d", color: "#92400e" }} onClick={() => openReleaseReservationModal(inv)}>
+                              🔓 Release Reservation
+                            </button>
+                          )}
+                          {inv.status !== "Sold" && (
+                            <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dcfce7", border: "1px solid #86efac", color: "#166534" }} onClick={() => openMarkSoldModal(inv)}>
+                              ✅ Mark Sold
+                            </button>
+                          )}
+                          <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#ede9fe", border: "1px solid #c4b5fd", color: "#5b21b6" }} onClick={() => openAdjustPriceModal(inv)}>
+                            💰 Adjust Price
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -8895,6 +9501,436 @@ Total Invoices: ${invoices.length}
                   {aiLoading ? "⚙️ Thinking..." : "Send ➔"}
                 </button>
               </form>
+            </div>
+          )}
+
+          {/* INVENTORY CREATE/EDIT MODAL */}
+          {showInventoryModal && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowInventoryModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 760 }}>
+                <div className="rhps-modal-header">
+                  <h3>{editingInventory ? `✏️ Edit Inventory Unit — ${editingInventory.id}` : "➕ Add Inventory Unit"}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowInventoryModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveInventorySubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 14 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Brand <span className="required-star">*</span></label>
+                        <input className="input-field" required value={invBrand} onChange={(e) => setInvBrand(e.target.value)} placeholder="e.g. Yamaha" />
+                      </div>
+                      <div className="form-group">
+                        <label>Model <span className="required-star">*</span></label>
+                        <input className="input-field" required value={invModel} onChange={(e) => setInvModel(e.target.value)} placeholder="e.g. U1 Professional Upright" />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Serial Number <span className="required-star">*</span></label>
+                        <input className="input-field" required value={invSerialNo} onChange={(e) => setInvSerialNo(e.target.value)} placeholder="e.g. YM-491028" />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Condition</label>
+                        <select className="input-field" value={invCondition} onChange={(e) => setInvCondition(e.target.value as InventoryUnit["condition"])}>
+                          <option value="Refurbished">Refurbished</option>
+                          <option value="Pre-Owned Excellent">Pre-Owned Excellent</option>
+                          <option value="Brand New">Brand New</option>
+                          <option value="As Is">As Is</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Price (PHP) <span className="required-star">*</span></label>
+                        <input
+                          type="number"
+                          min={0}
+                          className="input-field"
+                          required
+                          value={Number.isFinite(invPrice) ? invPrice : 0}
+                          onChange={(e) => setInvPrice(Number(e.target.value || 0))}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Status</label>
+                        <select className="input-field" value={invStatus} onChange={(e) => setInvStatus(e.target.value as InventoryUnit["status"])}>
+                          <option value="In Stock">In Stock</option>
+                          <option value="Reserved">Reserved</option>
+                          <option value="Sold">Sold</option>
+                          <option value="Under Repair">Under Repair</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Record Mode</label>
+                        <select className="input-field" value={invRecordMode} onChange={(e) => setInvRecordMode(e.target.value as RecordMode)}>
+                          <option value="ACTUAL">ACTUAL</option>
+                          <option value="TEST">TEST</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
+                      <strong style={{ fontSize: 12, color: "#0f172a", display: "block", marginBottom: 8 }}>📷 Upload Photos</strong>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="input-field"
+                        onChange={handleInventoryPhotoFilesSelected}
+                        style={{ marginBottom: 8 }}
+                      />
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <input
+                          className="input-field"
+                          value={invPhotoInput}
+                          onChange={(e) => setInvPhotoInput(e.target.value)}
+                          placeholder="Paste photo URL or filename"
+                          style={{ flex: 1, minWidth: 260 }}
+                        />
+                        <button type="button" className="secondary-sm" onClick={handleAddPhotoToDraft}>Add Photo</button>
+                      </div>
+                      <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {invPhotos.length === 0 ? (
+                          <span style={{ fontSize: 11, color: "#64748b" }}>No photos yet.</span>
+                        ) : (
+                          invPhotos.map((photo, idx) => (
+                            <span key={`${photo}-${idx}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: 999, padding: "4px 10px", fontSize: 11 }}>
+                              {photo}
+                              <button type="button" onClick={() => handleRemovePhotoFromDraft(photo)} style={{ border: "none", background: "transparent", color: "#dc2626", cursor: "pointer", fontWeight: 800 }}>×</button>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Notes</label>
+                      <textarea
+                        className="input-field"
+                        rows={3}
+                        value={invNotes}
+                        onChange={(e) => setInvNotes(e.target.value)}
+                        placeholder="Condition details, repairs done, or sales notes"
+                      />
+                    </div>
+                  </div>
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowInventoryModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#0f172a", color: "#ffffff", padding: "10px 20px", borderRadius: 10, fontWeight: 700, border: "none" }}>
+                      {editingInventory ? "💾 Save Details" : "➕ Add Unit"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* INVENTORY RESERVE MODAL */}
+          {showReserveModal && inventoryActionTarget && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowReserveModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 560 }}>
+                <div className="rhps-modal-header">
+                  <h3>🔒 Reserve Unit — {inventoryActionTarget.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowReserveModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleReserveInventorySubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 12 }}>
+                    <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: 10, fontSize: 12, color: "#1e3a8a" }}>
+                      Reserving: <strong>{inventoryActionTarget.brand} {inventoryActionTarget.model}</strong>
+                    </div>
+                    <div className="form-group">
+                      <label>Reserved By <span className="required-star">*</span></label>
+                      <input className="input-field" required value={reserveByInput} onChange={(e) => setReserveByInput(e.target.value)} placeholder="Buyer / customer name" />
+                    </div>
+                    <div className="form-group">
+                      <label>Reserved Until</label>
+                      <input type="date" className="input-field" value={reserveUntilInput} onChange={(e) => setReserveUntilInput(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label>Reservation Notes</label>
+                      <textarea className="input-field" rows={3} value={reserveNotesInput} onChange={(e) => setReserveNotesInput(e.target.value)} placeholder="Deposit details, contact confirmation, etc." />
+                    </div>
+                  </div>
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowReserveModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#1d4ed8", color: "#ffffff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700 }}>
+                      🔒 Confirm Reservation
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* INVENTORY RELEASE RESERVATION MODAL */}
+          {showReleaseReserveModal && inventoryActionTarget && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowReleaseReserveModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 520 }}>
+                <div className="rhps-modal-header">
+                  <h3>🔓 Release Reservation</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowReleaseReserveModal(false)}>×</button>
+                </div>
+                <div className="rhps-modal-body" style={{ gap: 12 }}>
+                  <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: 12, fontSize: 12.5, color: "#92400e" }}>
+                    You are about to release reservation for <strong>{inventoryActionTarget.id}</strong>.
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "#334155" }}>
+                    Reserved by: <strong>{inventoryActionTarget.reservedBy || "N/A"}</strong><br />
+                    Reserved until: <strong>{inventoryActionTarget.reservedUntil || "N/A"}</strong>
+                  </div>
+                </div>
+                <div className="rhps-modal-footer">
+                  <button type="button" className="secondary-sm" onClick={() => setShowReleaseReserveModal(false)}>Cancel</button>
+                  <button type="button" className="primary" onClick={handleReleaseReservation} style={{ background: "#d97706", color: "#ffffff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700 }}>
+                    🔓 Release Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* INVENTORY MARK SOLD MODAL */}
+          {showMarkSoldModal && inventoryActionTarget && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowMarkSoldModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 560 }}>
+                <div className="rhps-modal-header">
+                  <h3>✅ Mark Unit as Sold — {inventoryActionTarget.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowMarkSoldModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleMarkSoldSubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 12 }}>
+                    <div className="form-group">
+                      <label>Sold To <span className="required-star">*</span></label>
+                      <input className="input-field" required value={markSoldToInput} onChange={(e) => setMarkSoldToInput(e.target.value)} placeholder="Buyer / customer name" />
+                    </div>
+                    <div className="form-group">
+                      <label>Sold Date</label>
+                      <input type="date" className="input-field" value={markSoldDateInput} onChange={(e) => setMarkSoldDateInput(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label>Sale Notes</label>
+                      <textarea className="input-field" rows={3} value={markSoldNotesInput} onChange={(e) => setMarkSoldNotesInput(e.target.value)} placeholder="Payment terms, official receipt reference, etc." />
+                    </div>
+                  </div>
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowMarkSoldModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#15803d", color: "#ffffff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700 }}>
+                      ✅ Confirm Sold
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* INVENTORY ADJUST PRICE MODAL */}
+          {showAdjustPriceModal && inventoryActionTarget && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowAdjustPriceModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 560 }}>
+                <div className="rhps-modal-header">
+                  <h3>💰 Adjust Price — {inventoryActionTarget.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowAdjustPriceModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleAdjustPriceSubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 12 }}>
+                    <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 10, fontSize: 12.5, color: "#334155" }}>
+                      Current Price: <strong>₱{inventoryActionTarget.price.toLocaleString()}</strong>
+                    </div>
+                    <div className="form-group">
+                      <label>New Price (PHP) <span className="required-star">*</span></label>
+                      <input type="number" min={1} className="input-field" required value={adjustPriceInput} onChange={(e) => setAdjustPriceInput(Number(e.target.value || 0))} />
+                    </div>
+                    <div className="form-group">
+                      <label>Reason for Adjustment</label>
+                      <textarea className="input-field" rows={3} value={adjustPriceReasonInput} onChange={(e) => setAdjustPriceReasonInput(e.target.value)} placeholder="Market update, cosmetic restoration completed, promo, etc." />
+                    </div>
+                  </div>
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowAdjustPriceModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#7c3aed", color: "#ffffff", border: "none", borderRadius: 10, padding: "10px 18px", fontWeight: 700 }}>
+                      💰 Save New Price
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* CRM LEAD MODAL */}
+          {showLeadModal && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowLeadModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 920 }}>
+                <div className="rhps-modal-header">
+                  <h3>{editingLead ? `✏️ Edit Lead — ${editingLead.id}` : "✦ Add CRM Lead"}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowLeadModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveLeadSubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 14 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Lead ID</label>
+                        <input className="input-field" value={editingLead?.id || `LEAD-${String(leads.length + 1).padStart(3, "0")}`} disabled />
+                      </div>
+                      <div className="form-group">
+                        <label>Date Created <span className="required-star">*</span></label>
+                        <input type="date" className="input-field" required value={leadCreatedDate} onChange={(e) => setLeadCreatedDate(e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label>Lead Source <span className="required-star">*</span></label>
+                        <select className="input-field" required value={leadSource} onChange={(e) => setLeadSource(e.target.value as Lead["source"])}>
+                          <option value="Facebook">Facebook</option>
+                          <option value="Website">Website</option>
+                          <option value="Call">Call</option>
+                          <option value="Walk-In">Walk-In</option>
+                          <option value="Referral">Referral</option>
+                          <option value="Repeat Customer">Repeat Customer</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Customer Name <span className="required-star">*</span></label>
+                        <input className="input-field" required value={leadCustomerName} onChange={(e) => setLeadCustomerName(e.target.value)} placeholder="Full customer or business name" />
+                      </div>
+                      <div className="form-group">
+                        <label>Contact Number <span className="required-star">*</span></label>
+                        <input className="input-field" required value={leadContactNumber} onChange={(e) => setLeadContactNumber(e.target.value)} placeholder="0917-123-4567" />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Location / City <span className="required-star">*</span></label>
+                        <input className="input-field" required value={leadLocationCity} onChange={(e) => setLeadLocationCity(e.target.value)} placeholder="Davao City / district" />
+                      </div>
+                      <div className="form-group">
+                        <label>Inquiry Type <span className="required-star">*</span></label>
+                        <select className="input-field" required value={leadInquiryType} onChange={(e) => setLeadInquiryType(e.target.value as Lead["inquiryType"])}>
+                          <option value="Tuning">Tuning</option>
+                          <option value="Repair">Repair</option>
+                          <option value="Cleaning">Cleaning</option>
+                          <option value="Assessment">Assessment</option>
+                          <option value="Moving">Moving</option>
+                          <option value="Sales">Sales</option>
+                          <option value="Trade-In">Trade-In</option>
+                          <option value="Rental">Rental</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Piano Type <span className="required-star">*</span></label>
+                        <input className="input-field" required value={leadPianoType} onChange={(e) => setLeadPianoType(e.target.value)} placeholder="Grand, Upright, digital, etc." />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Main Concern <span className="required-star">*</span></label>
+                      <textarea className="input-field" rows={3} required value={leadMainConcern} onChange={(e) => setLeadMainConcern(e.target.value)} placeholder="Describe the main issue or request" />
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Preferred Schedule <span className="required-star">*</span></label>
+                        <input className="input-field" required value={leadPreferredSchedule} onChange={(e) => setLeadPreferredSchedule(e.target.value)} placeholder="Mornings, weekends, etc." />
+                      </div>
+                      <div className="form-group">
+                        <label>Lead Status <span className="required-star">*</span></label>
+                        <select className="input-field" required value={leadStatus} onChange={(e) => setLeadStatus(e.target.value as Lead["status"])}>
+                          <option value="New Lead">New Lead</option>
+                          <option value="Contacted">Contacted</option>
+                          <option value="Qualified">Qualified</option>
+                          <option value="Converted to Estimate">Converted to Estimate</option>
+                          <option value="Lost / Closed No Sale">Lost / Closed No Sale</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Assigned Owner <span className="required-star">*</span></label>
+                        <input className="input-field" required value={leadAssignedOwner} onChange={(e) => setLeadAssignedOwner(e.target.value)} />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Next Action <span className="required-star">*</span></label>
+                      <input className="input-field" required value={leadNextAction} onChange={(e) => setLeadNextAction(e.target.value)} placeholder="Call back, schedule visit, send estimate, etc." />
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Facebook Name</label>
+                        <input className="input-field" value={leadFacebookName} onChange={(e) => setLeadFacebookName(e.target.value)} placeholder="Facebook profile or page name" />
+                      </div>
+                      <div className="form-group">
+                        <label>Email</label>
+                        <input type="email" className="input-field" value={leadEmail} onChange={(e) => setLeadEmail(e.target.value)} placeholder="email@example.com" />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Existing Customer ID</label>
+                        <input className="input-field" value={leadExistingCustomerId} onChange={(e) => setLeadExistingCustomerId(e.target.value)} placeholder="If repeat customer" />
+                      </div>
+                      <div className="form-group">
+                        <label>Piano Brand</label>
+                        <input className="input-field" value={leadPianoBrand} onChange={(e) => setLeadPianoBrand(e.target.value)} placeholder="Yamaha, Kawai, Steinway..." />
+                      </div>
+                      <div className="form-group">
+                        <label>Budget Range</label>
+                        <input className="input-field" value={leadBudgetRange} onChange={(e) => setLeadBudgetRange(e.target.value)} placeholder="₱15,000 – ₱20,000" />
+                      </div>
+                    </div>
+
+                    <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
+                      <strong style={{ fontSize: 12, color: "#0f172a", display: "block", marginBottom: 8 }}>Photos / Videos</strong>
+                      <input type="file" accept="image/*,video/*" multiple className="input-field" onChange={handleLeadMediaFilesSelected} style={{ marginBottom: 8 }} />
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <input className="input-field" value={leadMediaInput} onChange={(e) => setLeadMediaInput(e.target.value)} placeholder="Paste link, file name, or reference" style={{ flex: 1, minWidth: 260 }} />
+                        <button type="button" className="secondary-sm" onClick={handleAddLeadMediaItem}>Add Item</button>
+                      </div>
+                      <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {leadMediaItems.length === 0 ? (
+                          <span style={{ fontSize: 11, color: "#64748b" }}>No media attached.</span>
+                        ) : (
+                          leadMediaItems.map((item, idx) => (
+                            <span key={`${item}-${idx}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: 999, padding: "4px 10px", fontSize: 11 }}>
+                              {item}
+                              <button type="button" onClick={() => handleRemoveLeadMediaItem(item)} style={{ border: "none", background: "transparent", color: "#dc2626", cursor: "pointer", fontWeight: 800 }}>×</button>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Access / Parking / Travel Notes</label>
+                        <textarea className="input-field" rows={3} value={leadAccessNotes} onChange={(e) => setLeadAccessNotes(e.target.value)} placeholder="Gate instructions, parking, stairs, travel constraints" />
+                      </div>
+                      <div className="form-group">
+                        <label>Notes</label>
+                        <textarea className="input-field" rows={3} value={leadNotes} onChange={(e) => setLeadNotes(e.target.value)} placeholder="Additional context or reminders" />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Follow-Up Date</label>
+                      <input type="date" className="input-field" value={leadFollowUpDate} onChange={(e) => setLeadFollowUpDate(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowLeadModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#0f172a", color: "#ffffff", padding: "10px 22px", borderRadius: 10, fontWeight: 700, border: "none" }}>
+                      {editingLead ? "💾 Save Lead" : "➕ Create Lead"}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
@@ -12403,7 +13439,8 @@ Total Invoices: ${invoices.length}
                               const selJo = e.target.value;
                               setExpLinkedJobOrderNo(selJo);
                               const matchedJo = jobOrders.find((j) => j.id === selJo);
-                              if (matchedJo) setExpLinkedCaseId(matchedJo.caseId);
+                              const nextCaseId = matchedJo?.caseId;
+                              setExpLinkedCaseId(typeof nextCaseId === "string" ? nextCaseId : "");
                             }}
                           >
                             <option value="">-- General Overhead (No Job) --</option>
@@ -12579,7 +13616,10 @@ Total Invoices: ${invoices.length}
                           // Revenue for this Job Order (Invoices or Verified Payments)
                           const jobRevenue = invoices
                             .filter((inv) => inv.linkedJobOrderNo === jo.id && inv.recordMode === "ACTUAL")
-                            .reduce((sum, inv) => sum + inv.grandTotal, 0) || (jo.cost || 0);
+                            .reduce((sum, inv) => {
+                              const invoiceTotal = typeof inv.grandTotal === "number" ? inv.grandTotal : 0;
+                              return sum + invoiceTotal;
+                            }, 0) || (jo.cost || 0);
 
                           // Expenses linked to this Job Order
                           const jobExpenses = expenses
