@@ -221,6 +221,9 @@ export type JobOrder = {
   partsUsed?: string;
   photosCount?: number;
   finalTestingChecklist?: FinalTestingChecklist;
+  cost?: number;
+  serviceType?: string;
+  caseId?: string;
 };
 
 export type ServiceReportStatus =
@@ -301,6 +304,8 @@ export type Invoice = {
   internalNotes?: string;
   pdfGenerated?: boolean;
   sentDate?: string;
+  grandTotal?: number;
+  linkedJobOrderNo?: string;
 };
 
 export type PaymentType = "Deposit" | "Partial" | "Progress" | "Full" | "Other";
@@ -336,47 +341,110 @@ export type Payment = {
   voidReason?: string;
 };
 
+export type ExpenseCategory = "Parts" | "Transport / Fuel" | "Tools" | "Utilities" | "Marketing" | "Job Overhead" | "Other";
+
 export type Expense = {
   id: string;
-  category: "Parts" | "Transport / Fuel" | "Tools" | "Utilities" | "Marketing" | "Other";
+  category: ExpenseCategory;
   description: string;
   amount: number;
   paidTo: string;
   date: string;
+  linkedJobOrderNo?: string;
+  linkedCaseId?: string;
+  receiptRefNo?: string;
+  recordedBy: string;
   recordMode: RecordMode;
+  notes?: string;
 };
+
+export type FollowUpType = "Routine Check-In" | "Next Service Reminder" | "Warranty Comeback" | "Other";
+export type FollowUpStatus = "Pending" | "Completed" | "Rescheduled" | "Cancelled";
 
 export type FollowUp = {
   id: string;
   caseId: string;
   customerName: string;
   pianoDetails: string;
-  followUpType: "Routine Check-In" | "Next Service Reminder" | "Warranty Comeback" | "Other";
+  followUpType: FollowUpType;
   targetDate: string;
   assignedTo: string;
-  status: "Pending" | "Done" | "Rescheduled" | "Closed";
+  status: FollowUpStatus;
   recordMode: RecordMode;
+  createdDate: string;
+
+  // Conditional Required (only if Follow-Up Type = Warranty Comeback)
+  linkedOriginalJobOrderNo?: string;
+  linkedOriginalServiceReportNo?: string;
+  issueDescription?: string;
+  coveredByWarranty?: "Yes" | "No";
+  newChargesRequired?: "Yes" | "No";
+
+  // Optional / Useful
+  contactMethod?: "Call" | "Message";
   notes?: string;
-  lastTuningDate?: string;
+  rescheduleReason?: string;
+  outcomeSummary?: string;
 };
+
+export type RepairStage = "Intake & Inspection" | "Parts Ordering" | "In Repair" | "Testing & Tuning" | "Ready for Delivery" | "Delivered & Closed";
 
 export type RepairRecord = {
   id: string;
   customerName: string;
+  contactNumber: string;
   pianoModel: string;
+  pianoSerialNo: string;
   issueDescription: string;
+  intakeDate: string;
   estimatedCompletion: string;
-  status: "Inspection" | "Parts Ordering" | "In Repair" | "Testing & Tuning" | "Ready for Delivery";
+  stage: RepairStage;
+  nextAction: string;
+  assignedTechnician: string;
+  linkedCaseId?: string;
+  linkedJobOrderNo?: string;
+  repairCost?: number;
+  linkedExpenseIds?: string[];
+  convertedToServiceReportId?: string;
+  repairNotes?: string;
   recordMode: RecordMode;
+  // Legacy compat
+  status: RepairStage;
 };
+
+export type TradeInStatus = "Opportunity Added" | "In Appraisal" | "Valuation Offered" | "Buyer Registered" | "Closed Won" | "Closed Lost";
 
 export type TradeInSale = {
   id: string;
   customerName: string;
-  offeredPiano: string;
-  valuation: number;
-  status: "In Valuation" | "Approved Trade-In" | "Sold Direct" | "Completed" | "Cancelled";
+  contactNumber: string;
+
+  // Registered Buyer Details (Optional / Conditional)
+  buyerName?: string;
+  buyerContact?: string;
+
+  // Traded-In Unit (Customer's Piano)
+  offeredPianoBrandModel: string;
+  offeredPianoSerialNo: string;
+  offeredPianoCondition: string;
+  appraisalValuation: number;
+
+  // Target Unit Purchased (Store Inventory Unit)
+  targetInventoryUnitId?: string;
+  targetPianoBrandModel?: string;
+  targetGrossPrice: number;
+  netPayableBalance: number;
+
+  // Linked Records & Roles
+  linkedQuotationNo?: string;
+  linkedInvoiceNo?: string;
+  appraisedBy: string;
+  approvedByOwner: string;
+  status: TradeInStatus;
   recordMode: RecordMode;
+  createdDate: string;
+  notes?: string;
+  closeLostReason?: string;
 };
 
 export type InventoryUnit = {
@@ -390,19 +458,28 @@ export type InventoryUnit = {
   recordMode: RecordMode;
 };
 
+export type DocumentType = "Estimate" | "Quotation" | "Job Order" | "Service Report" | "Invoice" | "Payment Acknowledgment";
+export type GeneratingModule = "Customer Desk" | "Service & Quotations" | "Office & Records";
+export type DocumentStatus = "Generated" | "Sent" | "Archived";
+
 export type RHPSDocument = {
   id: string;
-  title: string;
-  category?: string;
-  documentType: "Estimate" | "Quotation" | "Job Order" | "Service Report" | "Invoice" | "Payment Acknowledgment";
+  documentType: DocumentType;
   recordType: RecordMode;
   linkedSourceRecordNo: string;
   linkedCaseId: string;
   dateGenerated: string;
   generatedBy: string;
-  generatingModule: "Customer Desk" | "Service & Quotations" | "Office & Records";
+  generatingModule: GeneratingModule;
   documentOwnershipRole: string;
-  status: "Generated" | "Sent" | "Archived";
+  status: DocumentStatus;
+
+  // Optional / Useful
+  pdfFileLink?: string;
+  sentDate?: string;
+  sentTo?: string;
+  versionNo?: string;
+  notes?: string;
 };
 
 // --- DEMO BUSINESS DATA ---
@@ -886,19 +963,284 @@ const demoPayments: Payment[] = [
 ];
 
 const demoExpenses: Expense[] = [
-  { id: "EXP-2026-01", category: "Parts", description: "Renner Hammer Felts Import Batch #4", amount: 12400, paidTo: "PianoParts Asia", date: "2026-08-01", recordMode: "ACTUAL" },
+  {
+    id: "EXP-2026-001",
+    category: "Parts",
+    description: "Steinway Renner Hammer Felts & Damper Cloth Set",
+    amount: 12400,
+    paidTo: "PianoParts Asia Supply Co.",
+    date: "2026-08-01",
+    linkedJobOrderNo: "JO-2026-002",
+    linkedCaseId: "CASE-2026-002",
+    receiptRefNo: "OR-882910",
+    recordedBy: "Robert Herrero",
+    recordMode: "ACTUAL",
+    notes: "Imported genuine felt set for Steinway Model M restoration",
+  },
+  {
+    id: "EXP-2026-002",
+    category: "Transport / Fuel",
+    description: "Service Van Fuel & Tolls for On-Site Tuning Trip",
+    amount: 2500,
+    paidTo: "Shell Station Matina / Tollways",
+    date: "2026-08-02",
+    linkedJobOrderNo: "JO-2026-001",
+    linkedCaseId: "CASE-2026-001",
+    receiptRefNo: "POS-991823",
+    recordedBy: "Robert Herrero",
+    recordMode: "ACTUAL",
+    notes: "Round trip service van transport for Yamaha U3 tuning",
+  },
+  {
+    id: "EXP-2026-003",
+    category: "Tools",
+    description: "Jahn German Tuning Hammer Tip Replacement",
+    amount: 4800,
+    paidTo: "Jahn Hardware Imports",
+    date: "2026-08-03",
+    receiptRefNo: "INV-55102",
+    recordedBy: "Robert Herrero",
+    recordMode: "ACTUAL",
+    notes: "Shop tool replacement for precision regulation work",
+  },
 ];
 
 const demoFollowUps: FollowUp[] = [
-  { id: "FOL-2026-01", caseId: "CASE-2026-001", customerName: "Atty. Fernando Alonso", pianoDetails: "Yamaha U3 S/N: YM-582910", followUpType: "Next Service Reminder", targetDate: "2026-08-04", assignedTo: "Robert Herrero", status: "Pending", recordMode: "ACTUAL", notes: "6-month post-regulation tuning check-in due today!", lastTuningDate: "2026-02-01" },
+  {
+    id: "FOL-2026-001",
+    caseId: "CASE-2026-001",
+    customerName: "Atty. Fernando Alonso",
+    pianoDetails: "Yamaha U3 Upright S/N: YM-582910",
+    followUpType: "Next Service Reminder",
+    targetDate: "2026-08-05",
+    assignedTo: "Robert Herrero",
+    status: "Pending",
+    contactMethod: "Call",
+    notes: "6-month post-regulation tuning check-in due!",
+    recordMode: "ACTUAL",
+    createdDate: "2026-08-05",
+  },
+  {
+    id: "FOL-2026-002",
+    caseId: "CASE-2026-002",
+    customerName: "Maria Santos",
+    pianoDetails: "Steinway Model M Grand S/N: ST-44912",
+    followUpType: "Warranty Comeback",
+    targetDate: "2026-08-06",
+    assignedTo: "Robert Herrero",
+    status: "Pending",
+    linkedOriginalJobOrderNo: "JO-2026-002",
+    linkedOriginalServiceReportNo: "SR-2026-002",
+    issueDescription: "Damper felts buzz slight resonance on C#4 key after extended playing",
+    coveredByWarranty: "Yes",
+    newChargesRequired: "No",
+    contactMethod: "Message",
+    notes: "Client reported minor resonance buzz; covered under 1-year service warranty.",
+    recordMode: "ACTUAL",
+    createdDate: "2026-08-05",
+  },
+];
+
+const demoDocuments: RHPSDocument[] = [
+  {
+    id: "DOC-2026-001",
+    documentType: "Estimate",
+    recordType: "ACTUAL",
+    linkedSourceRecordNo: "EST-2026-001",
+    linkedCaseId: "CASE-2026-001",
+    dateGenerated: "2026-08-01",
+    generatedBy: "Robert Herrero",
+    generatingModule: "Customer Desk",
+    documentOwnershipRole: "Lead Technician / Owner",
+    status: "Sent",
+    pdfFileLink: "file:///rhps/docs/EST-2026-001.pdf",
+    sentDate: "2026-08-01",
+    sentTo: "0917-555-0192 (SMS/Viber)",
+    versionNo: "v1.0",
+    notes: "Initial diagnostic estimate sent to Atty. Alonso",
+  },
+  {
+    id: "DOC-2026-002",
+    documentType: "Quotation",
+    recordType: "ACTUAL",
+    linkedSourceRecordNo: "QT-2026-001",
+    linkedCaseId: "CASE-2026-001",
+    dateGenerated: "2026-08-02",
+    generatedBy: "Robert Herrero",
+    generatingModule: "Service & Quotations",
+    documentOwnershipRole: "Lead Technician / Owner",
+    status: "Sent",
+    pdfFileLink: "file:///rhps/docs/QT-2026-001.pdf",
+    sentDate: "2026-08-02",
+    sentTo: "0917-555-0192 (Email PDF)",
+    versionNo: "v1.0",
+    notes: "Formal quotation for full regulation A440",
+  },
+  {
+    id: "DOC-2026-003",
+    documentType: "Job Order",
+    recordType: "ACTUAL",
+    linkedSourceRecordNo: "JO-2026-001",
+    linkedCaseId: "CASE-2026-001",
+    dateGenerated: "2026-08-05",
+    generatedBy: "Robert Herrero",
+    generatingModule: "Service & Quotations",
+    documentOwnershipRole: "Lead Technician / Owner",
+    status: "Generated",
+    versionNo: "v1.0",
+    notes: "Technical job order issued for lead tech",
+  },
+  {
+    id: "DOC-2026-004",
+    documentType: "Service Report",
+    recordType: "ACTUAL",
+    linkedSourceRecordNo: "SR-2026-001",
+    linkedCaseId: "CASE-2026-001",
+    dateGenerated: "2026-08-05",
+    generatedBy: "Robert Herrero",
+    generatingModule: "Office & Records",
+    documentOwnershipRole: "Lead Technician / Owner",
+    status: "Sent",
+    sentDate: "2026-08-05",
+    sentTo: "Atty. Alonso (Signed)",
+    versionNo: "v1.0",
+    notes: "Signed service report for concert tuning",
+  },
+  {
+    id: "DOC-2026-005",
+    documentType: "Invoice",
+    recordType: "TEST",
+    linkedSourceRecordNo: "INV-2026-TEST",
+    linkedCaseId: "CASE-2026-TEST",
+    dateGenerated: "2026-08-05",
+    generatedBy: "System Sandbox",
+    generatingModule: "Office & Records",
+    documentOwnershipRole: "Testing System",
+    status: "Generated",
+    versionNo: "TEST-v1",
+    notes: "⚠️ TEST RECORD ONLY — Excluded from actual income & financial totals!",
+  },
 ];
 
 const demoRepairs: RepairRecord[] = [
-  { id: "REP-2026-01", customerName: "San Pedro Cathedral Academy", pianoModel: "Kawai K-300", issueDescription: "Keybed regulation & damper felt replacement", estimatedCompletion: "2026-08-10", status: "In Repair", recordMode: "ACTUAL" },
+  {
+    id: "REP-2026-001",
+    customerName: "San Pedro Cathedral Academy",
+    contactNumber: "082-228-5101",
+    pianoModel: "Kawai K-300 Upright",
+    pianoSerialNo: "KW-581920",
+    issueDescription: "Keybed regulation & damper felt replacement. Several notes not dampening properly.",
+    intakeDate: "2026-08-01",
+    estimatedCompletion: "2026-08-10",
+    stage: "In Repair",
+    status: "In Repair",
+    nextAction: "Complete damper felt gluing, final regulation pass",
+    assignedTechnician: "Robert Herrero (Owner)",
+    linkedCaseId: "CASE-2026-003",
+    repairCost: 18500,
+    repairNotes: "Keybed leveling done. Damper rail replacement in progress.",
+    recordMode: "ACTUAL",
+  },
+  {
+    id: "REP-2026-002",
+    customerName: "Maria Santos",
+    contactNumber: "0917-882-9201",
+    pianoModel: "Yamaha U1 Upright",
+    pianoSerialNo: "YM-293810",
+    issueDescription: "String breakage on 3 bass strings. Soundboard crack inspection needed.",
+    intakeDate: "2026-08-03",
+    estimatedCompletion: "2026-08-15",
+    stage: "Parts Ordering",
+    status: "Parts Ordering",
+    nextAction: "Wait for Kawai bass string delivery from supplier",
+    assignedTechnician: "Robert Herrero (Owner)",
+    repairCost: 12000,
+    repairNotes: "Parts ordered from piano supplier. ETA 5-7 days.",
+    recordMode: "ACTUAL",
+  },
+  {
+    id: "REP-2026-003",
+    customerName: "Grand Ballroom Hotel Davao",
+    contactNumber: "0920-112-9382",
+    pianoModel: "Steinway Model B Grand",
+    pianoSerialNo: "ST-881204",
+    issueDescription: "Full action regulation, voicing, and pitch raise for concert season.",
+    intakeDate: "2026-07-28",
+    estimatedCompletion: "2026-08-08",
+    stage: "Testing & Tuning",
+    status: "Testing & Tuning",
+    nextAction: "Final A440 pitch verification and customer sign-off call",
+    assignedTechnician: "Robert Herrero (Owner)",
+    linkedCaseId: "CASE-2026-004",
+    repairCost: 45000,
+    repairNotes: "Voicing and regulation completed. Final tuning pass in progress.",
+    recordMode: "ACTUAL",
+  },
 ];
 
 const demoTradeIns: TradeInSale[] = [
-  { id: "TRD-2026-01", customerName: "Dr. Gabriel Cruz", offeredPiano: "Kawai K-15 Upright", valuation: 85000, status: "In Valuation", recordMode: "ACTUAL" },
+  {
+    id: "TRD-2026-001",
+    customerName: "Dr. Gabriel Cruz",
+    contactNumber: "0918-992-1823",
+    buyerName: "Dr. Gabriel Cruz",
+    buyerContact: "0918-992-1823",
+    offeredPianoBrandModel: "Kawai K-15 Upright",
+    offeredPianoSerialNo: "KW-391820",
+    offeredPianoCondition: "Pre-owned good condition; minor cabinet scratches, action pins tight",
+    appraisalValuation: 45000,
+    targetInventoryUnitId: "RHPS-INV-001",
+    targetPianoBrandModel: "Yamaha U1 Professional Upright (Refurbished)",
+    targetGrossPrice: 165000,
+    netPayableBalance: 120000,
+    linkedQuotationNo: "QT-2026-003",
+    linkedInvoiceNo: "INV-2026-003",
+    appraisedBy: "Robert Herrero (Owner)",
+    approvedByOwner: "Robert Herrero (Owner Sign-Off)",
+    status: "Closed Won",
+    recordMode: "ACTUAL",
+    createdDate: "2026-08-03",
+    notes: "Deal Closed Won! Trade-in credit applied towards Yamaha U1 purchase.",
+  },
+  {
+    id: "TRD-2026-002",
+    customerName: "Elena Rostova",
+    contactNumber: "0920-334-9182",
+    buyerName: "Elena Rostova",
+    buyerContact: "0920-334-9182",
+    offeredPianoBrandModel: "Samick Upright JS-115",
+    offeredPianoSerialNo: "SM-102948",
+    offeredPianoCondition: "Fair; requires hammer shaping & pitch raise",
+    appraisalValuation: 32000,
+    targetInventoryUnitId: "RHPS-INV-002",
+    targetPianoBrandModel: "Kawai KG-2 Grand Piano 5'10\"",
+    targetGrossPrice: 285000,
+    netPayableBalance: 253000,
+    appraisedBy: "Robert Herrero",
+    approvedByOwner: "Robert Herrero (Owner Sign-Off)",
+    status: "Buyer Registered",
+    recordMode: "ACTUAL",
+    createdDate: "2026-08-04",
+    notes: "Buyer registered for Kawai KG-2 upgrade. Awaiting final payment confirmation.",
+  },
+  {
+    id: "TRD-2026-003",
+    customerName: "Benjamin Tan",
+    contactNumber: "0917-883-9102",
+    offeredPianoBrandModel: "Yamaha M1 Upright",
+    offeredPianoSerialNo: "YM-110293",
+    offeredPianoCondition: "Soundboard hairline crack, requires bridge repair",
+    appraisalValuation: 25000,
+    targetGrossPrice: 150000,
+    netPayableBalance: 125000,
+    appraisedBy: "Robert Herrero",
+    approvedByOwner: "Pending Owner Review",
+    status: "Closed Lost",
+    closeLostReason: "Client selected another private seller for lower price",
+    recordMode: "ACTUAL",
+    createdDate: "2026-08-01",
+    notes: "Closed Lost — Client rejected appraisal valuation of ₱25,000.",
+  },
 ];
 
 const demoInventory: InventoryUnit[] = [
@@ -972,10 +1314,6 @@ const demoBackups: BackupRecord[] = [
     retentionPeriodDate: "2026-08-10",
     notes: "⚠️ Backup process interrupted: Davao local server storage sync timeout. Retried successfully in BAK-2026-002.",
   },
-];
-
-const demoDocuments: RHPSDocument[] = [
-  { id: "DOC-2026-01", title: "Signed Service Report - JO-2026-001", category: "Service Report", documentType: "Service Report", linkedSourceRecordNo: "SR-2026-001", linkedCaseId: "CASE-2026-001", dateGenerated: "2026-08-03", generatedBy: "Robert Herrero", generatingModule: "Office & Records", documentOwnershipRole: "Owner", status: "Generated", recordType: "ACTUAL" },
 ];
 
 // --- RHPS AI MARKDOWN & TABLE RENDERER ---
@@ -1175,6 +1513,186 @@ export default function RhpsWorkspace({
 
   // Backup System UI State
   const [showCreateBackupModal, setShowCreateBackupModal] = useState<boolean>(false);
+
+  // --- REPAIRS MODULE STATE & HANDLERS ---
+  const [repairSearch, setRepairSearch] = useState<string>("");
+  const [repairStageFilter, setRepairStageFilter] = useState<"All" | RepairStage>("All");
+  const [showRepairModal, setShowRepairModal] = useState<boolean>(false);
+  const [editingRepair, setEditingRepair] = useState<RepairRecord | null>(null);
+  const [selectedRepairDetail, setSelectedRepairDetail] = useState<RepairRecord | null>(null);
+  const [showUpdateStageModal, setShowUpdateStageModal] = useState<boolean>(false);
+  const [stageTargetRepair, setStageTargetRepair] = useState<RepairRecord | null>(null);
+  const [newStageInput, setNewStageInput] = useState<RepairStage>("In Repair");
+  const [nextActionInput, setNextActionInput] = useState<string>("");
+
+  // Repair Form State
+  const [repCustomerName, setRepCustomerName] = useState<string>("San Pedro Cathedral Academy");
+  const [repContactNumber, setRepContactNumber] = useState<string>("082-228-5101");
+  const [repPianoModel, setRepPianoModel] = useState<string>("Kawai K-300 Upright");
+  const [repPianoSerialNo, setRepPianoSerialNo] = useState<string>("KW-581920");
+  const [repIssueDescription, setRepIssueDescription] = useState<string>("");
+  const [repIntakeDate, setRepIntakeDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [repEstimatedCompletion, setRepEstimatedCompletion] = useState<string>("");
+  const [repStage, setRepStage] = useState<RepairStage>("Intake & Inspection");
+  const [repNextAction, setRepNextAction] = useState<string>("");
+  const [repAssignedTechnician, setRepAssignedTechnician] = useState<string>("Robert Herrero (Owner)");
+  const [repLinkedCaseId, setRepLinkedCaseId] = useState<string>("");
+  const [repLinkedJobOrderNo, setRepLinkedJobOrderNo] = useState<string>("");
+  const [repRepairCost, setRepRepairCost] = useState<number>(0);
+  const [repNotes, setRepNotes] = useState<string>("");
+
+  const openCreateRepairModal = () => {
+    setEditingRepair(null);
+    setRepCustomerName("San Pedro Cathedral Academy");
+    setRepContactNumber("082-228-5101");
+    setRepPianoModel("Kawai K-300 Upright");
+    setRepPianoSerialNo("KW-581920");
+    setRepIssueDescription("");
+    setRepIntakeDate(new Date().toISOString().split("T")[0]);
+    setRepEstimatedCompletion("");
+    setRepStage("Intake & Inspection");
+    setRepNextAction("");
+    setRepAssignedTechnician("Robert Herrero (Owner)");
+    setRepLinkedCaseId("");
+    setRepLinkedJobOrderNo("");
+    setRepRepairCost(0);
+    setRepNotes("");
+    setShowRepairModal(true);
+  };
+
+  const openEditRepairModal = (r: RepairRecord) => {
+    setEditingRepair(r);
+    setRepCustomerName(r.customerName);
+    setRepContactNumber(r.contactNumber);
+    setRepPianoModel(r.pianoModel);
+    setRepPianoSerialNo(r.pianoSerialNo);
+    setRepIssueDescription(r.issueDescription);
+    setRepIntakeDate(r.intakeDate);
+    setRepEstimatedCompletion(r.estimatedCompletion);
+    setRepStage(r.stage);
+    setRepNextAction(r.nextAction);
+    setRepAssignedTechnician(r.assignedTechnician);
+    setRepLinkedCaseId(r.linkedCaseId || "");
+    setRepLinkedJobOrderNo(r.linkedJobOrderNo || "");
+    setRepRepairCost(r.repairCost || 0);
+    setRepNotes(r.repairNotes || "");
+    setShowRepairModal(true);
+  };
+
+  const handleSaveRepairSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingRepair) {
+      setRepairs(
+        repairs.map((item) =>
+          item.id === editingRepair.id
+            ? {
+                ...item,
+                customerName: repCustomerName,
+                contactNumber: repContactNumber,
+                pianoModel: repPianoModel,
+                pianoSerialNo: repPianoSerialNo,
+                issueDescription: repIssueDescription,
+                intakeDate: repIntakeDate,
+                estimatedCompletion: repEstimatedCompletion,
+                stage: repStage,
+                status: repStage,
+                nextAction: repNextAction,
+                assignedTechnician: repAssignedTechnician,
+                linkedCaseId: repLinkedCaseId,
+                linkedJobOrderNo: repLinkedJobOrderNo,
+                repairCost: repRepairCost,
+                repairNotes: repNotes,
+              }
+            : item
+        )
+      );
+      showToast(`💾 Repair ${editingRepair.id} updated! Stage: ${repStage}`);
+    } else {
+      const newRepId = `REP-2026-${String(repairs.length + 1).padStart(3, "0")}`;
+      const newRepair: RepairRecord = {
+        id: newRepId,
+        customerName: repCustomerName,
+        contactNumber: repContactNumber,
+        pianoModel: repPianoModel,
+        pianoSerialNo: repPianoSerialNo,
+        issueDescription: repIssueDescription,
+        intakeDate: repIntakeDate,
+        estimatedCompletion: repEstimatedCompletion,
+        stage: repStage,
+        status: repStage,
+        nextAction: repNextAction,
+        assignedTechnician: repAssignedTechnician,
+        linkedCaseId: repLinkedCaseId || undefined,
+        linkedJobOrderNo: repLinkedJobOrderNo || undefined,
+        repairCost: repRepairCost,
+        repairNotes: repNotes,
+        recordMode: "ACTUAL",
+      };
+      setRepairs([newRepair, ...repairs]);
+      showToast(`🔧 Repair ${newRepId} logged for ${repCustomerName}!`);
+    }
+    setShowRepairModal(false);
+  };
+
+  const handleOpenUpdateStage = (r: RepairRecord) => {
+    setStageTargetRepair(r);
+    setNewStageInput(r.stage);
+    setNextActionInput(r.nextAction);
+    setShowUpdateStageModal(true);
+  };
+
+  const handleSaveUpdateStage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stageTargetRepair) return;
+    setRepairs(
+      repairs.map((item) =>
+        item.id === stageTargetRepair.id
+          ? { ...item, stage: newStageInput, status: newStageInput, nextAction: nextActionInput }
+          : item
+      )
+    );
+    showToast(`🔄 ${stageTargetRepair.id} stage updated to: ${newStageInput}`);
+    setShowUpdateStageModal(false);
+  };
+
+  const handleConvertRepairToServiceReport = (r: RepairRecord) => {
+    const newSrId = `SR-2026-${String(serviceReports.length + 1).padStart(3, "0")}`;
+    const todayStr = new Date().toISOString().split("T")[0];
+    const newSR: ServiceReport = {
+      id: newSrId,
+      jobOrderNo: r.linkedJobOrderNo || "N/A",
+      quotationNo: "N/A",
+      serviceDate: todayStr,
+      customerName: r.customerName,
+      location: "Shop Repair / On-Site",
+      pianoDetails: `${r.pianoModel} S/N: ${r.pianoSerialNo}`,
+      customerReportedConcern: r.issueDescription,
+      initialInspectionFindings: r.repairNotes || r.issueDescription,
+      approvedServiceScope: r.issueDescription,
+      workActuallyPerformed: r.repairNotes || "Work completed per approved scope.",
+      serviceResultsLimitations: "Service completed. Minor wear-related items noted.",
+      leadTechnician: r.assignedTechnician,
+      associates: "Shop Team",
+      customerAcknowledgment: "Pending customer signature",
+      status: "Pending Signature",
+      recordMode: "ACTUAL",
+      createdDate: todayStr,
+      recommendedNextServiceDate: "",
+      followUpRequired: "No",
+      notes: `Auto-converted from Shop Repair ${r.id}.`,
+    };
+    setServiceReports([newSR, ...serviceReports]);
+    setRepairs(
+      repairs.map((item) =>
+        item.id === r.id
+          ? { ...item, convertedToServiceReportId: newSrId, stage: "Delivered & Closed", status: "Delivered & Closed" }
+          : item
+      )
+    );
+    showToast(`📋 Service Report ${newSrId} generated from Repair ${r.id}! Repair marked Delivered & Closed.`);
+  };
+
+
   const [showRestoreModal, setShowRestoreModal] = useState<BackupRecord | null>(null);
   const [selectedBackupDetail, setSelectedBackupDetail] = useState<BackupRecord | null>(null);
   const [backupFilter, setBackupFilter] = useState<"All" | "Completed" | "Failed" | "Restored">("All");
@@ -1336,25 +1854,25 @@ export default function RhpsWorkspace({
         estimates.map((item) =>
           item.id === editingEstimate.id
             ? {
-                ...item,
-                leadId: estLeadId,
-                customerName: estCustomerName,
-                contactNumber: estContactNumber,
-                serviceLocation: estServiceLocation,
-                pianoBrandTypeModelSerial: estPianoDetails,
-                mainConcern: estMainConcern,
-                recommendedScope: estRecommendedScope,
-                estimatedAmount: Number(estEstimatedAmount),
-                estimatedAmountRange: estAmountRange,
-                estimateBasis: estBasis,
-                validityDate: estValidityDate,
-                preparedBy: estPreparedBy,
-                landmarkAccessNotes: estLandmark,
-                lastTuningServiceDate: estLastTuningDate,
-                photosVideoReviewed: estPhotosReviewed,
-                depositRequired: Number(estDepositRequired),
-                notes: estNotes,
-              }
+              ...item,
+              leadId: estLeadId,
+              customerName: estCustomerName,
+              contactNumber: estContactNumber,
+              serviceLocation: estServiceLocation,
+              pianoBrandTypeModelSerial: estPianoDetails,
+              mainConcern: estMainConcern,
+              recommendedScope: estRecommendedScope,
+              estimatedAmount: Number(estEstimatedAmount),
+              estimatedAmountRange: estAmountRange,
+              estimateBasis: estBasis,
+              validityDate: estValidityDate,
+              preparedBy: estPreparedBy,
+              landmarkAccessNotes: estLandmark,
+              lastTuningServiceDate: estLastTuningDate,
+              photosVideoReviewed: estPhotosReviewed,
+              depositRequired: Number(estDepositRequired),
+              notes: estNotes,
+            }
             : item
         )
       );
@@ -1498,23 +2016,23 @@ export default function RhpsWorkspace({
         quotations.map((item) =>
           item.id === editingQuotation.id
             ? {
-                ...item,
-                estimateId: qtEstimateId,
-                revisionNo: qtRevisionNo,
-                customerName: qtCustomerName,
-                contactNumber: qtContactNumber,
-                serviceLocation: qtServiceLocation,
-                pianoBrandTypeModelSerial: qtPianoDetails,
-                proposedScope: qtProposedScope,
-                approvedQuotedAmount: Number(qtApprovedAmount),
-                depositRequired: Number(qtDepositRequired),
-                balanceTerms: qtBalanceTerms,
-                validityDate: qtValidityDate,
-                preparedBy: qtPreparedBy,
-                customerDecisionNotes: qtDecisionNotes,
-                writtenApprovalRef: qtWrittenApprovalRef,
-                specialTermsConditions: qtSpecialTerms,
-              }
+              ...item,
+              estimateId: qtEstimateId,
+              revisionNo: qtRevisionNo,
+              customerName: qtCustomerName,
+              contactNumber: qtContactNumber,
+              serviceLocation: qtServiceLocation,
+              pianoBrandTypeModelSerial: qtPianoDetails,
+              proposedScope: qtProposedScope,
+              approvedQuotedAmount: Number(qtApprovedAmount),
+              depositRequired: Number(qtDepositRequired),
+              balanceTerms: qtBalanceTerms,
+              validityDate: qtValidityDate,
+              preparedBy: qtPreparedBy,
+              customerDecisionNotes: qtDecisionNotes,
+              writtenApprovalRef: qtWrittenApprovalRef,
+              specialTermsConditions: qtSpecialTerms,
+            }
             : item
         )
       );
@@ -1652,20 +2170,20 @@ export default function RhpsWorkspace({
         schedules.map((item) =>
           item.id === editingSchedule.id
             ? {
-                ...item,
-                caseId: schCaseId,
-                customerName: schCustomerName,
-                serviceLocation: schServiceLocation,
-                pianoDetails: schPianoDetails,
-                serviceDate: schServiceDate,
-                arrivalWindow: schArrivalWindow,
-                leadTechnician: schLeadTech,
-                associates: schAssociates,
-                accessParkingTravelNotes: schAccessNotes,
-                rescheduledFromDate: schRescheduledFrom,
-                cancellationReason: schCancellationReason,
-                notes: schNotes,
-              }
+              ...item,
+              caseId: schCaseId,
+              customerName: schCustomerName,
+              serviceLocation: schServiceLocation,
+              pianoDetails: schPianoDetails,
+              serviceDate: schServiceDate,
+              arrivalWindow: schArrivalWindow,
+              leadTechnician: schLeadTech,
+              associates: schAssociates,
+              accessParkingTravelNotes: schAccessNotes,
+              rescheduledFromDate: schRescheduledFrom,
+              cancellationReason: schCancellationReason,
+              notes: schNotes,
+            }
             : item
         )
       );
@@ -1732,12 +2250,12 @@ export default function RhpsWorkspace({
       schedules.map((s) =>
         s.id === sch.id
           ? {
-              ...s,
-              rescheduledFromDate: sch.serviceDate,
-              serviceDate: newDate,
-              status: "Rescheduled",
-              notes: `${s.notes || ""} | Rescheduled on ${new Date().toISOString().split("T")[0]}: ${reason}`,
-            }
+            ...s,
+            rescheduledFromDate: sch.serviceDate,
+            serviceDate: newDate,
+            status: "Rescheduled",
+            notes: `${s.notes || ""} | Rescheduled on ${new Date().toISOString().split("T")[0]}: ${reason}`,
+          }
           : s
       )
     );
@@ -1905,28 +2423,28 @@ export default function RhpsWorkspace({
         jobOrders.map((item) =>
           item.id === editingJobOrder.id
             ? {
-                ...item,
-                linkedQuotationNo: joQuotationNo,
-                appointmentNo: joAppointmentNo,
-                linkedCaseId: joCaseId,
-                customerName: joCustomerName,
-                location: joLocation,
-                pianoDetails: joPianoDetails,
-                approvedScope: joApprovedScope,
-                serviceDate: joServiceDate,
-                arrivalWindow: joArrivalWindow,
-                leadTechnician: joLeadTech,
-                associates: joAssociates,
-                preServiceChecklist: joPreCheck,
-                findingDescription: joFindingDesc || undefined,
-                customerDecision: joFindingDesc ? joCustomerDecision : undefined,
-                findingWrittenApprovalRef: joFindingDesc ? joFindingApprovalRef : undefined,
-                notApprovedPendingItems: joPendingItems || undefined,
-                initialInspectionFindings: joInspectionNotes || undefined,
-                partsUsed: joPartsUsed || undefined,
-                photosCount: joPhotosCount,
-                finalTestingChecklist: joFinalCheck,
-              }
+              ...item,
+              linkedQuotationNo: joQuotationNo,
+              appointmentNo: joAppointmentNo,
+              linkedCaseId: joCaseId,
+              customerName: joCustomerName,
+              location: joLocation,
+              pianoDetails: joPianoDetails,
+              approvedScope: joApprovedScope,
+              serviceDate: joServiceDate,
+              arrivalWindow: joArrivalWindow,
+              leadTechnician: joLeadTech,
+              associates: joAssociates,
+              preServiceChecklist: joPreCheck,
+              findingDescription: joFindingDesc || undefined,
+              customerDecision: joFindingDesc ? joCustomerDecision : undefined,
+              findingWrittenApprovalRef: joFindingDesc ? joFindingApprovalRef : undefined,
+              notApprovedPendingItems: joPendingItems || undefined,
+              initialInspectionFindings: joInspectionNotes || undefined,
+              partsUsed: joPartsUsed || undefined,
+              photosCount: joPhotosCount,
+              finalTestingChecklist: joFinalCheck,
+            }
             : item
         )
       );
@@ -1992,12 +2510,12 @@ export default function RhpsWorkspace({
       jobOrders.map((j) =>
         j.id === jo.id
           ? {
-              ...j,
-              findingDescription: desc,
-              customerDecision: "Pending",
-              findingWrittenApprovalRef: ref,
-              status: "Additional Finding Pending",
-            }
+            ...j,
+            findingDescription: desc,
+            customerDecision: "Pending",
+            findingWrittenApprovalRef: ref,
+            status: "Additional Finding Pending",
+          }
           : j
       )
     );
@@ -2107,27 +2625,27 @@ export default function RhpsWorkspace({
         serviceReports.map((item) =>
           item.id === editingServiceReport.id
             ? {
-                ...item,
-                jobOrderNo: srJobOrderNo,
-                quotationNo: srQuotationNo,
-                serviceDate: srServiceDate,
-                customerName: srCustomerName,
-                location: srLocation,
-                pianoDetails: srPianoDetails,
-                customerReportedConcern: srCustomerConcern,
-                initialInspectionFindings: srInitialFindings,
-                approvedServiceScope: srApprovedScope,
-                workActuallyPerformed: srWorkPerformed,
-                serviceResultsLimitations: srResultsLimitations,
-                leadTechnician: srLeadTech,
-                associates: srAssociates,
-                customerAcknowledgment: srAcknowledgment,
-                partsUsed: srPartsUsed || undefined,
-                recommendedNextServiceDate: srNextServiceDate,
-                followUpRequired: srFollowUpRequired,
-                photosCount: srPhotosCount,
-                notes: srNotes,
-              }
+              ...item,
+              jobOrderNo: srJobOrderNo,
+              quotationNo: srQuotationNo,
+              serviceDate: srServiceDate,
+              customerName: srCustomerName,
+              location: srLocation,
+              pianoDetails: srPianoDetails,
+              customerReportedConcern: srCustomerConcern,
+              initialInspectionFindings: srInitialFindings,
+              approvedServiceScope: srApprovedScope,
+              workActuallyPerformed: srWorkPerformed,
+              serviceResultsLimitations: srResultsLimitations,
+              leadTechnician: srLeadTech,
+              associates: srAssociates,
+              customerAcknowledgment: srAcknowledgment,
+              partsUsed: srPartsUsed || undefined,
+              recommendedNextServiceDate: srNextServiceDate,
+              followUpRequired: srFollowUpRequired,
+              photosCount: srPhotosCount,
+              notes: srNotes,
+            }
             : item
         )
       );
@@ -2396,11 +2914,11 @@ export default function RhpsWorkspace({
       invoices.map((i) =>
         i.id === inv.id
           ? {
-              ...i,
-              amountPaid: newPaid,
-              balance: newBal,
-              status: newStatus,
-            }
+            ...i,
+            amountPaid: newPaid,
+            balance: newBal,
+            status: newStatus,
+          }
           : i
       )
     );
@@ -2537,23 +3055,23 @@ export default function RhpsWorkspace({
         payments.map((item) =>
           item.id === editingPayment.id
             ? {
-                ...item,
-                invoiceNo: payInvoiceNo,
-                jobOrderNo: payJobOrderNo,
-                caseId: payCaseId,
-                customerName: payCustomerName,
-                paymentDateTime: payDateTime,
-                paymentType: payType,
-                paymentMethod: payMethod,
-                referenceNo: payRefNo || "N/A",
-                amountReceivedToday: payAmountReceived,
-                newTotalPaid: prevPaid + payAmountReceived,
-                remainingBalance: Math.max(0, item.invoiceTotal - (prevPaid + payAmountReceived)),
-                receivedBy: payReceivedBy,
-                verifiedBy: finalVerifiedBy,
-                customerConfirmation: payCustomerConfirmation,
-                notes: payNotes,
-              }
+              ...item,
+              invoiceNo: payInvoiceNo,
+              jobOrderNo: payJobOrderNo,
+              caseId: payCaseId,
+              customerName: payCustomerName,
+              paymentDateTime: payDateTime,
+              paymentType: payType,
+              paymentMethod: payMethod,
+              referenceNo: payRefNo || "N/A",
+              amountReceivedToday: payAmountReceived,
+              newTotalPaid: prevPaid + payAmountReceived,
+              remainingBalance: Math.max(0, item.invoiceTotal - (prevPaid + payAmountReceived)),
+              receivedBy: payReceivedBy,
+              verifiedBy: finalVerifiedBy,
+              customerConfirmation: payCustomerConfirmation,
+              notes: payNotes,
+            }
             : item
         )
       );
@@ -2596,11 +3114,11 @@ export default function RhpsWorkspace({
           invoices.map((inv) =>
             inv.id === targetInvoice.id
               ? {
-                  ...inv,
-                  amountPaid: newPaid,
-                  balance: remBal,
-                  status: remBal === 0 ? "Paid in Full" : "Partially Paid",
-                }
+                ...inv,
+                amountPaid: newPaid,
+                balance: remBal,
+                status: remBal === 0 ? "Paid in Full" : "Partially Paid",
+              }
               : inv
           )
         );
@@ -2672,6 +3190,575 @@ export default function RhpsWorkspace({
     showToast(`⛔ Payment ${p.id} VOIDED. Reason: ${reason}`);
   };
 
+  // --- FOLLOW-UP MODULE STATE & HANDLERS ---
+  const [followUpFilter, setFollowUpFilter] = useState<"All" | "Pending" | "Completed" | "Rescheduled" | "Cancelled">("All");
+  const [followUpTypeFilter, setFollowUpTypeFilter] = useState<string>("All");
+  const [followUpSearch, setFollowUpSearch] = useState<string>("");
+  const [showFollowUpModal, setShowFollowUpModal] = useState<boolean>(false);
+  const [editingFollowUp, setEditingFollowUp] = useState<FollowUp | null>(null);
+  const [selectedFollowUpDetail, setSelectedFollowUpDetail] = useState<FollowUp | null>(null);
+
+  // Follow-Up Form State
+  const [folCaseId, setFolCaseId] = useState<string>("CASE-2026-001");
+  const [folCustomerName, setFolCustomerName] = useState<string>("Atty. Fernando Alonso");
+  const [folPianoDetails, setFolPianoDetails] = useState<string>("Yamaha U3 Upright S/N: YM-582910");
+  const [folType, setFolType] = useState<FollowUpType>("Routine Check-In");
+  const [folTargetDate, setFolTargetDate] = useState<string>("2026-08-05");
+  const [folAssignedTo, setFolAssignedTo] = useState<string>("Robert Herrero");
+  const [folStatus, setFolStatus] = useState<FollowUpStatus>("Pending");
+  const [folContactMethod, setFolContactMethod] = useState<"Call" | "Message">("Call");
+  const [folNotes, setFolNotes] = useState<string>("");
+
+  // Warranty Comeback Conditional State
+  const [folJobOrderNo, setFolJobOrderNo] = useState<string>("JO-2026-001");
+  const [folServiceReportNo, setFolServiceReportNo] = useState<string>("SR-2026-001");
+  const [folIssueDesc, setFolIssueDesc] = useState<string>("Damper resonance after extended playing");
+  const [folCoveredByWarranty, setFolCoveredByWarranty] = useState<"Yes" | "No">("Yes");
+  const [folNewChargesRequired, setFolNewChargesRequired] = useState<"Yes" | "No">("No");
+
+  const openCreateFollowUpModal = (type?: FollowUpType) => {
+    setEditingFollowUp(null);
+    setFolCaseId("CASE-2026-001");
+    setFolCustomerName("Atty. Fernando Alonso");
+    setFolPianoDetails("Yamaha U3 Upright S/N: YM-582910");
+    setFolType(type || "Routine Check-In");
+    const todayStr = new Date().toISOString().split("T")[0];
+    setFolTargetDate(todayStr);
+    setFolAssignedTo("Robert Herrero");
+    setFolStatus("Pending");
+    setFolContactMethod("Call");
+    setFolNotes("");
+    setFolJobOrderNo("JO-2026-001");
+    setFolServiceReportNo("SR-2026-001");
+    setFolIssueDesc("Damper resonance after extended playing");
+    setFolCoveredByWarranty("Yes");
+    setFolNewChargesRequired("No");
+    setShowFollowUpModal(true);
+  };
+
+  const openEditFollowUpModal = (fol: FollowUp) => {
+    setEditingFollowUp(fol);
+    setFolCaseId(fol.caseId);
+    setFolCustomerName(fol.customerName);
+    setFolPianoDetails(fol.pianoDetails);
+    setFolType(fol.followUpType);
+    setFolTargetDate(fol.targetDate);
+    setFolAssignedTo(fol.assignedTo);
+    setFolStatus(fol.status);
+    setFolContactMethod(fol.contactMethod || "Call");
+    setFolNotes(fol.notes || "");
+    setFolJobOrderNo(fol.linkedOriginalJobOrderNo || "JO-2026-001");
+    setFolServiceReportNo(fol.linkedOriginalServiceReportNo || "SR-2026-001");
+    setFolIssueDesc(fol.issueDescription || "");
+    setFolCoveredByWarranty(fol.coveredByWarranty || "Yes");
+    setFolNewChargesRequired(fol.newChargesRequired || "No");
+    setShowFollowUpModal(true);
+  };
+
+  const handleSaveFollowUpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (editingFollowUp) {
+      setFollowUps(
+        followUps.map((item) =>
+          item.id === editingFollowUp.id
+            ? {
+              ...item,
+              caseId: folCaseId,
+              customerName: folCustomerName,
+              pianoDetails: folPianoDetails,
+              followUpType: folType,
+              targetDate: folTargetDate,
+              assignedTo: folAssignedTo,
+              status: folStatus,
+              contactMethod: folContactMethod,
+              notes: folNotes,
+              linkedOriginalJobOrderNo: folType === "Warranty Comeback" ? folJobOrderNo : undefined,
+              linkedOriginalServiceReportNo: folType === "Warranty Comeback" ? folServiceReportNo : undefined,
+              issueDescription: folType === "Warranty Comeback" ? folIssueDesc : undefined,
+              coveredByWarranty: folType === "Warranty Comeback" ? folCoveredByWarranty : undefined,
+              newChargesRequired: folType === "Warranty Comeback" ? folNewChargesRequired : undefined,
+            }
+            : item
+        )
+      );
+      showToast(`💾 Follow-Up record ${editingFollowUp.id} updated!`);
+    } else {
+      const newFolId = `FOL-2026-${String(followUps.length + 1).padStart(3, "0")}`;
+      const todayStr = new Date().toISOString().split("T")[0];
+
+      const newFolObj: FollowUp = {
+        id: newFolId,
+        caseId: folCaseId,
+        customerName: folCustomerName,
+        pianoDetails: folPianoDetails,
+        followUpType: folType,
+        targetDate: folTargetDate,
+        assignedTo: folAssignedTo,
+        status: folStatus,
+        contactMethod: folContactMethod,
+        notes: folNotes,
+        linkedOriginalJobOrderNo: folType === "Warranty Comeback" ? folJobOrderNo : undefined,
+        linkedOriginalServiceReportNo: folType === "Warranty Comeback" ? folServiceReportNo : undefined,
+        issueDescription: folType === "Warranty Comeback" ? folIssueDesc : undefined,
+        coveredByWarranty: folType === "Warranty Comeback" ? folCoveredByWarranty : undefined,
+        newChargesRequired: folType === "Warranty Comeback" ? folNewChargesRequired : undefined,
+        recordMode: "ACTUAL",
+        createdDate: todayStr,
+      };
+
+      setFollowUps([newFolObj, ...followUps]);
+      showToast(`✨ Follow-Up ${newFolId} scheduled for ${folTargetDate}!`);
+    }
+    setShowFollowUpModal(false);
+  };
+
+  // RULE: Warranty Comeback -> Trigger New Quotation if new charges required!
+  const handleTriggerNewQuotationForWarranty = (fol: FollowUp) => {
+    alert(`⚡ Triggering NEW QUOTATION path for Warranty Comeback (${fol.id}) as new charges are required.`);
+    openCreateQuotationModal();
+  };
+
+  // RULE: Future Service -> Trigger NEW CASE (never reuse old case as same job!)
+  const handleTriggerNewCaseForFutureService = (fol: FollowUp) => {
+    const newCaseId = `CASE-2026-${String(cases.length + 1).padStart(3, "0")}`;
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    const newCaseObj: CustomerCase = {
+      id: newCaseId,
+      customerName: fol.customerName,
+      serviceType: fol.followUpType === "Warranty Comeback" ? "Warranty Service" : "Maintenance / Tuning",
+      dateConfirmed: todayStr,
+      confirmedBy: fol.assignedTo,
+      linkedCustomerId: "CUST-001",
+      linkedPianoIds: ["PIANO-001"],
+      linkedQuotationNo: "QT-2026-001",
+      approvedScopeOfWork: fol.notes || `Service for ${fol.pianoDetails}`,
+      approvedAmount: 0,
+      status: "Open",
+      recordMode: "ACTUAL",
+      createdDate: todayStr,
+      lastUpdatedDate: todayStr,
+    };
+
+    setCases([newCaseObj, ...cases]);
+    showToast(`🚀 New Case ${newCaseId} created for ${fol.customerName}! (Originating Case: ${fol.caseId})`);
+  };
+
+  // --- DOCUMENTS MODULE STATE & HANDLERS ---
+  const [docFilter, setDocFilter] = useState<"All" | "Generated" | "Sent" | "Archived">("All");
+  const [docTypeFilter, setDocTypeFilter] = useState<string>("All");
+  const [docRecordTypeFilter, setDocRecordTypeFilter] = useState<"All" | "ACTUAL" | "TEST">("All");
+  // --- EXPENSES MODULE STATE & HANDLERS ---
+  const [expCategoryFilter, setExpCategoryFilter] = useState<"All" | ExpenseCategory>("All");
+  const [expRecordTypeFilter, setExpRecordTypeFilter] = useState<"All" | RecordMode>("All");
+  const [expSearch, setExpSearch] = useState<string>("");
+  const [showExpModal, setShowExpModal] = useState<boolean>(false);
+  const [editingExp, setEditingExp] = useState<Expense | null>(null);
+  const [selectedExpDetail, setSelectedExpDetail] = useState<Expense | null>(null);
+  const [showProfitModal, setShowProfitModal] = useState<boolean>(false);
+
+  // Expense Form State
+  const [expCategory, setExpCategory] = useState<ExpenseCategory>("Parts");
+  const [expDescription, setExpDescription] = useState<string>("Yamaha Hammer Dampers Replacement Batch #2");
+  const [expAmount, setExpAmount] = useState<number>(3500);
+  const [expPaidTo, setExpPaidTo] = useState<string>("PianoParts Supply Asia");
+  const [expDate, setExpDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [expLinkedJobOrderNo, setExpLinkedJobOrderNo] = useState<string>("JO-2026-001");
+  const [expLinkedCaseId, setExpLinkedCaseId] = useState<string>("CASE-2026-001");
+  const [expReceiptRefNo, setExpReceiptRefNo] = useState<string>("OR-991823");
+  const [expRecordedBy, setExpRecordedBy] = useState<string>("Robert Herrero (Owner)");
+  const [expRecordType, setExpRecordType] = useState<RecordMode>("ACTUAL");
+  const [expNotes, setExpNotes] = useState<string>("");
+
+  const openCreateExpenseModal = (jobOrderNo?: string, caseId?: string) => {
+    setEditingExp(null);
+    setExpCategory("Parts");
+    setExpDescription("Yamaha Hammer Dampers Replacement Batch #2");
+    setExpAmount(3500);
+    setExpPaidTo("PianoParts Supply Asia");
+    setExpDate(new Date().toISOString().split("T")[0]);
+    setExpLinkedJobOrderNo(jobOrderNo || "JO-2026-001");
+    setExpLinkedCaseId(caseId || "CASE-2026-001");
+    setExpReceiptRefNo("OR-991823");
+    setExpRecordedBy("Robert Herrero (Owner)");
+    setExpRecordType("ACTUAL");
+    setExpNotes("");
+    setShowExpModal(true);
+  };
+
+  const openEditExpenseModal = (exp: Expense) => {
+    setEditingExp(exp);
+    setExpCategory(exp.category);
+    setExpDescription(exp.description);
+    setExpAmount(exp.amount);
+    setExpPaidTo(exp.paidTo);
+    setExpDate(exp.date);
+    setExpLinkedJobOrderNo(exp.linkedJobOrderNo || "JO-2026-001");
+    setExpLinkedCaseId(exp.linkedCaseId || "CASE-2026-001");
+    setExpReceiptRefNo(exp.receiptRefNo || "");
+    setExpRecordedBy(exp.recordedBy);
+    setExpRecordType(exp.recordMode);
+    setExpNotes(exp.notes || "");
+    setShowExpModal(true);
+  };
+
+  const handleSaveExpenseSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (editingExp) {
+      setExpenses(
+        expenses.map((item) =>
+          item.id === editingExp.id
+            ? {
+                ...item,
+                category: expCategory,
+                description: expDescription,
+                amount: expAmount,
+                paidTo: expPaidTo,
+                date: expDate,
+                linkedJobOrderNo: expLinkedJobOrderNo,
+                linkedCaseId: expLinkedCaseId,
+                receiptRefNo: expReceiptRefNo,
+                recordedBy: expRecordedBy,
+                recordMode: expRecordType,
+                notes: expNotes,
+              }
+            : item
+        )
+      );
+      showToast(`💾 Expense ${editingExp.id} updated! Amount: ₱${expAmount.toLocaleString()}`);
+    } else {
+      const newExpId = `EXP-2026-${String(expenses.length + 1).padStart(3, "0")}`;
+
+      const newExpObj: Expense = {
+        id: newExpId,
+        category: expCategory,
+        description: expDescription,
+        amount: expAmount,
+        paidTo: expPaidTo,
+        date: expDate,
+        linkedJobOrderNo: expLinkedJobOrderNo,
+        linkedCaseId: expLinkedCaseId,
+        receiptRefNo: expReceiptRefNo,
+        recordedBy: expRecordedBy,
+        recordMode: expRecordType,
+        notes: expNotes,
+      };
+
+      setExpenses([newExpObj, ...expenses]);
+      showToast(`✨ Expense ${newExpId} (₱${expAmount.toLocaleString()}) recorded for Job ${expLinkedJobOrderNo}!`);
+    }
+    setShowExpModal(false);
+  };
+
+  const [docSearch, setDocSearch] = useState<string>("");
+  const [showDocModal, setShowDocModal] = useState<boolean>(false);
+  const [editingDoc, setEditingDoc] = useState<RHPSDocument | null>(null);
+  const [selectedDocDetail, setSelectedDocDetail] = useState<RHPSDocument | null>(null);
+
+  // Document Form State
+  const [docType, setDocType] = useState<DocumentType>("Quotation");
+  const [docRecordType, setDocRecordType] = useState<RecordMode>("ACTUAL");
+  const [docSourceNo, setDocSourceNo] = useState<string>("QT-2026-001");
+  const [docCaseId, setDocCaseId] = useState<string>("CASE-2026-001");
+  const [docGeneratedBy, setDocGeneratedBy] = useState<string>("Robert Herrero");
+  const [docModule, setDocModule] = useState<GeneratingModule>("Service & Quotations");
+  const [docOwnershipRole, setDocOwnershipRole] = useState<string>("Lead Technician / Owner");
+  const [docStatus, setDocStatus] = useState<DocumentStatus>("Generated");
+  const [docSentTo, setDocSentTo] = useState<string>("Client Email / Viber");
+  const [docNotes, setDocNotes] = useState<string>("");
+
+  const openCreateDocModal = (type?: DocumentType) => {
+    setEditingDoc(null);
+    setDocType(type || "Quotation");
+    setDocRecordType("ACTUAL");
+    setDocSourceNo("QT-2026-001");
+    setDocCaseId("CASE-2026-001");
+    setDocGeneratedBy("Robert Herrero");
+    setDocModule("Service & Quotations");
+    setDocOwnershipRole("Lead Technician / Owner");
+    setDocStatus("Generated");
+    setDocSentTo("Client Email / Viber");
+    setDocNotes("");
+    setShowDocModal(true);
+  };
+
+  const openEditDocModal = (d: RHPSDocument) => {
+    setEditingDoc(d);
+    setDocType(d.documentType);
+    setDocRecordType(d.recordType);
+    setDocSourceNo(d.linkedSourceRecordNo);
+    setDocCaseId(d.linkedCaseId);
+    setDocGeneratedBy(d.generatedBy);
+    setDocModule(d.generatingModule);
+    setDocOwnershipRole(d.documentOwnershipRole);
+    setDocStatus(d.status);
+    setDocSentTo(d.sentTo || "");
+    setDocNotes(d.notes || "");
+    setShowDocModal(true);
+  };
+
+  const handleSaveDocSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (editingDoc) {
+      setDocuments(
+        documents.map((item) =>
+          item.id === editingDoc.id
+            ? {
+              ...item,
+              documentType: docType,
+              recordType: docRecordType,
+              linkedSourceRecordNo: docSourceNo,
+              linkedCaseId: docCaseId,
+              generatedBy: docGeneratedBy,
+              generatingModule: docModule,
+              documentOwnershipRole: docOwnershipRole,
+              status: docStatus,
+              sentTo: docSentTo,
+              notes: docNotes,
+            }
+            : item
+        )
+      );
+      showToast(`💾 Document ${editingDoc.id} updated successfully!`);
+    } else {
+      // RULE: Auto-assigned Document No. from Manage Numbering
+      const newDocId = `DOC-2026-${String(documents.length + 1).padStart(3, "0")}`;
+      const todayStr = new Date().toISOString().split("T")[0];
+
+      const newDocObj: RHPSDocument = {
+        id: newDocId,
+        documentType: docType,
+        recordType: docRecordType,
+        linkedSourceRecordNo: docSourceNo,
+        linkedCaseId: docCaseId,
+        dateGenerated: todayStr,
+        generatedBy: docGeneratedBy,
+        generatingModule: docModule,
+        documentOwnershipRole: docOwnershipRole,
+        status: docStatus,
+        sentTo: docSentTo,
+        notes: docNotes,
+      };
+
+      setDocuments([newDocObj, ...documents]);
+      showToast(`✨ Document ${newDocId} (${docType} - ${docRecordType}) created!`);
+    }
+    setShowDocModal(false);
+  };
+
+  // --- TRADE-IN & PIANO SALES MODULE STATE & HANDLERS ---
+  const [tradeFilter, setTradeFilter] = useState<"All" | TradeInStatus>("All");
+  const [tradeSearch, setTradeSearch] = useState<string>("");
+  const [showTradeModal, setShowTradeModal] = useState<boolean>(false);
+  const [editingTrade, setEditingTrade] = useState<TradeInSale | null>(null);
+  const [selectedTradeDetail, setSelectedTradeDetail] = useState<TradeInSale | null>(null);
+
+  // Form State
+  const [trdCustomerName, setTrdCustomerName] = useState<string>("Dr. Gabriel Cruz");
+  const [trdContactNumber, setTrdContactNumber] = useState<string>("0918-992-1823");
+  const [trdOfferedBrandModel, setTrdOfferedBrandModel] = useState<string>("Kawai K-15 Upright");
+  const [trdOfferedSerialNo, setTrdOfferedSerialNo] = useState<string>("KW-391820");
+  const [trdOfferedCondition, setTrdOfferedCondition] = useState<string>("Pre-owned good condition; minor cabinet scratches");
+  const [trdAppraisalValuation, setTrdAppraisalValuation] = useState<number>(45000);
+  const [trdTargetInventoryUnitId, setTrdTargetInventoryUnitId] = useState<string>("RHPS-INV-001");
+  const [trdTargetBrandModel, setTrdTargetBrandModel] = useState<string>("Yamaha U1 Professional Upright (Refurbished)");
+  const [trdTargetGrossPrice, setTrdTargetGrossPrice] = useState<number>(165000);
+  const [trdAppraisedBy, setTrdAppraisedBy] = useState<string>("Robert Herrero (Owner)");
+  const [trdApprovedByOwner, setTrdApprovedByOwner] = useState<string>("Robert Herrero (Owner Sign-Off)");
+  const [trdStatus, setTrdStatus] = useState<TradeInStatus>("Opportunity Added");
+  const [trdNotes, setTrdNotes] = useState<string>("");
+
+  const openCreateTradeModal = () => {
+    setEditingTrade(null);
+    setTrdCustomerName("Dr. Gabriel Cruz");
+    setTrdContactNumber("0918-992-1823");
+    setTrdOfferedBrandModel("Kawai K-15 Upright");
+    setTrdOfferedSerialNo("KW-391820");
+    setTrdOfferedCondition("Pre-owned good condition; minor cabinet scratches");
+    setTrdAppraisalValuation(45000);
+    setTrdTargetInventoryUnitId("RHPS-INV-001");
+    setTrdTargetBrandModel("Yamaha U1 Professional Upright (Refurbished)");
+    setTrdTargetGrossPrice(165000);
+    setTrdAppraisedBy("Robert Herrero (Owner)");
+    setTrdApprovedByOwner("Robert Herrero (Owner Sign-Off)");
+    setTrdStatus("Opportunity Added");
+    setTrdNotes("");
+    setShowTradeModal(true);
+  };
+
+  const openEditTradeModal = (t: TradeInSale) => {
+    setEditingTrade(t);
+    setTrdCustomerName(t.customerName);
+    setTrdContactNumber(t.contactNumber);
+    setTrdOfferedBrandModel(t.offeredPianoBrandModel);
+    setTrdOfferedSerialNo(t.offeredPianoSerialNo);
+    setTrdOfferedCondition(t.offeredPianoCondition);
+    setTrdAppraisalValuation(t.appraisalValuation);
+    setTrdTargetInventoryUnitId(t.targetInventoryUnitId || "RHPS-INV-001");
+    setTrdTargetBrandModel(t.targetPianoBrandModel || "");
+    setTrdTargetGrossPrice(t.targetGrossPrice);
+    setTrdAppraisedBy(t.appraisedBy);
+    setTrdApprovedByOwner(t.approvedByOwner);
+    setTrdStatus(t.status);
+    setTrdNotes(t.notes || "");
+    setShowTradeModal(true);
+  };
+
+  const handleSaveTradeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const netBal = Math.max(0, trdTargetGrossPrice - trdAppraisalValuation);
+
+    if (editingTrade) {
+      setTradeIns(
+        tradeIns.map((item) =>
+          item.id === editingTrade.id
+            ? {
+                ...item,
+                customerName: trdCustomerName,
+                contactNumber: trdContactNumber,
+                offeredPianoBrandModel: trdOfferedBrandModel,
+                offeredPianoSerialNo: trdOfferedSerialNo,
+                offeredPianoCondition: trdOfferedCondition,
+                appraisalValuation: trdAppraisalValuation,
+                targetInventoryUnitId: trdTargetInventoryUnitId,
+                targetPianoBrandModel: trdTargetBrandModel,
+                targetGrossPrice: trdTargetGrossPrice,
+                netPayableBalance: netBal,
+                appraisedBy: trdAppraisedBy,
+                approvedByOwner: trdApprovedByOwner,
+                status: trdStatus,
+                notes: trdNotes,
+              }
+            : item
+        )
+      );
+      showToast(`💾 Trade-In deal ${editingTrade.id} updated! Net Due: ₱${netBal.toLocaleString()}`);
+    } else {
+      const newTradeId = `TRD-2026-${String(tradeIns.length + 1).padStart(3, "0")}`;
+      const todayStr = new Date().toISOString().split("T")[0];
+
+      const newTradeObj: TradeInSale = {
+        id: newTradeId,
+        customerName: trdCustomerName,
+        contactNumber: trdContactNumber,
+        offeredPianoBrandModel: trdOfferedBrandModel,
+        offeredPianoSerialNo: trdOfferedSerialNo,
+        offeredPianoCondition: trdOfferedCondition,
+        appraisalValuation: trdAppraisalValuation,
+        targetInventoryUnitId: trdTargetInventoryUnitId,
+        targetPianoBrandModel: trdTargetBrandModel,
+        targetGrossPrice: trdTargetGrossPrice,
+        netPayableBalance: netBal,
+        appraisedBy: trdAppraisedBy,
+        approvedByOwner: trdApprovedByOwner,
+        status: trdStatus,
+        recordMode: "ACTUAL",
+        createdDate: todayStr,
+        notes: trdNotes,
+      };
+
+      setTradeIns([newTradeObj, ...tradeIns]);
+      showToast(`✨ Trade-In Deal ${newTradeId} logged successfully!`);
+    }
+    setShowTradeModal(false);
+  };
+
+  // Quick Modal States for Trade Actions
+  const [targetTradeForAction, setTargetTradeForAction] = useState<TradeInSale | null>(null);
+  const [showRegisterBuyerModal, setShowRegisterBuyerModal] = useState<boolean>(false);
+  const [buyerInputName, setBuyerInputName] = useState<string>("");
+  const [buyerInputContact, setBuyerInputContact] = useState<string>("");
+
+  const [showCloseLostModal, setShowCloseLostModal] = useState<boolean>(false);
+  const [lostReasonInput, setLostReasonInput] = useState<string>("");
+
+  const handleOpenRegisterBuyer = (t: TradeInSale) => {
+    setTargetTradeForAction(t);
+    setBuyerInputName(t.buyerName || t.customerName);
+    setBuyerInputContact(t.buyerContact || t.contactNumber);
+    setShowRegisterBuyerModal(true);
+  };
+
+  const handleSaveRegisterBuyer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetTradeForAction) return;
+
+    setTradeIns(
+      tradeIns.map((item) =>
+        item.id === targetTradeForAction.id
+          ? {
+              ...item,
+              buyerName: buyerInputName,
+              buyerContact: buyerInputContact,
+              status: "Buyer Registered",
+            }
+          : item
+      )
+    );
+    showToast(`👤 Buyer ${buyerInputName} successfully registered for Trade Deal ${targetTradeForAction.id}!`);
+    setShowRegisterBuyerModal(false);
+  };
+
+  const handleCloseWonAction = (t: TradeInSale) => {
+    setTradeIns(
+      tradeIns.map((item) =>
+        item.id === t.id
+          ? {
+              ...item,
+              status: "Closed Won",
+            }
+          : item
+      )
+    );
+
+    // Auto-add traded unit to Store Inventory if credit > 0
+    if (t.appraisalValuation > 0) {
+      const autoInvId = `RHPS-INV-${String(inventory.length + 1).padStart(3, "0")}`;
+      const newInvUnit: InventoryUnit = {
+        id: autoInvId,
+        brand: t.offeredPianoBrandModel.split(" ")[0] || "Traded Unit",
+        model: t.offeredPianoBrandModel,
+        serialNumber: t.offeredPianoSerialNo,
+        condition: "Pre-Owned Excellent",
+        price: t.appraisalValuation * 1.35,
+        status: "Under Repair",
+        recordMode: "ACTUAL",
+      };
+      setInventory([newInvUnit, ...inventory]);
+      showToast(`🏆 Trade-In Deal ${t.id} CLOSED WON! Traded piano auto-added to inventory (${autoInvId}). Net Due: ₱${t.netPayableBalance.toLocaleString()}`);
+    } else {
+      showToast(`🏆 Trade-In Deal ${t.id} CLOSED WON! Net Payable: ₱${t.netPayableBalance.toLocaleString()}`);
+    }
+  };
+
+  const handleOpenCloseLost = (t: TradeInSale) => {
+    setTargetTradeForAction(t);
+    setLostReasonInput("");
+    setShowCloseLostModal(true);
+  };
+
+  const handleSaveCloseLost = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetTradeForAction) return;
+
+    setTradeIns(
+      tradeIns.map((item) =>
+        item.id === targetTradeForAction.id
+          ? {
+              ...item,
+              status: "Closed Lost",
+              closeLostReason: lostReasonInput || "No reason specified",
+            }
+          : item
+      )
+    );
+    showToast(`🔴 Trade-In Deal ${targetTradeForAction.id} marked as CLOSED LOST.`);
+    setShowCloseLostModal(false);
+  };
+
   // Customer Modal Form State
   const [custName, setCustName] = useState<string>("");
   const [custContact, setCustContact] = useState<string>("");
@@ -2723,7 +3810,7 @@ I am your dedicated AI assistant for **R. Herrero Pianos & Services** — privat
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch {}
+    } catch { }
     return [WELCOME_MSG];
   };
 
@@ -2735,7 +3822,7 @@ I am your dedicated AI assistant for **R. Herrero Pianos & Services** — privat
       // Keep last 60 messages
       const trimmed = aiMessages.slice(-60);
       localStorage.setItem(AI_STORAGE_KEY, JSON.stringify(trimmed));
-    } catch {}
+    } catch { }
   }, [aiMessages]);
 
   // Auto-scroll chat box to bottom (ONLY inside the container, never the page)
@@ -3062,7 +4149,7 @@ Total Invoices: ${invoices.length}
     const normX = Math.max(0, Math.min(300, x));
     const t = normX / 300;
     const y = 42 * Math.pow(1 - t, 2) + 2 * (1 - t) * t * 24 + 10 * Math.pow(t, 2);
-    
+
     let month = "Aug YTD";
     let val = "₱18,500";
     if (normX < 75) {
@@ -3383,7 +4470,7 @@ Total Invoices: ${invoices.length}
                                 className="secondary-sm"
                                 style={{ fontSize: 11, padding: "4px 10px", background: "#dcfce7", color: "#15803d", border: "1px solid #86efac", fontWeight: 800 }}
                                 onClick={() => {
-                                  setFollowUps(followUps.map((item) => item.id === f.id ? { ...item, status: "Done" } : item));
+                                  setFollowUps(followUps.map((item) => item.id === f.id ? { ...item, status: "Completed" } : item));
                                   showToast(`✅ Follow-Up ${f.id} marked as RESOLVED!`);
                                 }}
                               >
@@ -3870,26 +4957,26 @@ Total Invoices: ${invoices.length}
                                   est.status === "Approved"
                                     ? "#dcfce7"
                                     : est.status === "Converted to Quotation"
-                                    ? "#dbeafe"
-                                    : est.status === "Sent to Customer"
-                                    ? "#fef3c7"
-                                    : est.status === "Declined"
-                                    ? "#fee2e2"
-                                    : est.status === "Revision Requested"
-                                    ? "#ffedd5"
-                                    : "#f1f5f9",
+                                      ? "#dbeafe"
+                                      : est.status === "Sent to Customer"
+                                        ? "#fef3c7"
+                                        : est.status === "Declined"
+                                          ? "#fee2e2"
+                                          : est.status === "Revision Requested"
+                                            ? "#ffedd5"
+                                            : "#f1f5f9",
                                 color:
                                   est.status === "Approved"
                                     ? "#15803d"
                                     : est.status === "Converted to Quotation"
-                                    ? "#1e40af"
-                                    : est.status === "Sent to Customer"
-                                    ? "#92400e"
-                                    : est.status === "Declined"
-                                    ? "#991b1b"
-                                    : est.status === "Revision Requested"
-                                    ? "#c2410c"
-                                    : "#475569",
+                                      ? "#1e40af"
+                                      : est.status === "Sent to Customer"
+                                        ? "#92400e"
+                                        : est.status === "Declined"
+                                          ? "#991b1b"
+                                          : est.status === "Revision Requested"
+                                            ? "#c2410c"
+                                            : "#475569",
                                 padding: "3px 10px",
                                 borderRadius: 99,
                                 fontSize: 11,
@@ -4167,26 +5254,26 @@ Total Invoices: ${invoices.length}
                                   qt.status === "Approved"
                                     ? "#dcfce7"
                                     : qt.status === "Converted to Customer Case"
-                                    ? "#dbeafe"
-                                    : qt.status === "Sent for Approval"
-                                    ? "#fef3c7"
-                                    : qt.status === "Declined"
-                                    ? "#fee2e2"
-                                    : qt.status === "Revision Needed"
-                                    ? "#ffedd5"
-                                    : "#f1f5f9",
+                                      ? "#dbeafe"
+                                      : qt.status === "Sent for Approval"
+                                        ? "#fef3c7"
+                                        : qt.status === "Declined"
+                                          ? "#fee2e2"
+                                          : qt.status === "Revision Needed"
+                                            ? "#ffedd5"
+                                            : "#f1f5f9",
                                 color:
                                   qt.status === "Approved"
                                     ? "#15803d"
                                     : qt.status === "Converted to Customer Case"
-                                    ? "#1e40af"
-                                    : qt.status === "Sent for Approval"
-                                    ? "#92400e"
-                                    : qt.status === "Declined"
-                                    ? "#991b1b"
-                                    : qt.status === "Revision Needed"
-                                    ? "#c2410c"
-                                    : "#475569",
+                                      ? "#1e40af"
+                                      : qt.status === "Sent for Approval"
+                                        ? "#92400e"
+                                        : qt.status === "Declined"
+                                          ? "#991b1b"
+                                          : qt.status === "Revision Needed"
+                                            ? "#c2410c"
+                                            : "#475569",
                                 padding: "3px 10px",
                                 borderRadius: 99,
                                 fontSize: 11,
@@ -4452,26 +5539,26 @@ Total Invoices: ${invoices.length}
                                   sch.status === "Confirmed"
                                     ? "#dcfce7"
                                     : sch.status === "Converted to Job Order"
-                                    ? "#dbeafe"
-                                    : sch.status === "Pending Confirmation"
-                                    ? "#fef3c7"
-                                    : sch.status === "Cancelled"
-                                    ? "#fee2e2"
-                                    : sch.status === "Rescheduled"
-                                    ? "#ffedd5"
-                                    : "#f1f5f9",
+                                      ? "#dbeafe"
+                                      : sch.status === "Pending Confirmation"
+                                        ? "#fef3c7"
+                                        : sch.status === "Cancelled"
+                                          ? "#fee2e2"
+                                          : sch.status === "Rescheduled"
+                                            ? "#ffedd5"
+                                            : "#f1f5f9",
                                 color:
                                   sch.status === "Confirmed"
                                     ? "#15803d"
                                     : sch.status === "Converted to Job Order"
-                                    ? "#1e40af"
-                                    : sch.status === "Pending Confirmation"
-                                    ? "#92400e"
-                                    : sch.status === "Cancelled"
-                                    ? "#991b1b"
-                                    : sch.status === "Rescheduled"
-                                    ? "#c2410c"
-                                    : "#475569",
+                                      ? "#1e40af"
+                                      : sch.status === "Pending Confirmation"
+                                        ? "#92400e"
+                                        : sch.status === "Cancelled"
+                                          ? "#991b1b"
+                                          : sch.status === "Rescheduled"
+                                            ? "#c2410c"
+                                            : "#475569",
                                 padding: "3px 10px",
                                 borderRadius: 99,
                                 fontSize: 11,
@@ -4718,22 +5805,22 @@ Total Invoices: ${invoices.length}
                                   jo.status === "Completed"
                                     ? "#dcfce7"
                                     : jo.status === "In Progress"
-                                    ? "#e0f2fe"
-                                    : jo.status === "Additional Finding Pending"
-                                    ? "#ffedd5"
-                                    : jo.status === "Cancelled"
-                                    ? "#fee2e2"
-                                    : "#f1f5f9",
+                                      ? "#e0f2fe"
+                                      : jo.status === "Additional Finding Pending"
+                                        ? "#ffedd5"
+                                        : jo.status === "Cancelled"
+                                          ? "#fee2e2"
+                                          : "#f1f5f9",
                                 color:
                                   jo.status === "Completed"
                                     ? "#15803d"
                                     : jo.status === "In Progress"
-                                    ? "#0369a1"
-                                    : jo.status === "Additional Finding Pending"
-                                    ? "#c2410c"
-                                    : jo.status === "Cancelled"
-                                    ? "#991b1b"
-                                    : "#475569",
+                                      ? "#0369a1"
+                                      : jo.status === "Additional Finding Pending"
+                                        ? "#c2410c"
+                                        : jo.status === "Cancelled"
+                                          ? "#991b1b"
+                                          : "#475569",
                                 padding: "3px 10px",
                                 borderRadius: 99,
                                 fontSize: 11,
@@ -4997,18 +6084,18 @@ Total Invoices: ${invoices.length}
                                   sr.status === "Signed by Customer"
                                     ? "#dcfce7"
                                     : sr.status === "Sent to Customer"
-                                    ? "#dbeafe"
-                                    : sr.status === "Pending Signature"
-                                    ? "#fef3c7"
-                                    : "#f1f5f9",
+                                      ? "#dbeafe"
+                                      : sr.status === "Pending Signature"
+                                        ? "#fef3c7"
+                                        : "#f1f5f9",
                                 color:
                                   sr.status === "Signed by Customer"
                                     ? "#15803d"
                                     : sr.status === "Sent to Customer"
-                                    ? "#1e40af"
-                                    : sr.status === "Pending Signature"
-                                    ? "#92400e"
-                                    : "#475569",
+                                      ? "#1e40af"
+                                      : sr.status === "Pending Signature"
+                                        ? "#92400e"
+                                        : "#475569",
                                 padding: "3px 10px",
                                 borderRadius: 99,
                                 fontSize: 11,
@@ -5287,26 +6374,26 @@ Total Invoices: ${invoices.length}
                                     displayStatus === "Paid in Full"
                                       ? "#dcfce7"
                                       : displayStatus === "Partially Paid"
-                                      ? "#e0f2fe"
-                                      : displayStatus === "Overdue"
-                                      ? "#fee2e2"
-                                      : displayStatus === "Sent"
-                                      ? "#dbeafe"
-                                      : displayStatus === "Void"
-                                      ? "#f1f5f9"
-                                      : "#f1f5f9",
+                                        ? "#e0f2fe"
+                                        : displayStatus === "Overdue"
+                                          ? "#fee2e2"
+                                          : displayStatus === "Sent"
+                                            ? "#dbeafe"
+                                            : displayStatus === "Void"
+                                              ? "#f1f5f9"
+                                              : "#f1f5f9",
                                   color:
                                     displayStatus === "Paid in Full"
                                       ? "#15803d"
                                       : displayStatus === "Partially Paid"
-                                      ? "#0369a1"
-                                      : displayStatus === "Overdue"
-                                      ? "#991b1b"
-                                      : displayStatus === "Sent"
-                                      ? "#1e40af"
-                                      : displayStatus === "Void"
-                                      ? "#64748b"
-                                      : "#475569",
+                                        ? "#0369a1"
+                                        : displayStatus === "Overdue"
+                                          ? "#991b1b"
+                                          : displayStatus === "Sent"
+                                            ? "#1e40af"
+                                            : displayStatus === "Void"
+                                              ? "#64748b"
+                                              : "#475569",
                                   padding: "3px 10px",
                                   borderRadius: 99,
                                   fontSize: 11,
@@ -5557,18 +6644,18 @@ Total Invoices: ${invoices.length}
                                   p.status === "Acknowledgment Generated"
                                     ? "#dcfce7"
                                     : p.status === "Verified"
-                                    ? "#e0f2fe"
-                                    : p.status === "Pending Verification"
-                                    ? "#fef3c7"
-                                    : "#fee2e2",
+                                      ? "#e0f2fe"
+                                      : p.status === "Pending Verification"
+                                        ? "#fef3c7"
+                                        : "#fee2e2",
                                 color:
                                   p.status === "Acknowledgment Generated"
                                     ? "#15803d"
                                     : p.status === "Verified"
-                                    ? "#0369a1"
-                                    : p.status === "Pending Verification"
-                                    ? "#92400e"
-                                    : "#991b1b",
+                                      ? "#0369a1"
+                                      : p.status === "Pending Verification"
+                                        ? "#92400e"
+                                        : "#991b1b",
                                 padding: "3px 10px",
                                 borderRadius: 99,
                                 fontSize: 11,
@@ -5654,115 +6741,917 @@ Total Invoices: ${invoices.length}
             </div>
           )}
 
-          {/* 11. EXPENSES */}
+          {/* 11. EXPENSES & PROFITABILITY MODULE */}
           {activeTab === "expenses" && (
-            <div className="rhps-view">
-              <h2>Operating Expenses</h2>
-              <table className="rhps-table">
-                <thead>
-                  <tr>
-                    <th>Expense ID</th>
-                    <th>Category</th>
-                    <th>Description</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenses.map((e) => (
-                    <tr key={e.id}>
-                      <td><strong>{e.id}</strong></td>
-                      <td>{e.category}</td>
-                      <td>{e.description}</td>
-                      <td>₱{e.amount.toLocaleString()}</td>
-                    </tr>
+            <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
+                <div>
+                  <h2>📉 Operating Expenses & Job Profitability</h2>
+                  <p className="subtitle" style={{ margin: 0 }}>
+                    Log operating expenses, link expenses to specific Job Orders / Cases, and analyze real-time job net profit & margins.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    className="primary"
+                    style={{ padding: "8px 16px", borderRadius: 10, fontSize: 13, background: "#15803d", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                    onClick={() => setShowProfitModal(true)}
+                  >
+                    📊 View Job Profitability
+                  </button>
+                  <button
+                    className="primary"
+                    style={{ padding: "8px 18px", borderRadius: 10, fontSize: 13, background: "#0f172a", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                    onClick={() => openCreateExpenseModal()}
+                  >
+                    ＋ Log New Expense
+                  </button>
+                </div>
+              </div>
+
+              {/* TEST RECORD SAFEGUARD BANNER */}
+              <div style={{ background: "#fffbebf5", border: "1px solid #fde68a", padding: "12px 16px", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, color: "#92400e" }}>
+                <div>
+                  <strong>🛡️ TEST EXPENSE SAFEGUARD ACTIVE:</strong> All expenses tagged with <strong>Record Type = TEST</strong> display a <code>TEST RECORD ONLY</code> badge and are <strong>strictly excluded from actual expense & profit calculations</strong>.
+                </div>
+                <span style={{ background: "#d97706", color: "#ffffff", padding: "2px 10px", borderRadius: 99, fontWeight: 800, fontSize: 11 }}>Safeguard Enforced</span>
+              </div>
+
+              {/* METRICS STRIP */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Actual Revenue</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#059669", margin: "4px 0" }}>₱{totalRevenue.toLocaleString()}</div>
+                  <span style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>💳 Verified Customer Payments</span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Actual Expenses</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#dc2626", margin: "4px 0" }}>
+                    ₱{expenses.filter((e) => e.recordMode === "ACTUAL").reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 700 }}>📉 Operational Outflows</span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Net Business Profit</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: netProfit >= 0 ? "#166534" : "#991b1b", margin: "4px 0" }}>
+                    ₱{netProfit.toLocaleString()}
+                  </div>
+                  <span style={{ fontSize: 11, color: netProfit >= 0 ? "#166534" : "#991b1b", fontWeight: 700 }}>
+                    {totalRevenue > 0 ? `📈 Profit Margin: ${((netProfit / totalRevenue) * 100).toFixed(1)}%` : "0% Margin"}
+                  </span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Job-Linked Expenses</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#0284c7", margin: "4px 0" }}>
+                    ₱{expenses.filter((e) => e.recordMode === "ACTUAL" && e.linkedJobOrderNo).reduce((sum, e) => sum + e.amount, 0).toLocaleString()}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#0284c7", fontWeight: 700 }}>⚙️ Direct Job Costs</span>
+                </div>
+              </div>
+
+              {/* SEARCH & FILTERS BAR */}
+              <div className="purely-card-white" style={{ padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(["All", "Parts", "Transport / Fuel", "Tools", "Utilities", "Marketing", "Job Overhead", "Other"] as const).map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        border: "1px solid #cbd5e1",
+                        cursor: "pointer",
+                        background: expCategoryFilter === cat ? "#0f172a" : "#ffffff",
+                        color: expCategoryFilter === cat ? "#ffffff" : "#475569",
+                      }}
+                      onClick={() => setExpCategoryFilter(cat)}
+                    >
+                      {cat === "All" ? "All Categories" : cat}
+                    </button>
                   ))}
-                </tbody>
-              </table>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <select
+                    className="input-field"
+                    style={{ fontSize: 12, padding: "6px 10px", width: 130 }}
+                    value={expRecordTypeFilter}
+                    onChange={(e) => setExpRecordTypeFilter(e.target.value as any)}
+                  >
+                    <option value="All">All Modes</option>
+                    <option value="ACTUAL">ACTUAL</option>
+                    <option value="TEST">TEST ONLY</option>
+                  </select>
+
+                  <input
+                    className="input-field"
+                    style={{ fontSize: 12, padding: "8px 12px", width: 220 }}
+                    placeholder="🔍 Search Exp ID, Vendor, Job No..."
+                    value={expSearch}
+                    onChange={(e) => setExpSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* EXPENSES TABLE */}
+              <div className="purely-card-white" style={{ padding: 0, overflow: "hidden" }}>
+                <table className="rhps-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>Expense ID & Date</th>
+                      <th>Category & Vendor</th>
+                      <th>Description</th>
+                      <th>Linked Job Order & Case</th>
+                      <th>Amount (₱)</th>
+                      <th>Record Type</th>
+                      <th>Recorded By</th>
+                      <th style={{ textAlign: "right" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {expenses
+                      .filter((e) => {
+                        if (expCategoryFilter !== "All" && e.category !== expCategoryFilter) return false;
+                        if (expRecordTypeFilter !== "All" && e.recordMode !== expRecordTypeFilter) return false;
+                        if (expSearch) {
+                          const query = expSearch.toLowerCase();
+                          return (
+                            e.id.toLowerCase().includes(query) ||
+                            e.description.toLowerCase().includes(query) ||
+                            e.paidTo.toLowerCase().includes(query) ||
+                            (e.linkedJobOrderNo && e.linkedJobOrderNo.toLowerCase().includes(query)) ||
+                            (e.linkedCaseId && e.linkedCaseId.toLowerCase().includes(query))
+                          );
+                        }
+                        return true;
+                      })
+                      .map((e) => (
+                        <tr key={e.id}>
+                          <td>
+                            <button
+                              style={{ border: "none", background: "transparent", color: "#2563eb", fontWeight: 800, cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                              onClick={() => setSelectedExpDetail(e)}
+                            >
+                              {e.id}
+                            </button>
+                            <div style={{ fontSize: 11, color: "#64748b" }}>{e.date}</div>
+                          </td>
+                          <td>
+                            <strong style={{ fontSize: 12.5, color: "#0f172a", display: "block" }}>{e.category}</strong>
+                            <div style={{ fontSize: 11, color: "#475569" }}>Payee: {e.paidTo}</div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 12, color: "#334155" }}>{e.description}</div>
+                            {e.receiptRefNo && <div style={{ fontSize: 10.5, color: "#64748b" }}>Ref: {e.receiptRefNo}</div>}
+                          </td>
+                          <td>
+                            {e.linkedJobOrderNo ? (
+                              <div style={{ background: "#e0f2fe", padding: "2px 8px", borderRadius: 6, display: "inline-block", fontSize: 11, color: "#0369a1", fontWeight: 800 }}>
+                                ⚙️ {e.linkedJobOrderNo}
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: 11, color: "#94a3b8" }}>General Overhead</span>
+                            )}
+                            {e.linkedCaseId && <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>Case: {e.linkedCaseId}</div>}
+                          </td>
+                          <td>
+                            <strong style={{ fontSize: 14, color: "#dc2626" }}>₱{e.amount.toLocaleString()}</strong>
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                background: e.recordMode === "TEST" ? "#fef3c7" : "#dcfce7",
+                                color: e.recordMode === "TEST" ? "#92400e" : "#15803d",
+                                padding: "2px 8px",
+                                borderRadius: 99,
+                                fontSize: 10.5,
+                                fontWeight: 800,
+                              }}
+                            >
+                              {e.recordMode === "TEST" ? "⚠️ TEST RECORD ONLY" : "ACTUAL"}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: 11, color: "#475569" }}>👤 {e.recordedBy}</td>
+                          <td style={{ textAlign: "right" }}>
+                            <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                              <button className="secondary-sm" style={{ fontSize: 10.5, padding: "3px 8px" }} onClick={() => setSelectedExpDetail(e)}>
+                                👁 Inspect
+                              </button>
+                              <button className="secondary-sm" style={{ fontSize: 10.5, padding: "3px 8px" }} onClick={() => openEditExpenseModal(e)}>
+                                ✏️ Edit
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {/* 12. FOLLOW-UPS */}
+          {/* 12. FOLLOW-UPS MODULE */}
           {activeTab === "follow_ups" && (
-            <div className="rhps-view">
-              <h2>Follow-Ups & Service Reminders</h2>
-              <table className="rhps-table">
-                <thead>
-                  <tr>
-                    <th>Follow-Up No</th>
-                    <th>Customer</th>
-                    <th>Type</th>
-                    <th>Target Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {followUps.map((f) => (
-                    <tr key={f.id}>
-                      <td><strong>{f.id}</strong></td>
-                      <td>{f.customerName}</td>
-                      <td>{f.followUpType}</td>
-                      <td>{f.targetDate}</td>
-                    </tr>
+            <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
+                <div>
+                  <h2>📅 Follow-Ups & Service Reminders</h2>
+                  <p className="subtitle" style={{ margin: 0 }}>
+                    Schedule routine check-ins, 6-month tuning reminders, and warranty comebacks. Warranty comebacks link to original JO/SR without auto-billing; new charges trigger a new Quotation path.
+                  </p>
+                </div>
+                <button
+                  className="primary"
+                  style={{ padding: "8px 18px", borderRadius: 10, fontSize: 13, background: "#0f172a", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                  onClick={() => openCreateFollowUpModal()}
+                >
+                  ＋ Create Follow-Up
+                </button>
+              </div>
+
+              {/* METRICS STRIP */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Follow-Ups</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>{followUps.length}</div>
+                  <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 700 }}>📋 Scheduled & Logged</span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Warranty Comebacks</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#c2410c", margin: "4px 0" }}>
+                    {followUps.filter((f) => f.followUpType === "Warranty Comeback").length}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#c2410c", fontWeight: 700 }}>🛠️ Post-Service Warranty Logs</span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Pending Action</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#d97706", margin: "4px 0" }}>
+                    {followUps.filter((f) => f.status === "Pending").length}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#d97706", fontWeight: 700 }}>⏳ Due Reminders</span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Completed Check-Ins</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#059669", margin: "4px 0" }}>
+                    {followUps.filter((f) => f.status === "Completed").length}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>✅ Customer Confirmed</span>
+                </div>
+              </div>
+
+              {/* SEARCH & TYPE FILTER BAR */}
+              <div className="purely-card-white" style={{ padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(["All", "Routine Check-In", "Next Service Reminder", "Warranty Comeback", "Other"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        border: "1px solid #cbd5e1",
+                        cursor: "pointer",
+                        background: followUpTypeFilter === t ? "#0f172a" : "#ffffff",
+                        color: followUpTypeFilter === t ? "#ffffff" : "#475569",
+                      }}
+                      onClick={() => setFollowUpTypeFilter(t)}
+                    >
+                      {t === "All" ? "All Types" : t}
+                    </button>
                   ))}
-                </tbody>
-              </table>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8, width: 280 }}>
+                  <input
+                    className="input-field"
+                    style={{ fontSize: 12, padding: "8px 12px" }}
+                    placeholder="🔍 Search Follow-Up No, Customer, Case..."
+                    value={followUpSearch}
+                    onChange={(e) => setFollowUpSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* FOLLOW-UPS TABLE */}
+              <div className="purely-card-white" style={{ padding: 0, overflow: "hidden" }}>
+                <table className="rhps-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>Follow-Up No. & Date</th>
+                      <th>Linked Case ID</th>
+                      <th>Customer & Piano</th>
+                      <th>Follow-Up Type</th>
+                      <th>Warranty & Linkage</th>
+                      <th>Assigned To</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: "right" }}>Follow-Up Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {followUps
+                      .filter((f) => {
+                        if (followUpTypeFilter !== "All" && f.followUpType !== followUpTypeFilter) return false;
+                        if (followUpFilter !== "All" && f.status !== followUpFilter) return false;
+                        if (followUpSearch) {
+                          const query = followUpSearch.toLowerCase();
+                          return (
+                            f.id.toLowerCase().includes(query) ||
+                            f.customerName.toLowerCase().includes(query) ||
+                            f.caseId.toLowerCase().includes(query) ||
+                            f.pianoDetails.toLowerCase().includes(query) ||
+                            (f.linkedOriginalJobOrderNo && f.linkedOriginalJobOrderNo.toLowerCase().includes(query)) ||
+                            (f.linkedOriginalServiceReportNo && f.linkedOriginalServiceReportNo.toLowerCase().includes(query))
+                          );
+                        }
+                        return true;
+                      })
+                      .map((f) => (
+                        <tr key={f.id}>
+                          <td>
+                            <button
+                              style={{ border: "none", background: "transparent", color: "#2563eb", fontWeight: 800, cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                              onClick={() => setSelectedFollowUpDetail(f)}
+                            >
+                              {f.id}
+                            </button>
+                            <div style={{ fontSize: 11, color: "#64748b" }}>Target: {f.targetDate}</div>
+                          </td>
+                          <td>
+                            <strong style={{ fontSize: 12, color: "#3730a3" }}>📁 {f.caseId}</strong>
+                          </td>
+                          <td>
+                            <strong style={{ fontSize: 13, color: "#0f172a", display: "block" }}>{f.customerName}</strong>
+                            <div style={{ fontSize: 11, color: "#475569" }}>🎹 {f.pianoDetails}</div>
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                background:
+                                  f.followUpType === "Warranty Comeback"
+                                    ? "#ffedd5"
+                                    : f.followUpType === "Next Service Reminder"
+                                      ? "#e0f2fe"
+                                      : "#f1f5f9",
+                                color:
+                                  f.followUpType === "Warranty Comeback"
+                                    ? "#c2410c"
+                                    : f.followUpType === "Next Service Reminder"
+                                      ? "#0369a1"
+                                      : "#475569",
+                                padding: "3px 10px",
+                                borderRadius: 99,
+                                fontSize: 11,
+                                fontWeight: 800,
+                              }}
+                            >
+                              {f.followUpType}
+                            </span>
+                          </td>
+                          <td>
+                            {f.followUpType === "Warranty Comeback" ? (
+                              <div style={{ fontSize: 11 }}>
+                                <div style={{ color: "#3730a3" }}>🛠️ Orig JO: {f.linkedOriginalJobOrderNo || "N/A"}</div>
+                                <div style={{ color: "#0284c7" }}>📋 Orig SR: {f.linkedOriginalServiceReportNo || "N/A"}</div>
+                                {f.newChargesRequired === "Yes" ? (
+                                  <span style={{ background: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: 4, fontSize: 9.5, fontWeight: 800 }}>
+                                    ⚡ New Charges Required (Quotation Path Needed)
+                                  </span>
+                                ) : (
+                                  <span style={{ background: "#dcfce7", color: "#15803d", padding: "1px 6px", borderRadius: 4, fontSize: 9.5, fontWeight: 800 }}>
+                                    ✅ Fully Covered under Warranty (No Auto Billing)
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: 11, color: "#64748b" }}>Standard Reminder</span>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>👤 {f.assignedTo}</div>
+                            {f.contactMethod && <div style={{ fontSize: 10.5, color: "#64748b" }}>Via: {f.contactMethod}</div>}
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                background:
+                                  f.status === "Completed"
+                                    ? "#dcfce7"
+                                    : f.status === "Pending"
+                                      ? "#fef3c7"
+                                      : f.status === "Rescheduled"
+                                        ? "#e0f2fe"
+                                        : "#fee2e2",
+                                color:
+                                  f.status === "Completed"
+                                    ? "#15803d"
+                                    : f.status === "Pending"
+                                      ? "#92400e"
+                                      : f.status === "Rescheduled"
+                                        ? "#0369a1"
+                                        : "#991b1b",
+                                padding: "3px 10px",
+                                borderRadius: 99,
+                                fontSize: 11,
+                                fontWeight: 800,
+                              }}
+                            >
+                              {f.status}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                              {/* ACTION 1: TRIGGER NEW QUOTATION (ONLY IF NEW CHARGES REQUIRED) */}
+                              {f.followUpType === "Warranty Comeback" && f.newChargesRequired === "Yes" && (
+                                <button
+                                  className="secondary-sm"
+                                  style={{ fontSize: 10.5, padding: "3px 8px", background: "#ffedd5", color: "#c2410c", border: "1px solid #fed7aa", fontWeight: 800 }}
+                                  onClick={() => handleTriggerNewQuotationForWarranty(f)}
+                                >
+                                  ⚡ Trigger Quotation
+                                </button>
+                              )}
+
+                              {/* ACTION 2: OPEN NEW CASE FOR FUTURE SERVICE */}
+                              <button
+                                className="secondary-sm"
+                                style={{ fontSize: 10.5, padding: "3px 8px", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", fontWeight: 700 }}
+                                onClick={() => handleTriggerNewCaseForFutureService(f)}
+                              >
+                                🚀 Open New Case
+                              </button>
+
+                              <button
+                                className="secondary-sm"
+                                style={{ fontSize: 10.5, padding: "3px 8px" }}
+                                onClick={() => setSelectedFollowUpDetail(f)}
+                              >
+                                👁 Inspect
+                              </button>
+                              <button
+                                className="secondary-sm"
+                                style={{ fontSize: 10.5, padding: "3px 8px" }}
+                                onClick={() => openEditFollowUpModal(f)}
+                              >
+                                ✏️ Edit
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {/* 13. REPAIRS */}
+          {/* 13. REPAIRS MODULE */}
           {activeTab === "repairs" && (
-            <div className="rhps-view">
-              <h2>Major Shop Repairs Tracking</h2>
-              <table className="rhps-table">
-                <thead>
-                  <tr>
-                    <th>Repair ID</th>
-                    <th>Customer Name</th>
-                    <th>Piano Model</th>
-                    <th>Issue Description</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {repairs.map((r) => (
-                    <tr key={r.id}>
-                      <td><strong>{r.id}</strong></td>
-                      <td>{r.customerName}</td>
-                      <td>{r.pianoModel}</td>
-                      <td>{r.issueDescription}</td>
-                      <td>{r.status}</td>
+            <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
+                <div>
+                  <h2>🔧 Major Shop Repairs Tracking</h2>
+                  <p className="subtitle" style={{ margin: 0 }}>
+                    Track pianos booked in for shop repairs. Log intake, update stages, set next actions, record job expenses, and convert to Service Reports when complete.
+                  </p>
+                </div>
+                <button
+                  className="primary"
+                  style={{ padding: "8px 18px", borderRadius: 10, fontSize: 13, background: "#0f172a", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                  onClick={() => openCreateRepairModal()}
+                >
+                  🔧 Add Repair
+                </button>
+              </div>
+
+              {/* METRICS STRIP */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14 }}>
+                {(["Intake & Inspection", "Parts Ordering", "In Repair", "Testing & Tuning", "Ready for Delivery", "Delivered & Closed"] as RepairStage[]).map((stage) => {
+                  const count = repairs.filter((r) => r.stage === stage).length;
+                  const stageColors: Record<RepairStage, { bg: string; text: string }> = {
+                    "Intake & Inspection": { bg: "#e0f2fe", text: "#0369a1" },
+                    "Parts Ordering": { bg: "#fef3c7", text: "#92400e" },
+                    "In Repair": { bg: "#fff7ed", text: "#c2410c" },
+                    "Testing & Tuning": { bg: "#ede9fe", text: "#5b21b6" },
+                    "Ready for Delivery": { bg: "#dcfce7", text: "#15803d" },
+                    "Delivered & Closed": { bg: "#f1f5f9", text: "#475569" },
+                  };
+                  return (
+                    <div
+                      key={stage}
+                      className="purely-card-white"
+                      style={{ padding: 16, cursor: "pointer", border: repairStageFilter === stage ? "2px solid #0f172a" : "1px solid #e2e8f0" }}
+                      onClick={() => setRepairStageFilter(repairStageFilter === stage ? "All" : stage)}
+                    >
+                      <span style={{ fontSize: 10, fontWeight: 800, color: stageColors[stage].text, textTransform: "uppercase", letterSpacing: "0.04em" }}>{stage}</span>
+                      <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a", margin: "2px 0" }}>{count}</div>
+                      <div style={{ height: 4, borderRadius: 2, background: stageColors[stage].bg, marginTop: 4 }} />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* SEARCH & FILTER BAR */}
+              <div className="purely-card-white" style={{ padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, border: "1px solid #cbd5e1", cursor: "pointer", background: repairStageFilter === "All" ? "#0f172a" : "#ffffff", color: repairStageFilter === "All" ? "#ffffff" : "#475569" }}
+                    onClick={() => setRepairStageFilter("All")}
+                  >
+                    All Repairs
+                  </button>
+                </div>
+                <input
+                  className="input-field"
+                  style={{ fontSize: 12, padding: "8px 12px", width: 260 }}
+                  placeholder="🔍 Search Repair ID, Customer, Piano..."
+                  value={repairSearch}
+                  onChange={(e) => setRepairSearch(e.target.value)}
+                />
+              </div>
+
+              {/* REPAIRS TABLE */}
+              <div className="purely-card-white" style={{ padding: 0, overflow: "hidden" }}>
+                <table className="rhps-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>Repair ID & Intake</th>
+                      <th>Customer & Contact</th>
+                      <th>Piano & Serial No.</th>
+                      <th>Issue & Next Action</th>
+                      <th>Stage</th>
+                      <th>Est. Completion</th>
+                      <th>Repair Cost</th>
+                      <th style={{ textAlign: "right" }}>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {repairs
+                      .filter((r) => {
+                        if (repairStageFilter !== "All" && r.stage !== repairStageFilter) return false;
+                        if (repairSearch) {
+                          const q = repairSearch.toLowerCase();
+                          return (
+                            r.id.toLowerCase().includes(q) ||
+                            r.customerName.toLowerCase().includes(q) ||
+                            r.pianoModel.toLowerCase().includes(q) ||
+                            r.issueDescription.toLowerCase().includes(q)
+                          );
+                        }
+                        return true;
+                      })
+                      .map((r) => {
+                        const stageColors: Record<string, { bg: string; text: string }> = {
+                          "Intake & Inspection": { bg: "#e0f2fe", text: "#0369a1" },
+                          "Parts Ordering": { bg: "#fef3c7", text: "#92400e" },
+                          "In Repair": { bg: "#fff7ed", text: "#c2410c" },
+                          "Testing & Tuning": { bg: "#ede9fe", text: "#5b21b6" },
+                          "Ready for Delivery": { bg: "#dcfce7", text: "#15803d" },
+                          "Delivered & Closed": { bg: "#f1f5f9", text: "#475569" },
+                        };
+                        const sc = stageColors[r.stage] || { bg: "#f1f5f9", text: "#475569" };
+                        return (
+                          <tr key={r.id}>
+                            <td>
+                              <button
+                                style={{ border: "none", background: "transparent", color: "#2563eb", fontWeight: 800, cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                                onClick={() => setSelectedRepairDetail(r)}
+                              >
+                                {r.id}
+                              </button>
+                              <div style={{ fontSize: 11, color: "#64748b" }}>Intake: {r.intakeDate}</div>
+                              {r.convertedToServiceReportId && (
+                                <div style={{ fontSize: 10, color: "#059669", fontWeight: 700 }}>📋 SR: {r.convertedToServiceReportId}</div>
+                              )}
+                            </td>
+                            <td>
+                              <strong style={{ fontSize: 13, color: "#0f172a", display: "block" }}>{r.customerName}</strong>
+                              <div style={{ fontSize: 11, color: "#475569" }}>📞 {r.contactNumber}</div>
+                            </td>
+                            <td>
+                              <strong style={{ fontSize: 12.5, color: "#334155", display: "block" }}>🎹 {r.pianoModel}</strong>
+                              <div style={{ fontSize: 10.5, color: "#64748b" }}>S/N: {r.pianoSerialNo}</div>
+                            </td>
+                            <td>
+                              <div style={{ fontSize: 12, color: "#334155", marginBottom: 4 }}>{r.issueDescription.substring(0, 60)}{r.issueDescription.length > 60 ? "…" : ""}</div>
+                              {r.nextAction && (
+                                <div style={{ background: "#fefce8", padding: "2px 8px", borderRadius: 6, fontSize: 11, color: "#713f12", fontWeight: 700 }}>
+                                  ➡️ {r.nextAction}
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              <span style={{ background: sc.bg, color: sc.text, padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800, display: "inline-block" }}>
+                                {r.stage}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: 12, color: "#334155" }}>{r.estimatedCompletion}</td>
+                            <td>
+                              <strong style={{ fontSize: 13, color: r.repairCost ? "#0f172a" : "#94a3b8" }}>
+                                {r.repairCost ? `₱${r.repairCost.toLocaleString()}` : "TBD"}
+                              </strong>
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                                <button
+                                  className="secondary-sm"
+                                  style={{ fontSize: 10.5, padding: "3px 8px", background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc" }}
+                                  onClick={() => handleOpenUpdateStage(r)}
+                                >
+                                  🔄 Update Stage
+                                </button>
+                                <button
+                                  className="secondary-sm"
+                                  style={{ fontSize: 10.5, padding: "3px 8px", background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d" }}
+                                  onClick={() => {
+                                    openCreateExpenseModal(r.linkedJobOrderNo, r.linkedCaseId);
+                                  }}
+                                >
+                                  📉 Record Expense
+                                </button>
+                                {r.stage !== "Delivered & Closed" && !r.convertedToServiceReportId && (
+                                  <button
+                                    className="secondary-sm"
+                                    style={{ fontSize: 10.5, padding: "3px 8px", background: "#dcfce7", color: "#15803d", border: "1px solid #86efac" }}
+                                    onClick={() => {
+                                      if (confirm(`Convert ${r.id} to a Service Report? This will mark the repair as Delivered & Closed.`)) {
+                                        handleConvertRepairToServiceReport(r);
+                                      }
+                                    }}
+                                  >
+                                    📋 To Service Report
+                                  </button>
+                                )}
+                                <button
+                                  className="secondary-sm"
+                                  style={{ fontSize: 10.5, padding: "3px 8px" }}
+                                  onClick={() => openEditRepairModal(r)}
+                                >
+                                  ✏️ Edit
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {/* 14. TRADE-IN / SALES */}
+
+          {/* 14. TRADE-IN & PIANO SALES MODULE */}
           {activeTab === "trade_in" && (
-            <div className="rhps-view">
-              <h2>Trade-In & Sales Opportunities</h2>
-              <table className="rhps-table">
-                <thead>
-                  <tr>
-                    <th>Opportunity ID</th>
-                    <th>Customer Name</th>
-                    <th>Offered Piano</th>
-                    <th>Valuation</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tradeIns.map((t) => (
-                    <tr key={t.id}>
-                      <td><strong>{t.id}</strong></td>
-                      <td>{t.customerName}</td>
-                      <td>{t.offeredPiano}</td>
-                      <td>₱{t.valuation.toLocaleString()}</td>
-                      <td>{t.status}</td>
-                    </tr>
+            <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
+                <div>
+                  <h2>🔄 Trade-In & Piano Sales Pipeline</h2>
+                  <p className="subtitle" style={{ margin: 0 }}>
+                    Manage sales opportunities, register buyers, appraise customer pianos, and track pipeline stages from <code>Opportunity Added</code> → <code>Buyer Registered</code> → <code>Closed Won</code> / <code>Closed Lost</code>.
+                  </p>
+                </div>
+                <button
+                  className="primary"
+                  style={{ padding: "8px 18px", borderRadius: 10, fontSize: 13, background: "#0f172a", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                  onClick={() => openCreateTradeModal()}
+                >
+                  ＋ Add Opportunity
+                </button>
+              </div>
+
+              {/* METRICS STRIP */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Opportunities</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>{tradeIns.length}</div>
+                  <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 700 }}>🎹 Active Trade & Sales Pipeline</span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Closed Won Deals</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#059669", margin: "4px 0" }}>
+                    {tradeIns.filter((t) => t.status === "Closed Won").length}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>🏆 Successfully Completed Sales</span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Registered Buyers</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#0284c7", margin: "4px 0" }}>
+                    {tradeIns.filter((t) => t.status === "Buyer Registered" || t.buyerName).length}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#0284c7", fontWeight: 700 }}>👤 Reserved Target Pianos</span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Net Sales Payable Balance</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#166534", margin: "4px 0" }}>
+                    ₱{tradeIns.filter((t) => t.status !== "Closed Lost").reduce((acc, curr) => acc + (curr.netPayableBalance || 0), 0).toLocaleString()}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#166534", fontWeight: 700 }}>💵 System Net Pipeline Value</span>
+                </div>
+              </div>
+
+              {/* SEARCH & FILTERS BAR */}
+              <div className="purely-card-white" style={{ padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(["All", "Opportunity Added", "In Appraisal", "Valuation Offered", "Buyer Registered", "Closed Won", "Closed Lost"] as const).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        border: "1px solid #cbd5e1",
+                        cursor: "pointer",
+                        background: tradeFilter === st ? "#0f172a" : "#ffffff",
+                        color: tradeFilter === st ? "#ffffff" : "#475569",
+                      }}
+                      onClick={() => setTradeFilter(st as any)}
+                    >
+                      {st === "All" ? "All Pipeline" : st}
+                    </button>
                   ))}
-                </tbody>
-              </table>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8, width: 280 }}>
+                  <input
+                    className="input-field"
+                    style={{ fontSize: 12, padding: "8px 12px" }}
+                    placeholder="🔍 Search Trade No, Customer, Buyer, Piano..."
+                    value={tradeSearch}
+                    onChange={(e) => setTradeSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* TRADE-IN TABLE */}
+              <div className="purely-card-white" style={{ padding: 0, overflow: "hidden" }}>
+                <table className="rhps-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>Trade-In ID & Date</th>
+                      <th>Customer & Registered Buyer</th>
+                      <th>Traded-In Piano & Credit</th>
+                      <th>Target Unit Purchased</th>
+                      <th>Gross Price & Credit</th>
+                      <th>Net Balance Payable</th>
+                      <th>Status & Approval</th>
+                      <th style={{ textAlign: "right" }}>Pipeline Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tradeIns
+                      .filter((t) => {
+                        if (tradeFilter !== "All" && t.status !== tradeFilter) return false;
+                        if (tradeSearch) {
+                          const query = tradeSearch.toLowerCase();
+                          return (
+                            t.id.toLowerCase().includes(query) ||
+                            t.customerName.toLowerCase().includes(query) ||
+                            (t.buyerName && t.buyerName.toLowerCase().includes(query)) ||
+                            t.offeredPianoBrandModel.toLowerCase().includes(query) ||
+                            (t.targetPianoBrandModel && t.targetPianoBrandModel.toLowerCase().includes(query)) ||
+                            (t.linkedInvoiceNo && t.linkedInvoiceNo.toLowerCase().includes(query))
+                          );
+                        }
+                        return true;
+                      })
+                      .map((t) => (
+                        <tr key={t.id}>
+                          <td>
+                            <button
+                              style={{ border: "none", background: "transparent", color: "#2563eb", fontWeight: 800, cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                              onClick={() => setSelectedTradeDetail(t)}
+                            >
+                              {t.id}
+                            </button>
+                            <div style={{ fontSize: 11, color: "#64748b" }}>{t.createdDate}</div>
+                          </td>
+                          <td>
+                            <strong style={{ fontSize: 13, color: "#0f172a", display: "block" }}>{t.customerName}</strong>
+                            <div style={{ fontSize: 11, color: "#475569" }}>📞 {t.contactNumber}</div>
+                            {t.buyerName && (
+                              <div style={{ marginTop: 4, background: "#f0f9ff", padding: "2px 6px", borderRadius: 4, fontSize: 11, color: "#0369a1", fontWeight: 700 }}>
+                                👤 Registered Buyer: {t.buyerName} ({t.buyerContact})
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <strong style={{ fontSize: 12.5, color: "#c2410c", display: "block" }}>🎹 {t.offeredPianoBrandModel}</strong>
+                            <div style={{ fontSize: 10.5, color: "#64748b" }}>S/N: {t.offeredPianoSerialNo}</div>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: "#c2410c", marginTop: 2 }}>
+                              Credit: ₱{t.appraisalValuation.toLocaleString()}
+                            </div>
+                          </td>
+                          <td>
+                            <strong style={{ fontSize: 12.5, color: "#0284c7", display: "block" }}>
+                              🏪 {t.targetPianoBrandModel || "Custom Unit"}
+                            </strong>
+                            <div style={{ fontSize: 10.5, color: "#64748b" }}>Inv Ref: {t.targetInventoryUnitId || "N/A"}</div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 12, color: "#334155" }}>Gross: ₱{t.targetGrossPrice.toLocaleString()}</div>
+                            <div style={{ fontSize: 11, color: "#c2410c" }}>Credit: -₱{t.appraisalValuation.toLocaleString()}</div>
+                          </td>
+                          <td>
+                            <strong style={{ fontSize: 14, color: t.status === "Closed Lost" ? "#64748b" : "#166534", display: "block", textDecoration: t.status === "Closed Lost" ? "line-through" : "none" }}>
+                              ₱{t.netPayableBalance.toLocaleString()}
+                            </strong>
+                            <div style={{ fontSize: 10, color: "#64748b" }}>System Net Due</div>
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                background:
+                                  t.status === "Closed Won"
+                                    ? "#dcfce7"
+                                    : t.status === "Buyer Registered"
+                                    ? "#e0f2fe"
+                                    : t.status === "Closed Lost"
+                                    ? "#fee2e2"
+                                    : "#fef3c7",
+                                color:
+                                  t.status === "Closed Won"
+                                    ? "#15803d"
+                                    : t.status === "Buyer Registered"
+                                    ? "#0369a1"
+                                    : t.status === "Closed Lost"
+                                    ? "#b91c1c"
+                                    : "#92400e",
+                                padding: "3px 10px",
+                                borderRadius: 99,
+                                fontSize: 11,
+                                fontWeight: 800,
+                                display: "inline-block",
+                              }}
+                            >
+                              {t.status}
+                            </span>
+                            {t.closeLostReason && (
+                              <div style={{ fontSize: 10, color: "#b91c1c", marginTop: 2 }}>Reason: {t.closeLostReason}</div>
+                            )}
+                            <div style={{ fontSize: 10.5, color: "#64748b", marginTop: 2 }}>Sign-Off: {t.approvedByOwner}</div>
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                              {t.status !== "Closed Won" && t.status !== "Closed Lost" && (
+                                <button
+                                  className="secondary-sm"
+                                  style={{ fontSize: 10.5, padding: "3px 8px", background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc" }}
+                                  onClick={() => handleOpenRegisterBuyer(t)}
+                                >
+                                  👤 Register Buyer
+                                </button>
+                              )}
+
+                              {t.status !== "Closed Won" && (
+                                <button
+                                  className="secondary-sm"
+                                  style={{ fontSize: 10.5, padding: "3px 8px", background: "#dcfce7", color: "#15803d", border: "1px solid #86efac" }}
+                                  onClick={() => handleCloseWonAction(t)}
+                                >
+                                  🟢 Close Won
+                                </button>
+                              )}
+
+                              {t.status !== "Closed Lost" && (
+                                <button
+                                  className="secondary-sm"
+                                  style={{ fontSize: 10.5, padding: "3px 8px", background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5" }}
+                                  onClick={() => handleOpenCloseLost(t)}
+                                >
+                                  🔴 Close Lost
+                                </button>
+                              )}
+
+                              <button
+                                className="secondary-sm"
+                                style={{ fontSize: 10.5, padding: "3px 8px" }}
+                                onClick={() => openEditTradeModal(t)}
+                              >
+                                ✏️ Update Status
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -5797,32 +7686,271 @@ Total Invoices: ${invoices.length}
             </div>
           )}
 
-          {/* 16. DOCUMENTS */}
+          {/* 16. DOCUMENTS MODULE */}
           {activeTab === "documents" && (
-            <div className="rhps-view">
-              <h2>Documents & Generated Reports</h2>
-              <table className="rhps-table">
-                <thead>
-                  <tr>
-                    <th>Doc ID</th>
-                    <th>Title</th>
-                    <th>Type</th>
-                    <th>Generated By</th>
-                    <th>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {documents.map((d) => (
-                    <tr key={d.id}>
-                      <td><strong>{d.id}</strong></td>
-                      <td>{d.title}</td>
-                      <td>{d.documentType}</td>
-                      <td>{d.generatedBy}</td>
-                      <td>{d.dateGenerated}</td>
-                    </tr>
+            <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
+                <div>
+                  <h2>📁 Generated Documents & Official Records</h2>
+                  <p className="subtitle" style={{ margin: 0 }}>
+                    Centralized document repository. Auto-assigned document numbering, record mode tagging (`ACTUAL` vs `TEST RECORD ONLY`), and critical fail safeguards preventing test amounts from entering financial totals.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button
+                    className="primary"
+                    style={{ padding: "7px 14px", borderRadius: 8, fontSize: 12, background: "#0f172a", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                    onClick={() => openCreateDocModal("Quotation")}
+                  >
+                    📝 Generate Quotation
+                  </button>
+                  <button
+                    className="primary"
+                    style={{ padding: "7px 14px", borderRadius: 8, fontSize: 12, background: "#0284c7", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                    onClick={() => openCreateDocModal("Estimate")}
+                  >
+                    📜 Generate Estimate
+                  </button>
+                  <button
+                    className="primary"
+                    style={{ padding: "7px 14px", borderRadius: 8, fontSize: 12, background: "#d97706", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                    onClick={() => openCreateDocModal("Job Order")}
+                  >
+                    🛠️ Generate Job Order
+                  </button>
+                  <button
+                    className="primary"
+                    style={{ padding: "7px 14px", borderRadius: 8, fontSize: 12, background: "#4f46e5", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                    onClick={() => openCreateDocModal("Service Report")}
+                  >
+                    📋 Generate Service Report
+                  </button>
+                  <button
+                    className="primary"
+                    style={{ padding: "7px 14px", borderRadius: 8, fontSize: 12, background: "#059669", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                    onClick={() => openCreateDocModal("Invoice")}
+                  >
+                    🧾 Generate Invoice
+                  </button>
+                  <button
+                    className="primary"
+                    style={{ padding: "7px 14px", borderRadius: 8, fontSize: 12, background: "#166534", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
+                    onClick={() => openCreateDocModal("Payment Acknowledgment")}
+                  >
+                    💳 Generate Payment Ack
+                  </button>
+                </div>
+              </div>
+
+              {/* TEST RECORD SAFEGUARD BANNER */}
+              <div style={{ background: "#fffbebf5", border: "1px solid #fde68a", padding: "12px 16px", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, color: "#92400e" }}>
+                <div>
+                  <strong>🛡️ TEST RECORD SAFEGUARD ACTIVE:</strong> All records tagged with <strong>Record Type = TEST</strong> display a prominent <code>TEST RECORD ONLY</code> badge and are strictly excluded from actual income, expense, balance, or dashboard totals.
+                </div>
+                <span style={{ background: "#d97706", color: "#ffffff", padding: "2px 10px", borderRadius: 99, fontWeight: 800, fontSize: 11 }}>Critical Fail Rule Enforced</span>
+              </div>
+
+              {/* METRICS STRIP */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Documents</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>{documents.length}</div>
+                  <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 700 }}>📄 Total Repository Files</span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Actual Records</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#059669", margin: "4px 0" }}>
+                    {documents.filter((d) => d.recordType === "ACTUAL").length}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>✅ Official Business Files</span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Test Records</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#d97706", margin: "4px 0" }}>
+                    {documents.filter((d) => d.recordType === "TEST").length}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#d97706", fontWeight: 700 }}>⚠️ Test Safeguard Mode</span>
+                </div>
+
+                <div className="purely-card-white" style={{ padding: 18 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Sent Documents</span>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#0284c7", margin: "4px 0" }}>
+                    {documents.filter((d) => d.status === "Sent").length}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#0284c7", fontWeight: 700 }}>📲 Dispatched to Clients</span>
+                </div>
+              </div>
+
+              {/* SEARCH & FILTERS BAR */}
+              <div className="purely-card-white" style={{ padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(["All", "Estimate", "Quotation", "Job Order", "Service Report", "Invoice", "Payment Acknowledgment"] as const).map((dt) => (
+                    <button
+                      key={dt}
+                      type="button"
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        border: "1px solid #cbd5e1",
+                        cursor: "pointer",
+                        background: docTypeFilter === dt ? "#0f172a" : "#ffffff",
+                        color: docTypeFilter === dt ? "#ffffff" : "#475569",
+                      }}
+                      onClick={() => setDocTypeFilter(dt)}
+                    >
+                      {dt === "All" ? "All Types" : dt}
+                    </button>
                   ))}
-                </tbody>
-              </table>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <select
+                    className="input-field"
+                    style={{ fontSize: 12, padding: "6px 10px", width: 130 }}
+                    value={docRecordTypeFilter}
+                    onChange={(e) => setDocRecordTypeFilter(e.target.value as any)}
+                  >
+                    <option value="All">All Modes</option>
+                    <option value="ACTUAL">ACTUAL</option>
+                    <option value="TEST">TEST ONLY</option>
+                  </select>
+
+                  <input
+                    className="input-field"
+                    style={{ fontSize: 12, padding: "8px 12px", width: 220 }}
+                    placeholder="🔍 Search Doc No, Source, Case..."
+                    value={docSearch}
+                    onChange={(e) => setDocSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* DOCUMENTS TABLE */}
+              <div className="purely-card-white" style={{ padding: 0, overflow: "hidden" }}>
+                <table className="rhps-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>Document No. (Auto-Assigned)</th>
+                      <th>Document Type</th>
+                      <th>Record Type</th>
+                      <th>Linked Source Record & Case</th>
+                      <th>Date & Generated By</th>
+                      <th>Generating Module</th>
+                      <th>Ownership Role</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: "right" }}>Document Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {documents
+                      .filter((d) => {
+                        if (docTypeFilter !== "All" && d.documentType !== docTypeFilter) return false;
+                        if (docFilter !== "All" && d.status !== docFilter) return false;
+                        if (docRecordTypeFilter !== "All" && d.recordType !== docRecordTypeFilter) return false;
+                        if (docSearch) {
+                          const query = docSearch.toLowerCase();
+                          return (
+                            d.id.toLowerCase().includes(query) ||
+                            d.linkedSourceRecordNo.toLowerCase().includes(query) ||
+                            d.linkedCaseId.toLowerCase().includes(query) ||
+                            d.generatedBy.toLowerCase().includes(query) ||
+                            (d.notes && d.notes.toLowerCase().includes(query))
+                          );
+                        }
+                        return true;
+                      })
+                      .map((d) => (
+                        <tr key={d.id} style={{ background: d.recordType === "TEST" ? "#fffbebf5" : undefined }}>
+                          <td>
+                            <button
+                              style={{ border: "none", background: "transparent", color: "#2563eb", fontWeight: 800, cursor: "pointer", textDecoration: "underline", padding: 0 }}
+                              onClick={() => setSelectedDocDetail(d)}
+                            >
+                              {d.id}
+                            </button>
+                            <div style={{ fontSize: 10, color: "#64748b" }}>Auto-Assigned</div>
+                          </td>
+                          <td>
+                            <strong style={{ fontSize: 12.5, color: "#0f172a" }}>{d.documentType}</strong>
+                          </td>
+                          <td>
+                            {d.recordType === "TEST" ? (
+                              <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 900 }}>
+                                ⚠️ TEST RECORD ONLY
+                              </span>
+                            ) : (
+                              <span style={{ background: "#dcfce7", color: "#15803d", border: "1px solid #86efac", padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 800 }}>
+                                ACTUAL RECORD
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 11, color: "#2563eb", fontWeight: 700 }}>📄 Source: {d.linkedSourceRecordNo}</div>
+                            <div style={{ fontSize: 10.5, color: "#3730a3" }}>📁 Case: {d.linkedCaseId}</div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>📅 {d.dateGenerated}</div>
+                            <div style={{ fontSize: 10.5, color: "#64748b" }}>By: {d.generatedBy}</div>
+                          </td>
+                          <td>
+                            <span style={{ background: "#f1f5f9", color: "#475569", padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 700 }}>
+                              {d.generatingModule}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: 11, color: "#334155" }}>{d.documentOwnershipRole}</div>
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                background:
+                                  d.status === "Sent"
+                                    ? "#dbeafe"
+                                    : d.status === "Generated"
+                                      ? "#dcfce7"
+                                      : "#f1f5f9",
+                                color:
+                                  d.status === "Sent"
+                                    ? "#1e40af"
+                                    : d.status === "Generated"
+                                      ? "#15803d"
+                                      : "#64748b",
+                                padding: "3px 10px",
+                                borderRadius: 99,
+                                fontSize: 11,
+                                fontWeight: 800,
+                              }}
+                            >
+                              {d.status}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                              <button
+                                className="secondary-sm"
+                                style={{ fontSize: 10.5, padding: "3px 8px" }}
+                                onClick={() => setSelectedDocDetail(d)}
+                              >
+                                👁 Inspect
+                              </button>
+                              <button
+                                className="secondary-sm"
+                                style={{ fontSize: 10.5, padding: "3px 8px" }}
+                                onClick={() => openEditDocModal(d)}
+                              >
+                                ✏️ Edit
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -6851,7 +8979,7 @@ Total Invoices: ${invoices.length}
                       <strong>🔒 KEY RULE & SAFEGUARD CHECKLIST:</strong>
                       <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
                         <li><strong>Owner-Only Access:</strong> Restricted exclusively to <strong>{activeUser}</strong>.</li>
-                        <li><strong>Auto Pre-Restore Snapshot:</strong> A fresh pre-restore snapshot (<code>SNAP-PRE-{new Date().toISOString().slice(0,10).replace(/-/g,"")}-01</code>) will be created automatically before restore.</li>
+                        <li><strong>Auto Pre-Restore Snapshot:</strong> A fresh pre-restore snapshot (<code>SNAP-PRE-{new Date().toISOString().slice(0, 10).replace(/-/g, "")}-01</code>) will be created automatically before restore.</li>
                         <li><strong>Boundary Protection:</strong> Actual vs Test record isolation is protected.</li>
                       </ul>
                     </div>
@@ -9365,6 +11493,1382 @@ Total Invoices: ${invoices.length}
                   >
                     📜 Generate Acknowledgment
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CREATE / EDIT FOLLOW-UP MODAL */}
+          {showFollowUpModal && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowFollowUpModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 680 }}>
+                <div className="rhps-modal-header">
+                  <h3>{editingFollowUp ? `✏️ Edit Follow-Up — ${editingFollowUp.id}` : "📅 Schedule Follow-Up & Reminder"}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowFollowUpModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveFollowUpSubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 16 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Linked Case ID <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={folCaseId}
+                          onChange={(e) => setFolCaseId(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Target Date <span className="required-star">*</span></label>
+                        <input
+                          type="date"
+                          className="input-field"
+                          required
+                          value={folTargetDate}
+                          onChange={(e) => setFolTargetDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Assigned Technician <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={folAssignedTo}
+                          onChange={(e) => setFolAssignedTo(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Customer Name (Carried Forward) <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={folCustomerName}
+                          onChange={(e) => setFolCustomerName(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Piano Details (Carried Forward) <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={folPianoDetails}
+                          onChange={(e) => setFolPianoDetails(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Follow-Up Type <span className="required-star">*</span></label>
+                        <select
+                          className="input-field"
+                          value={folType}
+                          onChange={(e) => setFolType(e.target.value as FollowUpType)}
+                        >
+                          <option value="Routine Check-In">Routine Check-In</option>
+                          <option value="Next Service Reminder">Next Service Reminder</option>
+                          <option value="Warranty Comeback">Warranty Comeback</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Follow-Up Status <span className="required-star">*</span></label>
+                        <select
+                          className="input-field"
+                          value={folStatus}
+                          onChange={(e) => setFolStatus(e.target.value as FollowUpStatus)}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Completed">Completed</option>
+                          <option value="Rescheduled">Rescheduled</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* CONDITIONAL REQUIRED SECTION: WARRANTY COMEBACK */}
+                    {folType === "Warranty Comeback" && (
+                      <div style={{ background: "#ffedd5", padding: 14, borderRadius: 12, border: "1px solid #fed7aa" }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: "#c2410c", textTransform: "uppercase", display: "block", marginBottom: 8 }}>
+                          🛠️ Warranty Comeback Mandatory Links & Charges
+                        </span>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          <div className="form-group">
+                            <label style={{ color: "#7c2d12" }}>Linked Original Job Order No. <span className="required-star">*</span></label>
+                            <input
+                              className="input-field"
+                              required={folType === "Warranty Comeback"}
+                              value={folJobOrderNo}
+                              onChange={(e) => setFolJobOrderNo(e.target.value)}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label style={{ color: "#7c2d12" }}>Linked Original Service Report No. <span className="required-star">*</span></label>
+                            <input
+                              className="input-field"
+                              required={folType === "Warranty Comeback"}
+                              value={folServiceReportNo}
+                              onChange={(e) => setFolServiceReportNo(e.target.value)}
+                            />
+                          </div>
+                          <div className="form-group" style={{ gridColumn: "span 2" }}>
+                            <label style={{ color: "#7c2d12" }}>Warranty Issue Description <span className="required-star">*</span></label>
+                            <input
+                              className="input-field"
+                              required={folType === "Warranty Comeback"}
+                              value={folIssueDesc}
+                              onChange={(e) => setFolIssueDesc(e.target.value)}
+                              placeholder="e.g. Minor damper felts buzz on C#4 after regulation"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label style={{ color: "#7c2d12" }}>Covered by Warranty? <span className="required-star">*</span></label>
+                            <select
+                              className="input-field"
+                              value={folCoveredByWarranty}
+                              onChange={(e) => setFolCoveredByWarranty(e.target.value as "Yes" | "No")}
+                            >
+                              <option value="Yes">Yes (No Auto Billing / Free Fix)</option>
+                              <option value="No">No (Out of Scope)</option>
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label style={{ color: "#7c2d12" }}>New Charges Required? <span className="required-star">*</span></label>
+                            <select
+                              className="input-field"
+                              value={folNewChargesRequired}
+                              onChange={(e) => setFolNewChargesRequired(e.target.value as "Yes" | "No")}
+                            >
+                              <option value="No">No (Strict No Auto-Billing Rule)</option>
+                              <option value="Yes">Yes (Requires New Quotation Path)</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Preferred Contact Method</label>
+                        <select
+                          className="input-field"
+                          value={folContactMethod}
+                          onChange={(e) => setFolContactMethod(e.target.value as "Call" | "Message")}
+                        >
+                          <option value="Call">Call</option>
+                          <option value="Message">Message / Viber</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Notes / Reminders</label>
+                        <input
+                          className="input-field"
+                          value={folNotes}
+                          onChange={(e) => setFolNotes(e.target.value)}
+                          placeholder="e.g. Customer prefers morning contact before 10 AM"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowFollowUpModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#0f172a", color: "#ffffff", padding: "10px 22px", borderRadius: 10, fontWeight: 700, border: "none" }}>
+                      {editingFollowUp ? "💾 Save Changes" : "📅 Schedule Follow-Up"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* FOLLOW-UP DETAIL INSPECTION MODAL */}
+          {selectedFollowUpDetail && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setSelectedFollowUpDetail(null)}>
+              <div className="rhps-modal" style={{ maxWidth: 660 }}>
+                <div className="rhps-modal-header">
+                  <h3>🔍 Follow-Up Record — {selectedFollowUpDetail.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setSelectedFollowUpDetail(null)}>×</button>
+                </div>
+
+                <div className="rhps-modal-body" style={{ gap: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", background: "#f8fafc", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Linked Case ID</span>
+                      <strong style={{ display: "block", color: "#3730a3" }}>📁 {selectedFollowUpDetail.caseId}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Follow-Up Type</span>
+                      <strong style={{ display: "block", color: "#c2410c" }}>{selectedFollowUpDetail.followUpType}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Target Date</span>
+                      <strong style={{ display: "block", color: "#0f172a" }}>{selectedFollowUpDetail.targetDate}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Status</span>
+                      <strong style={{ display: "block", color: "#059669" }}>{selectedFollowUpDetail.status}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Customer Name</span><strong>{selectedFollowUpDetail.customerName}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Piano Details</span><strong>🎹 {selectedFollowUpDetail.pianoDetails}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Assigned Technician</span><strong>👤 {selectedFollowUpDetail.assignedTo}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Contact Method</span><strong>{selectedFollowUpDetail.contactMethod || "Call"}</strong></div>
+                  </div>
+
+                  {/* WARRANTY DETAILS */}
+                  {selectedFollowUpDetail.followUpType === "Warranty Comeback" && (
+                    <div style={{ background: "#ffedd5", padding: 12, borderRadius: 10, border: "1px solid #fed7aa", fontSize: 12, color: "#7c2d12" }}>
+                      <strong>🛠️ Warranty Comeback Log:</strong>
+                      <div>Linked Orig Job Order: <strong>{selectedFollowUpDetail.linkedOriginalJobOrderNo}</strong></div>
+                      <div>Linked Orig Service Report: <strong>{selectedFollowUpDetail.linkedOriginalServiceReportNo}</strong></div>
+                      <div>Issue Reported: <strong>{selectedFollowUpDetail.issueDescription}</strong></div>
+                      <div>Covered by Warranty: <strong>{selectedFollowUpDetail.coveredByWarranty}</strong></div>
+                      <div>New Charges Required: <strong>{selectedFollowUpDetail.newChargesRequired}</strong></div>
+                    </div>
+                  )}
+
+                  {selectedFollowUpDetail.notes && (
+                    <div style={{ background: "#f8fafc", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12, color: "#475569" }}>
+                      <strong>📝 Notes:</strong> {selectedFollowUpDetail.notes}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rhps-modal-footer">
+                  <button className="secondary-sm" onClick={() => setSelectedFollowUpDetail(null)}>Close</button>
+                  {selectedFollowUpDetail.followUpType === "Warranty Comeback" && selectedFollowUpDetail.newChargesRequired === "Yes" && (
+                    <button
+                      className="primary"
+                      style={{ background: "#c2410c", color: "#ffffff", padding: "8px 18px", borderRadius: 8, fontSize: 12, fontWeight: 800 }}
+                      onClick={() => {
+                        const target = selectedFollowUpDetail;
+                        setSelectedFollowUpDetail(null);
+                        handleTriggerNewQuotationForWarranty(target);
+                      }}
+                    >
+                      ⚡ Trigger Quotation
+                    </button>
+                  )}
+                  <button
+                    className="primary"
+                    style={{ background: "#0f172a", color: "#ffffff", padding: "8px 18px", borderRadius: 8, fontSize: 12, fontWeight: 800 }}
+                    onClick={() => {
+                      const target = selectedFollowUpDetail;
+                      setSelectedFollowUpDetail(null);
+                      handleTriggerNewCaseForFutureService(target);
+                    }}
+                  >
+                    🚀 Open New Case
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CREATE / EDIT DOCUMENT MODAL */}
+          {showDocModal && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowDocModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 660 }}>
+                <div className="rhps-modal-header">
+                  <h3>{editingDoc ? `✏️ Edit Document Record — ${editingDoc.id}` : "📁 Generate Official Document Record"}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowDocModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveDocSubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 16 }}>
+                    <div style={{ background: "#f8fafc", padding: 12, borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12, color: "#64748b" }}>
+                      <strong>ℹ️ Auto-Assigned Document Numbering:</strong> Document No. is auto-assigned from Manage Numbering (e.g. <code>DOC-2026-XXX</code>) — never manually typed.
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Document Type <span className="required-star">*</span></label>
+                        <select
+                          className="input-field"
+                          value={docType}
+                          onChange={(e) => setDocType(e.target.value as DocumentType)}
+                        >
+                          <option value="Estimate">Estimate</option>
+                          <option value="Quotation">Quotation</option>
+                          <option value="Job Order">Job Order</option>
+                          <option value="Service Report">Service Report</option>
+                          <option value="Invoice">Invoice</option>
+                          <option value="Payment Acknowledgment">Payment Acknowledgment</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Record Type (Safeguard Tag) <span className="required-star">*</span></label>
+                        <select
+                          className="input-field"
+                          style={{ fontWeight: 800, color: docRecordType === "TEST" ? "#c2410c" : "#15803d" }}
+                          value={docRecordType}
+                          onChange={(e) => setDocRecordType(e.target.value as RecordMode)}
+                        >
+                          <option value="ACTUAL">ACTUAL RECORD (Official Business)</option>
+                          <option value="TEST">TEST RECORD ONLY (Safeguard Sandbox)</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Linked Source Record No. <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={docSourceNo}
+                          onChange={(e) => setDocSourceNo(e.target.value)}
+                          placeholder="e.g. QT-2026-001 or INV-2026-001"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Linked Case ID <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={docCaseId}
+                          onChange={(e) => setDocCaseId(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Generating Module <span className="required-star">*</span></label>
+                        <select
+                          className="input-field"
+                          value={docModule}
+                          onChange={(e) => setDocModule(e.target.value as GeneratingModule)}
+                        >
+                          <option value="Customer Desk">Customer Desk</option>
+                          <option value="Service & Quotations">Service & Quotations</option>
+                          <option value="Office & Records">Office & Records</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Generated By <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={docGeneratedBy}
+                          onChange={(e) => setDocGeneratedBy(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Ownership Role <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={docOwnershipRole}
+                          onChange={(e) => setDocOwnershipRole(e.target.value)}
+                          placeholder="e.g. Lead Technician / Owner"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Document Status <span className="required-star">*</span></label>
+                        <select
+                          className="input-field"
+                          value={docStatus}
+                          onChange={(e) => setDocStatus(e.target.value as DocumentStatus)}
+                        >
+                          <option value="Generated">Generated</option>
+                          <option value="Sent">Sent</option>
+                          <option value="Archived">Archived</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group" style={{ gridColumn: "span 2" }}>
+                        <label>Sent To (Recipient Contact / Method)</label>
+                        <input
+                          className="input-field"
+                          value={docSentTo}
+                          onChange={(e) => setDocSentTo(e.target.value)}
+                          placeholder="e.g. 0917-555-0192 (Email PDF / Viber)"
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ gridColumn: "span 2" }}>
+                        <label>Document Notes</label>
+                        <input
+                          className="input-field"
+                          value={docNotes}
+                          onChange={(e) => setDocNotes(e.target.value)}
+                          placeholder="e.g. Version 1.0 official signed copy"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowDocModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#0f172a", color: "#ffffff", padding: "10px 22px", borderRadius: 10, fontWeight: 700, border: "none" }}>
+                      {editingDoc ? "💾 Save Changes" : "📁 Generate Document"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* DOCUMENT DETAIL INSPECTION MODAL */}
+          {selectedDocDetail && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setSelectedDocDetail(null)}>
+              <div className="rhps-modal" style={{ maxWidth: 660 }}>
+                <div className="rhps-modal-header">
+                  <h3>🔍 Document Record — {selectedDocDetail.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setSelectedDocDetail(null)}>×</button>
+                </div>
+
+                <div className="rhps-modal-body" style={{ gap: 16 }}>
+                  {selectedDocDetail.recordType === "TEST" && (
+                    <div style={{ background: "#fffbebf5", border: "1px solid #fde68a", padding: 12, borderRadius: 10, fontSize: 12, color: "#92400e" }}>
+                      <strong>⚠️ TEST RECORD ONLY:</strong> This document is tagged for sandbox testing and is <strong>strictly excluded from actual income, expense, balance, or dashboard totals</strong>.
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", background: "#f8fafc", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Document Type</span>
+                      <strong style={{ display: "block", color: "#0f172a" }}>{selectedDocDetail.documentType}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Source Record</span>
+                      <strong style={{ display: "block", color: "#2563eb" }}>📄 {selectedDocDetail.linkedSourceRecordNo}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Linked Case ID</span>
+                      <strong style={{ display: "block", color: "#3730a3" }}>📁 {selectedDocDetail.linkedCaseId}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Status</span>
+                      <strong style={{ display: "block", color: "#059669" }}>{selectedDocDetail.status}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Date Generated</span><strong>{selectedDocDetail.dateGenerated}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Generated By</span><strong>👤 {selectedDocDetail.generatedBy}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Generating Module</span><strong>{selectedDocDetail.generatingModule}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Ownership Role</span><strong>{selectedDocDetail.documentOwnershipRole}</strong></div>
+                    {selectedDocDetail.sentTo && <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Sent To</span><strong>{selectedDocDetail.sentTo}</strong></div>}
+                  </div>
+
+                  {selectedDocDetail.notes && (
+                    <div style={{ background: "#f8fafc", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12, color: "#475569" }}>
+                      <strong>📝 Notes:</strong> {selectedDocDetail.notes}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rhps-modal-footer">
+                  <button className="secondary-sm" onClick={() => setSelectedDocDetail(null)}>Close</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CREATE / EDIT TRADE-IN DEAL MODAL */}
+          {showTradeModal && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowTradeModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 740 }}>
+                <div className="rhps-modal-header">
+                  <h3>{editingTrade ? `✏️ Edit Trade-In Deal — ${editingTrade.id}` : "🔄 Log Trade-In & Piano Sales Deal"}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowTradeModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveTradeSubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 16 }}>
+                    {/* CUSTOMER & CONTACT */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Customer Name <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={trdCustomerName}
+                          onChange={(e) => setTrdCustomerName(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Contact Number <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={trdContactNumber}
+                          onChange={(e) => setTrdContactNumber(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* DUAL TRANSACTION SECTION 1: TRADED-IN UNIT */}
+                    <div style={{ background: "#fff7ed", padding: 14, borderRadius: 12, border: "1px solid #ffedd5" }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: "#c2410c", textTransform: "uppercase", display: "block", marginBottom: 8 }}>
+                        🎹 1. Traded-In Unit (Customer's Piano & Credit)
+                      </span>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <div className="form-group">
+                          <label style={{ color: "#7c2d12" }}>Offered Piano Brand & Model <span className="required-star">*</span></label>
+                          <input
+                            className="input-field"
+                            required
+                            value={trdOfferedBrandModel}
+                            onChange={(e) => setTrdOfferedBrandModel(e.target.value)}
+                            placeholder="e.g. Kawai K-15 Upright"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ color: "#7c2d12" }}>Serial Number <span className="required-star">*</span></label>
+                          <input
+                            className="input-field"
+                            required
+                            value={trdOfferedSerialNo}
+                            onChange={(e) => setTrdOfferedSerialNo(e.target.value)}
+                            placeholder="e.g. KW-391820"
+                          />
+                        </div>
+                        <div className="form-group" style={{ gridColumn: "span 2" }}>
+                          <label style={{ color: "#7c2d12" }}>Physical & Mechanical Condition Appraisal <span className="required-star">*</span></label>
+                          <input
+                            className="input-field"
+                            required
+                            value={trdOfferedCondition}
+                            onChange={(e) => setTrdOfferedCondition(e.target.value)}
+                            placeholder="e.g. Action pins tight, soundboard intact, minor cabinet scratches"
+                          />
+                        </div>
+                        <div className="form-group" style={{ gridColumn: "span 2" }}>
+                          <label style={{ color: "#7c2d12" }}>Appraised Trade Allowance Credit (₱) <span className="required-star">*</span></label>
+                          <input
+                            type="number"
+                            className="input-field"
+                            style={{ fontSize: 15, fontWeight: 800, color: "#c2410c" }}
+                            required
+                            value={trdAppraisalValuation}
+                            onChange={(e) => setTrdAppraisalValuation(parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* DUAL TRANSACTION SECTION 2: TARGET UNIT PURCHASED */}
+                    <div style={{ background: "#f0f9ff", padding: 14, borderRadius: 12, border: "1px solid #e0f2fe" }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: "#0369a1", textTransform: "uppercase", display: "block", marginBottom: 8 }}>
+                        🏪 2. Target Unit Purchased (Store Inventory & Net Payable)
+                      </span>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <div className="form-group">
+                          <label style={{ color: "#0369a1" }}>Select Store Inventory Unit</label>
+                          <select
+                            className="input-field"
+                            value={trdTargetInventoryUnitId}
+                            onChange={(e) => {
+                              const selId = e.target.value;
+                              setTrdTargetInventoryUnitId(selId);
+                              const targetUnit = inventory.find((i) => i.id === selId);
+                              if (targetUnit) {
+                                setTrdTargetBrandModel(`${targetUnit.brand} ${targetUnit.model}`);
+                                setTrdTargetGrossPrice(targetUnit.price);
+                              }
+                            }}
+                          >
+                            {inventory.map((inv) => (
+                              <option key={inv.id} value={inv.id}>
+                                {inv.id} — {inv.brand} {inv.model} (₱{inv.price.toLocaleString()})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label style={{ color: "#0369a1" }}>Target Piano Description <span className="required-star">*</span></label>
+                          <input
+                            className="input-field"
+                            required
+                            value={trdTargetBrandModel}
+                            onChange={(e) => setTrdTargetBrandModel(e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ color: "#0369a1" }}>Gross Selling Price (₱) <span className="required-star">*</span></label>
+                          <input
+                            type="number"
+                            className="input-field"
+                            required
+                            value={trdTargetGrossPrice}
+                            onChange={(e) => setTrdTargetGrossPrice(parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ color: "#166534" }}>System Net Payable Balance (₱) (Read-Only)</label>
+                          <input
+                            className="input-field"
+                            readOnly
+                            style={{ background: "#dcfce7", fontWeight: 900, color: "#15803d", fontSize: 16 }}
+                            value={`₱${Math.max(0, trdTargetGrossPrice - trdAppraisalValuation).toLocaleString()}`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* APPRAISER & STATUS */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Appraised By <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={trdAppraisedBy}
+                          onChange={(e) => setTrdAppraisedBy(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Approved By (Owner) <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={trdApprovedByOwner}
+                          onChange={(e) => setTrdApprovedByOwner(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Trade Status <span className="required-star">*</span></label>
+                        <select
+                          className="input-field"
+                          value={trdStatus}
+                          onChange={(e) => setTrdStatus(e.target.value as TradeInStatus)}
+                        >
+                          <option value="Opportunity Added">Opportunity Added</option>
+                          <option value="In Appraisal">In Appraisal</option>
+                          <option value="Valuation Offered">Valuation Offered</option>
+                          <option value="Buyer Registered">Buyer Registered</option>
+                          <option value="Closed Won">Closed Won</option>
+                          <option value="Closed Lost">Closed Lost</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Deal Notes / Terms</label>
+                      <input
+                        className="input-field"
+                        value={trdNotes}
+                        onChange={(e) => setTrdNotes(e.target.value)}
+                        placeholder="e.g. Delivery scheduled post-refurbish with 1 year tuning warranty"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowTradeModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#0f172a", color: "#ffffff", padding: "10px 22px", borderRadius: 10, fontWeight: 700, border: "none" }}>
+                      {editingTrade ? "💾 Save Trade Deal" : "🔄 Log Trade-In Deal"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* TRADE-IN INSPECTION MODAL */}
+          {selectedTradeDetail && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setSelectedTradeDetail(null)}>
+              <div className="rhps-modal" style={{ maxWidth: 700 }}>
+                <div className="rhps-modal-header">
+                  <h3>🔍 Trade-In Record — {selectedTradeDetail.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setSelectedTradeDetail(null)}>×</button>
+                </div>
+
+                <div className="rhps-modal-body" style={{ gap: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", background: "#f8fafc", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Customer Name</span>
+                      <strong style={{ display: "block", color: "#0f172a" }}>{selectedTradeDetail.customerName}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Contact</span>
+                      <strong style={{ display: "block", color: "#2563eb" }}>📞 {selectedTradeDetail.contactNumber}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Status</span>
+                      <strong style={{ display: "block", color: "#059669" }}>{selectedTradeDetail.status}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ background: "#fff7ed", padding: 12, borderRadius: 10, border: "1px solid #ffedd5" }}>
+                    <strong style={{ color: "#c2410c" }}>🎹 Traded-In Unit Appraisal:</strong>
+                    <div style={{ fontSize: 12.5, margin: "4px 0" }}>Piano: <strong>{selectedTradeDetail.offeredPianoBrandModel}</strong> (S/N: {selectedTradeDetail.offeredPianoSerialNo})</div>
+                    <div style={{ fontSize: 12, color: "#475569" }}>Condition: {selectedTradeDetail.offeredPianoCondition}</div>
+                    <div style={{ fontSize: 14, fontWeight: 900, color: "#c2410c", marginTop: 4 }}>Appraised Credit Value: ₱{selectedTradeDetail.appraisalValuation.toLocaleString()}</div>
+                  </div>
+
+                  <div style={{ background: "#f0f9ff", padding: 12, borderRadius: 10, border: "1px solid #e0f2fe" }}>
+                    <strong style={{ color: "#0369a1" }}>🏪 Target Unit & Net Breakdown:</strong>
+                    <div style={{ fontSize: 12.5, margin: "4px 0" }}>Target Piano: <strong>{selectedTradeDetail.targetPianoBrandModel}</strong></div>
+                    <div style={{ fontSize: 12, color: "#334155" }}>Gross Price: ₱{selectedTradeDetail.targetGrossPrice.toLocaleString()}</div>
+                    <div style={{ fontSize: 12, color: "#c2410c" }}>Trade Credit: -₱{selectedTradeDetail.appraisalValuation.toLocaleString()}</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: "#166534", marginTop: 6 }}>Net Payable Balance: ₱{selectedTradeDetail.netPayableBalance.toLocaleString()}</div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 12.5 }}>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Appraised By</span><strong>🔍 {selectedTradeDetail.appraisedBy}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Owner Sign-Off</span><strong>✅ {selectedTradeDetail.approvedByOwner}</strong></div>
+                  </div>
+
+                  {selectedTradeDetail.notes && (
+                    <div style={{ background: "#f8fafc", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12, color: "#475569" }}>
+                      <strong>📝 Notes:</strong> {selectedTradeDetail.notes}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rhps-modal-footer">
+                  <button className="secondary-sm" onClick={() => setSelectedTradeDetail(null)}>Close</button>
+                  <button
+                    className="primary"
+                    style={{ background: "#0f172a", color: "#ffffff", padding: "8px 18px", borderRadius: 8, fontSize: 12, fontWeight: 800 }}
+                    onClick={() => {
+                      const target = selectedTradeDetail;
+                      setSelectedTradeDetail(null);
+                      openCreateInvoiceModal();
+                    }}
+                  >
+                    🧾 Issue Net Invoice
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* REGISTER BUYER MODAL */}
+          {showRegisterBuyerModal && targetTradeForAction && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowRegisterBuyerModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 500 }}>
+                <div className="rhps-modal-header">
+                  <h3>👤 Register Buyer for Trade Deal — {targetTradeForAction.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowRegisterBuyerModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveRegisterBuyer}>
+                  <div className="rhps-modal-body" style={{ gap: 14 }}>
+                    <div style={{ background: "#f0f9ff", padding: 12, borderRadius: 10, border: "1px solid #e0f2fe", fontSize: 12, color: "#0369a1" }}>
+                      Register buyer details to officially reserve the target piano unit (<strong>{targetTradeForAction.targetPianoBrandModel || "Store Unit"}</strong>).
+                    </div>
+                    <div className="form-group">
+                      <label>Buyer Name <span className="required-star">*</span></label>
+                      <input
+                        className="input-field"
+                        required
+                        value={buyerInputName}
+                        onChange={(e) => setBuyerInputName(e.target.value)}
+                        placeholder="e.g. Atty. Fernando Alonso"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Buyer Contact Number <span className="required-star">*</span></label>
+                      <input
+                        className="input-field"
+                        required
+                        value={buyerInputContact}
+                        onChange={(e) => setBuyerInputContact(e.target.value)}
+                        placeholder="e.g. 0917-882-9912"
+                      />
+                    </div>
+                  </div>
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowRegisterBuyerModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#0284c7", color: "#ffffff", padding: "8px 18px", borderRadius: 8, fontWeight: 700, border: "none" }}>
+                      👤 Save Registered Buyer
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* CLOSE LOST REASON MODAL */}
+          {showCloseLostModal && targetTradeForAction && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowCloseLostModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 500 }}>
+                <div className="rhps-modal-header">
+                  <h3>🔴 Mark Deal Closed Lost — {targetTradeForAction.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowCloseLostModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveCloseLost}>
+                  <div className="rhps-modal-body" style={{ gap: 14 }}>
+                    <div style={{ background: "#fef2f2", padding: 12, borderRadius: 10, border: "1px solid #fee2e2", fontSize: 12, color: "#991b1b" }}>
+                      Please provide a reason why this trade opportunity was lost for reporting & analytics.
+                    </div>
+                    <div className="form-group">
+                      <label>Reason for Closed Lost <span className="required-star">*</span></label>
+                      <input
+                        className="input-field"
+                        required
+                        value={lostReasonInput}
+                        onChange={(e) => setLostReasonInput(e.target.value)}
+                        placeholder="e.g. Client opted for lower appraisal elsewhere / Budget constraint"
+                      />
+                    </div>
+                  </div>
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowCloseLostModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#b91c1c", color: "#ffffff", padding: "8px 18px", borderRadius: 8, fontWeight: 700, border: "none" }}>
+                      🔴 Confirm Closed Lost
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+          {/* CREATE / EDIT EXPENSE MODAL */}
+          {showExpModal && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowExpModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 680 }}>
+                <div className="rhps-modal-header">
+                  <h3>{editingExp ? `✏️ Edit Expense Record — ${editingExp.id}` : "📉 Log Operating Expense & Link to Job"}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowExpModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveExpenseSubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 16 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Expense Category <span className="required-star">*</span></label>
+                        <select
+                          className="input-field"
+                          value={expCategory}
+                          onChange={(e) => setExpCategory(e.target.value as ExpenseCategory)}
+                        >
+                          <option value="Parts">Parts & Materials</option>
+                          <option value="Transport / Fuel">Transport & Fuel</option>
+                          <option value="Tools">Tools & Equipment</option>
+                          <option value="Utilities">Utilities & Rent</option>
+                          <option value="Marketing">Marketing & Ads</option>
+                          <option value="Job Overhead">Job Direct Overhead</option>
+                          <option value="Other">Other Expenses</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Record Type (Safeguard Tag) <span className="required-star">*</span></label>
+                        <select
+                          className="input-field"
+                          style={{ fontWeight: 800, color: expRecordType === "TEST" ? "#c2410c" : "#15803d" }}
+                          value={expRecordType}
+                          onChange={(e) => setExpRecordType(e.target.value as RecordMode)}
+                        >
+                          <option value="ACTUAL">ACTUAL RECORD (Official Expense)</option>
+                          <option value="TEST">TEST RECORD ONLY (Safeguard Sandbox)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Amount (₱) <span className="required-star">*</span></label>
+                        <input
+                          type="number"
+                          className="input-field"
+                          style={{ fontSize: 16, fontWeight: 900, color: "#dc2626" }}
+                          required
+                          value={expAmount}
+                          onChange={(e) => setExpAmount(parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Vendor / Payee <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={expPaidTo}
+                          onChange={(e) => setExpPaidTo(e.target.value)}
+                          placeholder="e.g. PianoParts Supply Asia"
+                        />
+                      </div>
+                    </div>
+
+                    {/* LINK TO JOB SECTION */}
+                    <div style={{ background: "#e0f2fe", padding: 14, borderRadius: 12, border: "1px solid #bae6fd" }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: "#0369a1", textTransform: "uppercase", display: "block", marginBottom: 8 }}>
+                        ⚙️ Link Expense to Specific Job Order / Case
+                      </span>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                        <div className="form-group">
+                          <label style={{ color: "#0369a1" }}>Linked Job Order No.</label>
+                          <select
+                            className="input-field"
+                            value={expLinkedJobOrderNo}
+                            onChange={(e) => {
+                              const selJo = e.target.value;
+                              setExpLinkedJobOrderNo(selJo);
+                              const matchedJo = jobOrders.find((j) => j.id === selJo);
+                              if (matchedJo) setExpLinkedCaseId(matchedJo.caseId);
+                            }}
+                          >
+                            <option value="">-- General Overhead (No Job) --</option>
+                            {jobOrders.map((jo) => (
+                              <option key={jo.id} value={jo.id}>
+                                {jo.id} — {jo.customerName} ({jo.serviceType})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label style={{ color: "#0369a1" }}>Linked Case ID</label>
+                          <input
+                            className="input-field"
+                            value={expLinkedCaseId}
+                            onChange={(e) => setExpLinkedCaseId(e.target.value)}
+                            placeholder="e.g. CASE-2026-001"
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label style={{ color: "#0369a1" }}>Receipt / Voucher Ref No.</label>
+                          <input
+                            className="input-field"
+                            value={expReceiptRefNo}
+                            onChange={(e) => setExpReceiptRefNo(e.target.value)}
+                            placeholder="e.g. OR-882910"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Expense Description <span className="required-star">*</span></label>
+                      <input
+                        className="input-field"
+                        required
+                        value={expDescription}
+                        onChange={(e) => setExpDescription(e.target.value)}
+                        placeholder="e.g. Imported Renner hammer felt set for Steinway M"
+                      />
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Expense Date <span className="required-star">*</span></label>
+                        <input
+                          type="date"
+                          className="input-field"
+                          required
+                          value={expDate}
+                          onChange={(e) => setExpDate(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Recorded By <span className="required-star">*</span></label>
+                        <input
+                          className="input-field"
+                          required
+                          value={expRecordedBy}
+                          onChange={(e) => setExpRecordedBy(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Notes / Voucher Details</label>
+                      <input
+                        className="input-field"
+                        value={expNotes}
+                        onChange={(e) => setExpNotes(e.target.value)}
+                        placeholder="e.g. Receipt filed in Shop Accounting Folder B"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowExpModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#0f172a", color: "#ffffff", padding: "10px 22px", borderRadius: 10, fontWeight: 700, border: "none" }}>
+                      {editingExp ? "💾 Save Changes" : "📉 Log Expense"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* EXPENSE DETAIL INSPECTION MODAL */}
+          {selectedExpDetail && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setSelectedExpDetail(null)}>
+              <div className="rhps-modal" style={{ maxWidth: 600 }}>
+                <div className="rhps-modal-header">
+                  <h3>🔍 Expense Record — {selectedExpDetail.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setSelectedExpDetail(null)}>×</button>
+                </div>
+
+                <div className="rhps-modal-body" style={{ gap: 16 }}>
+                  {selectedExpDetail.recordMode === "TEST" && (
+                    <div style={{ background: "#fffbebf5", border: "1px solid #fde68a", padding: 12, borderRadius: 10, fontSize: 12, color: "#92400e" }}>
+                      <strong>⚠️ TEST RECORD ONLY:</strong> Strictly excluded from actual financial total calculations.
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", background: "#f8fafc", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Expense Category</span>
+                      <strong style={{ display: "block", color: "#0f172a" }}>{selectedExpDetail.category}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Amount</span>
+                      <strong style={{ display: "block", color: "#dc2626", fontSize: 16 }}>₱{selectedExpDetail.amount.toLocaleString()}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Payee / Vendor</span><strong>{selectedExpDetail.paidTo}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Date</span><strong>{selectedExpDetail.date}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Linked Job Order</span><strong>⚙️ {selectedExpDetail.linkedJobOrderNo || "General Overhead"}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Linked Case ID</span><strong>📁 {selectedExpDetail.linkedCaseId || "N/A"}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Receipt Ref No.</span><strong>{selectedExpDetail.receiptRefNo || "N/A"}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Recorded By</span><strong>👤 {selectedExpDetail.recordedBy}</strong></div>
+                  </div>
+
+                  <div style={{ background: "#f8fafc", padding: 12, borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12.5 }}>
+                    <strong>📝 Description:</strong> {selectedExpDetail.description}
+                  </div>
+
+                  {selectedExpDetail.notes && (
+                    <div style={{ background: "#f8fafc", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12, color: "#475569" }}>
+                      <strong>📝 Notes:</strong> {selectedExpDetail.notes}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rhps-modal-footer">
+                  <button className="secondary-sm" onClick={() => setSelectedExpDetail(null)}>Close</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* JOB PROFITABILITY BREAKDOWN MODAL */}
+          {showProfitModal && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowProfitModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 840 }}>
+                <div className="rhps-modal-header">
+                  <h3>📊 Job-Level Net Profit & Margin Analysis</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowProfitModal(false)}>×</button>
+                </div>
+
+                <div className="rhps-modal-body" style={{ gap: 16 }}>
+                  <div style={{ background: "#f0f9ff", padding: 14, borderRadius: 12, border: "1px solid #e0f2fe", fontSize: 12.5, color: "#0369a1" }}>
+                    Real-time net profit and margin breakdown comparing verified customer revenues against linked job expenses for each active Job Order.
+                  </div>
+
+                  <div style={{ overflow: "hidden", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                    <table className="rhps-table" style={{ margin: 0 }}>
+                      <thead>
+                        <tr style={{ background: "#f8fafc" }}>
+                          <th>Job Order & Customer</th>
+                          <th>Service Type</th>
+                          <th>Job Invoiced Revenue</th>
+                          <th>Linked Job Expenses</th>
+                          <th>Net Job Profit</th>
+                          <th>Profit Margin</th>
+                          <th style={{ textAlign: "right" }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {jobOrders.map((jo) => {
+                          // Revenue for this Job Order (Invoices or Verified Payments)
+                          const jobRevenue = invoices
+                            .filter((inv) => inv.linkedJobOrderNo === jo.id && inv.recordMode === "ACTUAL")
+                            .reduce((sum, inv) => sum + inv.grandTotal, 0) || (jo.cost || 0);
+
+                          // Expenses linked to this Job Order
+                          const jobExpenses = expenses
+                            .filter((e) => e.linkedJobOrderNo === jo.id && e.recordMode === "ACTUAL")
+                            .reduce((sum, e) => sum + e.amount, 0);
+
+                          const netJobProfit = jobRevenue - jobExpenses;
+                          const profitMargin = jobRevenue > 0 ? (netJobProfit / jobRevenue) * 100 : 0;
+
+                          return (
+                            <tr key={jo.id}>
+                              <td>
+                                <strong style={{ fontSize: 13, color: "#0f172a", display: "block" }}>⚙️ {jo.id}</strong>
+                                <div style={{ fontSize: 11, color: "#475569" }}>👤 {jo.customerName}</div>
+                              </td>
+                              <td style={{ fontSize: 12, color: "#334155" }}>{jo.serviceType}</td>
+                              <td>
+                                <strong style={{ fontSize: 13, color: "#059669" }}>₱{jobRevenue.toLocaleString()}</strong>
+                              </td>
+                              <td>
+                                <strong style={{ fontSize: 13, color: "#dc2626" }}>₱{jobExpenses.toLocaleString()}</strong>
+                              </td>
+                              <td>
+                                <strong style={{ fontSize: 14, color: netJobProfit >= 0 ? "#166534" : "#991b1b" }}>
+                                  ₱{netJobProfit.toLocaleString()}
+                                </strong>
+                              </td>
+                              <td>
+                                <span
+                                  style={{
+                                    background: profitMargin >= 40 ? "#dcfce7" : profitMargin >= 15 ? "#e0f2fe" : "#fee2e2",
+                                    color: profitMargin >= 40 ? "#15803d" : profitMargin >= 15 ? "#0369a1" : "#b91c1c",
+                                    padding: "2px 8px",
+                                    borderRadius: 99,
+                                    fontSize: 11,
+                                    fontWeight: 900,
+                                  }}
+                                >
+                                  {profitMargin.toFixed(1)}%
+                                </span>
+                              </td>
+                              <td style={{ textAlign: "right" }}>
+                                <button
+                                  className="secondary-sm"
+                                  style={{ fontSize: 10.5, padding: "3px 8px", background: "#f0f9ff", color: "#0369a1", border: "1px solid #7dd3fc" }}
+                                  onClick={() => {
+                                    setShowProfitModal(false);
+                                    openCreateExpenseModal(jo.id, jo.caseId);
+                                  }}
+                                >
+                                  ＋ Log Expense
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="rhps-modal-footer">
+                  <button className="secondary-sm" onClick={() => setShowProfitModal(false)}>Close Analysis</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* ADD / EDIT REPAIR MODAL */}
+          {showRepairModal && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowRepairModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 700 }}>
+                <div className="rhps-modal-header">
+                  <h3>{editingRepair ? `✏️ Edit Repair — ${editingRepair.id}` : "🔧 Log New Shop Repair"}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowRepairModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveRepairSubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 16 }}>
+                    {/* CUSTOMER & PIANO */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Customer Name <span className="required-star">*</span></label>
+                        <input className="input-field" required value={repCustomerName} onChange={(e) => setRepCustomerName(e.target.value)} placeholder="e.g. San Pedro Cathedral Academy" />
+                      </div>
+                      <div className="form-group">
+                        <label>Contact Number <span className="required-star">*</span></label>
+                        <input className="input-field" required value={repContactNumber} onChange={(e) => setRepContactNumber(e.target.value)} placeholder="e.g. 082-228-5101" />
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Piano Brand & Model <span className="required-star">*</span></label>
+                        <input className="input-field" required value={repPianoModel} onChange={(e) => setRepPianoModel(e.target.value)} placeholder="e.g. Kawai K-300 Upright" />
+                      </div>
+                      <div className="form-group">
+                        <label>Piano Serial Number <span className="required-star">*</span></label>
+                        <input className="input-field" required value={repPianoSerialNo} onChange={(e) => setRepPianoSerialNo(e.target.value)} placeholder="e.g. KW-581920" />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Issue Description <span className="required-star">*</span></label>
+                      <input className="input-field" required value={repIssueDescription} onChange={(e) => setRepIssueDescription(e.target.value)} placeholder="e.g. Keybed regulation & damper felt replacement required" />
+                    </div>
+
+                    {/* STAGE, DATES, COST */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Current Stage <span className="required-star">*</span></label>
+                        <select className="input-field" value={repStage} onChange={(e) => setRepStage(e.target.value as RepairStage)}>
+                          <option value="Intake & Inspection">Intake & Inspection</option>
+                          <option value="Parts Ordering">Parts Ordering</option>
+                          <option value="In Repair">In Repair</option>
+                          <option value="Testing & Tuning">Testing & Tuning</option>
+                          <option value="Ready for Delivery">Ready for Delivery</option>
+                          <option value="Delivered & Closed">Delivered & Closed</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Intake Date <span className="required-star">*</span></label>
+                        <input type="date" className="input-field" required value={repIntakeDate} onChange={(e) => setRepIntakeDate(e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label>Est. Completion Date <span className="required-star">*</span></label>
+                        <input type="date" className="input-field" required value={repEstimatedCompletion} onChange={(e) => setRepEstimatedCompletion(e.target.value)} />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>➡️ Next Action / Task</label>
+                      <input className="input-field" value={repNextAction} onChange={(e) => setRepNextAction(e.target.value)} placeholder="e.g. Complete damper felt gluing, final regulation pass" />
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Assigned Technician <span className="required-star">*</span></label>
+                        <input className="input-field" required value={repAssignedTechnician} onChange={(e) => setRepAssignedTechnician(e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label>Linked Job Order No.</label>
+                        <input className="input-field" value={repLinkedJobOrderNo} onChange={(e) => setRepLinkedJobOrderNo(e.target.value)} placeholder="e.g. JO-2026-003" />
+                      </div>
+                      <div className="form-group">
+                        <label>Linked Case ID</label>
+                        <input className="input-field" value={repLinkedCaseId} onChange={(e) => setRepLinkedCaseId(e.target.value)} placeholder="e.g. CASE-2026-003" />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Estimated Repair Cost (₱)</label>
+                        <input type="number" className="input-field" value={repRepairCost} onChange={(e) => setRepRepairCost(parseFloat(e.target.value) || 0)} />
+                      </div>
+                      <div className="form-group">
+                        <label>Technician Notes / Progress</label>
+                        <input className="input-field" value={repNotes} onChange={(e) => setRepNotes(e.target.value)} placeholder="e.g. Keybed leveling done. Damper rail replacement in progress." />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowRepairModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#0f172a", color: "#ffffff", padding: "10px 22px", borderRadius: 10, fontWeight: 700, border: "none" }}>
+                      {editingRepair ? "💾 Save Changes" : "🔧 Log Repair"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* UPDATE STAGE & NEXT ACTION MODAL */}
+          {showUpdateStageModal && stageTargetRepair && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowUpdateStageModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 500 }}>
+                <div className="rhps-modal-header">
+                  <h3>🔄 Update Stage — {stageTargetRepair.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowUpdateStageModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveUpdateStage}>
+                  <div className="rhps-modal-body" style={{ gap: 14 }}>
+                    <div style={{ background: "#f0f9ff", padding: 12, borderRadius: 10, border: "1px solid #e0f2fe", fontSize: 12.5 }}>
+                      <strong>🎹 {stageTargetRepair.pianoModel}</strong> — {stageTargetRepair.customerName}
+                    </div>
+                    <div className="form-group">
+                      <label>New Stage <span className="required-star">*</span></label>
+                      <select className="input-field" style={{ fontWeight: 800 }} value={newStageInput} onChange={(e) => setNewStageInput(e.target.value as RepairStage)}>
+                        <option value="Intake & Inspection">Intake & Inspection</option>
+                        <option value="Parts Ordering">Parts Ordering</option>
+                        <option value="In Repair">In Repair</option>
+                        <option value="Testing & Tuning">Testing & Tuning</option>
+                        <option value="Ready for Delivery">Ready for Delivery</option>
+                        <option value="Delivered & Closed">Delivered & Closed</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>➡️ Set Next Action / Task <span className="required-star">*</span></label>
+                      <input
+                        className="input-field"
+                        required
+                        value={nextActionInput}
+                        onChange={(e) => setNextActionInput(e.target.value)}
+                        placeholder="e.g. Order Renner hammer felts from supplier, ETA 5 days"
+                      />
+                    </div>
+                  </div>
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowUpdateStageModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#0369a1", color: "#ffffff", padding: "8px 18px", borderRadius: 8, fontWeight: 700, border: "none" }}>
+                      🔄 Update Stage & Next Action
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* REPAIR DETAIL INSPECTION MODAL */}
+          {selectedRepairDetail && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setSelectedRepairDetail(null)}>
+              <div className="rhps-modal" style={{ maxWidth: 640 }}>
+                <div className="rhps-modal-header">
+                  <h3>🔍 Repair Record — {selectedRepairDetail.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setSelectedRepairDetail(null)}>×</button>
+                </div>
+                <div className="rhps-modal-body" style={{ gap: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", background: "#f8fafc", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                    <div>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Customer</span>
+                      <strong style={{ display: "block", color: "#0f172a" }}>{selectedRepairDetail.customerName}</strong>
+                      <span style={{ fontSize: 11, color: "#475569" }}>📞 {selectedRepairDetail.contactNumber}</span>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Stage</span>
+                      <strong style={{ display: "block", color: "#c2410c", fontSize: 14 }}>{selectedRepairDetail.stage}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ background: "#fff7ed", padding: 12, borderRadius: 10, border: "1px solid #ffedd5" }}>
+                    <strong style={{ color: "#c2410c" }}>🎹 Piano:</strong> {selectedRepairDetail.pianoModel} <span style={{ color: "#64748b", fontSize: 12 }}>(S/N: {selectedRepairDetail.pianoSerialNo})</span>
+                    <div style={{ fontSize: 12.5, marginTop: 4, color: "#334155" }}>{selectedRepairDetail.issueDescription}</div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Intake Date</span><strong>{selectedRepairDetail.intakeDate}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Est. Completion</span><strong>{selectedRepairDetail.estimatedCompletion}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Assigned Technician</span><strong>👤 {selectedRepairDetail.assignedTechnician}</strong></div>
+                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Repair Cost</span><strong style={{ color: "#dc2626" }}>₱{(selectedRepairDetail.repairCost || 0).toLocaleString()}</strong></div>
+                    {selectedRepairDetail.linkedJobOrderNo && <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Job Order</span><strong>⚙️ {selectedRepairDetail.linkedJobOrderNo}</strong></div>}
+                    {selectedRepairDetail.linkedCaseId && <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Case ID</span><strong>📁 {selectedRepairDetail.linkedCaseId}</strong></div>}
+                    {selectedRepairDetail.convertedToServiceReportId && <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Converted SR</span><strong style={{ color: "#059669" }}>📋 {selectedRepairDetail.convertedToServiceReportId}</strong></div>}
+                  </div>
+
+                  {selectedRepairDetail.nextAction && (
+                    <div style={{ background: "#fefce8", padding: 10, borderRadius: 8, border: "1px solid #fde047", fontSize: 12.5, color: "#713f12" }}>
+                      <strong>➡️ Next Action:</strong> {selectedRepairDetail.nextAction}
+                    </div>
+                  )}
+
+                  {selectedRepairDetail.repairNotes && (
+                    <div style={{ background: "#f8fafc", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12, color: "#475569" }}>
+                      <strong>📝 Technician Notes:</strong> {selectedRepairDetail.repairNotes}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rhps-modal-footer">
+                  <button className="secondary-sm" onClick={() => setSelectedRepairDetail(null)}>Close</button>
+                  <button
+                    className="secondary-sm"
+                    style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc" }}
+                    onClick={() => { setSelectedRepairDetail(null); handleOpenUpdateStage(selectedRepairDetail); }}
+                  >
+                    🔄 Update Stage
+                  </button>
+                  {selectedRepairDetail.stage !== "Delivered & Closed" && !selectedRepairDetail.convertedToServiceReportId && (
+                    <button
+                      className="primary"
+                      style={{ background: "#15803d", color: "#ffffff", padding: "8px 16px", borderRadius: 8, fontWeight: 700, border: "none" }}
+                      onClick={() => {
+                        const rep = selectedRepairDetail;
+                        setSelectedRepairDetail(null);
+                        if (confirm(`Convert ${rep.id} to a Service Report?`)) {
+                          handleConvertRepairToServiceReport(rep);
+                        }
+                      }}
+                    >
+                      📋 Convert to Service Report
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
