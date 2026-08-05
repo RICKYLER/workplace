@@ -412,6 +412,8 @@ export type RepairRecord = {
   linkedCaseId?: string;
   linkedJobOrderNo?: string;
   repairCost?: number;
+  downpaymentPaid?: number;
+  paymentStatus?: "Unpaid" | "Downpayment Paid" | "Paid in Full";
   linkedExpenseIds?: string[];
   convertedToServiceReportId?: string;
   repairNotes?: string;
@@ -1704,6 +1706,79 @@ export default function RhpsWorkspace({
       )
     );
     showToast(`📋 Service Report ${newSrId} generated from Repair ${r.id}! Repair marked Delivered & Closed.`);
+  };
+
+  // --- REPAIR DOWNPAYMENT / PAYMENT HANDLERS ---
+  const [showRecordDownpaymentModal, setShowRecordDownpaymentModal] = useState<boolean>(false);
+  const [downpaymentTargetRepair, setDownpaymentTargetRepair] = useState<RepairRecord | null>(null);
+  const [downpaymentAmountInput, setDownpaymentAmountInput] = useState<number>(5000);
+  const [downpaymentMethodInput, setDownpaymentMethodInput] = useState<PaymentMethod>("GCash");
+  const [downpaymentRefNoInput, setDownpaymentRefNoInput] = useState<string>("GCASH-8819203");
+
+  const handleOpenRecordDownpayment = (r: RepairRecord) => {
+    setDownpaymentTargetRepair(r);
+    const defaultDep = r.repairCost ? Math.round(r.repairCost * 0.5) : 5000;
+    setDownpaymentAmountInput(defaultDep);
+    setDownpaymentMethodInput("GCash");
+    setDownpaymentRefNoInput(`GCASH-${Math.floor(100000 + Math.random() * 900000)}`);
+    setShowRecordDownpaymentModal(true);
+  };
+
+  const handleSaveDownpaymentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!downpaymentTargetRepair) return;
+
+    const currentPaid = downpaymentTargetRepair.downpaymentPaid || 0;
+    const newPaidTotal = currentPaid + downpaymentAmountInput;
+    const totalCost = downpaymentTargetRepair.repairCost || newPaidTotal;
+    const newStatus: "Unpaid" | "Downpayment Paid" | "Paid in Full" =
+      newPaidTotal >= totalCost ? "Paid in Full" : "Downpayment Paid";
+
+    // Update Repair Record
+    setRepairs(
+      repairs.map((item) =>
+        item.id === downpaymentTargetRepair.id
+          ? {
+              ...item,
+              downpaymentPaid: newPaidTotal,
+              paymentStatus: newStatus,
+            }
+          : item
+      )
+    );
+
+    // Auto-create Payment Record
+    const todayStr = new Date().toISOString().split("T")[0];
+    const newPayId = `PAY-2026-${String(payments.length + 1).padStart(3, "0")}`;
+    const newPayObj: Payment = {
+      id: newPayId,
+      paymentAckNo: `ACK-2026-${String(payments.length + 1).padStart(3, "0")}`,
+      invoiceNo: "INV-REP-DIRECT",
+      jobOrderNo: downpaymentTargetRepair.linkedJobOrderNo || `JO-REP-${downpaymentTargetRepair.id}`,
+      caseId: downpaymentTargetRepair.linkedCaseId || `CASE-REP-${downpaymentTargetRepair.id}`,
+      customerName: downpaymentTargetRepair.customerName,
+      paymentDateTime: new Date().toISOString().replace("T", " ").substring(0, 16),
+      paymentType: newPaidTotal >= totalCost ? "Full" : "Deposit",
+      paymentMethod: downpaymentMethodInput,
+      referenceNo: downpaymentRefNoInput,
+      amountReceivedToday: downpaymentAmountInput,
+      invoiceTotal: totalCost,
+      previousTotalPaid: currentPaid,
+      newTotalPaid: newPaidTotal,
+      remainingBalance: Math.max(0, totalCost - newPaidTotal),
+      status: "Verified",
+      receivedBy: "Robert Herrero (Owner)",
+      verifiedBy: "Robert Herrero (Owner)",
+      recordMode: "ACTUAL",
+      createdDate: todayStr,
+      notes: `Downpayment received for Shop Repair ${downpaymentTargetRepair.id} (${downpaymentTargetRepair.pianoModel})`,
+    };
+    setPayments([newPayObj, ...payments]);
+
+    showToast(
+      `💳 Downpayment of ₱${downpaymentAmountInput.toLocaleString()} logged for Repair ${downpaymentTargetRepair.id}! Payment record ${newPayId} generated.`
+    );
+    setShowRecordDownpaymentModal(false);
   };
 
 
@@ -7834,7 +7909,8 @@ Total Invoices: ${invoices.length}
                       <th>Issue & Next Action</th>
                       <th>Stage</th>
                       <th>Est. Completion</th>
-                      <th>Repair Cost</th>
+                      <th>Repair Cost & Downpayment</th>
+                      <th>Job Expenses</th>
                       <th style={{ textAlign: "right" }}>Actions</th>
                     </tr>
                   </thead>
@@ -7863,6 +7939,20 @@ Total Invoices: ${invoices.length}
                           "Delivered & Closed": { bg: "#f1f5f9", text: "#475569" },
                         };
                         const sc = stageColors[r.stage] || { bg: "#f1f5f9", text: "#475569" };
+
+                        const cost = r.repairCost || 0;
+                        const paid = r.downpaymentPaid || 0;
+                        const remBal = Math.max(0, cost - paid);
+                        const payStatus = r.paymentStatus || (paid >= cost && cost > 0 ? "Paid in Full" : paid > 0 ? "Downpayment Paid" : "Unpaid");
+
+                        const linkedExps = expenses.filter(
+                          (e) =>
+                            (e.linkedJobOrderNo && r.linkedJobOrderNo && e.linkedJobOrderNo === r.linkedJobOrderNo) ||
+                            (e.linkedCaseId && r.linkedCaseId && e.linkedCaseId === r.linkedCaseId) ||
+                            (e.notes && e.notes.includes(r.id))
+                        );
+                        const expTotal = linkedExps.reduce((sum, e) => sum + e.amount, 0);
+
                         return (
                           <tr key={r.id}>
                             <td>
@@ -7886,7 +7976,7 @@ Total Invoices: ${invoices.length}
                               <div style={{ fontSize: 10.5, color: "#64748b" }}>S/N: {r.pianoSerialNo}</div>
                             </td>
                             <td>
-                              <div style={{ fontSize: 12, color: "#334155", marginBottom: 4 }}>{r.issueDescription.substring(0, 60)}{r.issueDescription.length > 60 ? "…" : ""}</div>
+                              <div style={{ fontSize: 12, color: "#334155", marginBottom: 4 }}>{r.issueDescription.substring(0, 55)}{r.issueDescription.length > 55 ? "…" : ""}</div>
                               {r.nextAction && (
                                 <div style={{ background: "#fefce8", padding: "2px 8px", borderRadius: 6, fontSize: 11, color: "#713f12", fontWeight: 700 }}>
                                   ➡️ {r.nextAction}
@@ -7900,9 +7990,39 @@ Total Invoices: ${invoices.length}
                             </td>
                             <td style={{ fontSize: 12, color: "#334155" }}>{r.estimatedCompletion}</td>
                             <td>
-                              <strong style={{ fontSize: 13, color: r.repairCost ? "#0f172a" : "#94a3b8" }}>
-                                {r.repairCost ? `₱${r.repairCost.toLocaleString()}` : "TBD"}
+                              <div style={{ fontSize: 12.5, fontWeight: 800, color: "#0f172a" }}>
+                                Cost: {cost ? `₱${cost.toLocaleString()}` : "TBD"}
+                              </div>
+                              <div style={{ fontSize: 11, color: "#166534", fontWeight: 700 }}>
+                                Paid: ₱{paid.toLocaleString()}
+                              </div>
+                              {remBal > 0 && cost > 0 && (
+                                <div style={{ fontSize: 10.5, color: "#c2410c", fontWeight: 700 }}>
+                                  Bal: ₱{remBal.toLocaleString()}
+                                </div>
+                              )}
+                              <span
+                                style={{
+                                  background: payStatus === "Paid in Full" ? "#dcfce7" : payStatus === "Downpayment Paid" ? "#e0f2fe" : "#fee2e2",
+                                  color: payStatus === "Paid in Full" ? "#15803d" : payStatus === "Downpayment Paid" ? "#0369a1" : "#b91c1c",
+                                  padding: "1px 6px",
+                                  borderRadius: 4,
+                                  fontSize: 10,
+                                  fontWeight: 800,
+                                  marginTop: 2,
+                                  display: "inline-block",
+                                }}
+                              >
+                                {payStatus}
+                              </span>
+                            </td>
+                            <td>
+                              <strong style={{ fontSize: 12.5, color: expTotal > 0 ? "#dc2626" : "#94a3b8" }}>
+                                📉 ₱{expTotal.toLocaleString()}
                               </strong>
+                              {linkedExps.length > 0 && (
+                                <div style={{ fontSize: 10, color: "#64748b" }}>{linkedExps.length} expense record(s)</div>
+                              )}
                             </td>
                             <td style={{ textAlign: "right" }}>
                               <div style={{ display: "flex", gap: 4, justifyContent: "flex-end", flexWrap: "wrap" }}>
@@ -7911,7 +8031,14 @@ Total Invoices: ${invoices.length}
                                   style={{ fontSize: 10.5, padding: "3px 8px", background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc" }}
                                   onClick={() => handleOpenUpdateStage(r)}
                                 >
-                                  🔄 Update Stage
+                                  🔄 Stage
+                                </button>
+                                <button
+                                  className="secondary-sm"
+                                  style={{ fontSize: 10.5, padding: "3px 8px", background: "#dcfce7", color: "#15803d", border: "1px solid #86efac", fontWeight: 800 }}
+                                  onClick={() => handleOpenRecordDownpayment(r)}
+                                >
+                                  💳 Downpayment
                                 </button>
                                 <button
                                   className="secondary-sm"
@@ -7920,19 +8047,19 @@ Total Invoices: ${invoices.length}
                                     openCreateExpenseModal(r.linkedJobOrderNo, r.linkedCaseId);
                                   }}
                                 >
-                                  📉 Record Expense
+                                  📉 Expense
                                 </button>
                                 {r.stage !== "Delivered & Closed" && !r.convertedToServiceReportId && (
                                   <button
                                     className="secondary-sm"
-                                    style={{ fontSize: 10.5, padding: "3px 8px", background: "#dcfce7", color: "#15803d", border: "1px solid #86efac" }}
+                                    style={{ fontSize: 10.5, padding: "3px 8px", background: "#f1f5f9", color: "#475569" }}
                                     onClick={() => {
                                       if (confirm(`Convert ${r.id} to a Service Report? This will mark the repair as Delivered & Closed.`)) {
                                         handleConvertRepairToServiceReport(r);
                                       }
                                     }}
                                   >
-                                    📋 To Service Report
+                                    📋 To SR
                                   </button>
                                 )}
                                 <button
@@ -13783,6 +13910,81 @@ Total Invoices: ${invoices.length}
                     <button type="button" className="secondary-sm" onClick={() => setShowRepairModal(false)}>Cancel</button>
                     <button type="submit" className="primary" style={{ background: "#0f172a", color: "#ffffff", padding: "10px 22px", borderRadius: 10, fontWeight: 700, border: "none" }}>
                       {editingRepair ? "💾 Save Changes" : "🔧 Log Repair"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* RECORD DOWNPAYMENT MODAL */}
+          {showRecordDownpaymentModal && downpaymentTargetRepair && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowRecordDownpaymentModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 520 }}>
+                <div className="rhps-modal-header">
+                  <h3>💳 Record Downpayment / Deposit — {downpaymentTargetRepair.id}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowRecordDownpaymentModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveDownpaymentSubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 14 }}>
+                    <div style={{ background: "#f0f9ff", padding: 14, borderRadius: 12, border: "1px solid #bae6fd", fontSize: 13 }}>
+                      <strong>🎹 {downpaymentTargetRepair.pianoModel}</strong> ({downpaymentTargetRepair.customerName})
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12 }}>
+                        <span>Quoted Cost: <strong>₱{(downpaymentTargetRepair.repairCost || 0).toLocaleString()}</strong></span>
+                        <span>Paid So Far: <strong>₱{(downpaymentTargetRepair.downpaymentPaid || 0).toLocaleString()}</strong></span>
+                        <span>Remaining Balance: <strong style={{ color: "#c2410c" }}>₱{Math.max(0, (downpaymentTargetRepair.repairCost || 0) - (downpaymentTargetRepair.downpaymentPaid || 0)).toLocaleString()}</strong></span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Downpayment Received (₱) <span className="required-star">*</span></label>
+                        <input
+                          type="number"
+                          className="input-field"
+                          style={{ fontSize: 16, fontWeight: 900, color: "#15803d" }}
+                          required
+                          value={downpaymentAmountInput}
+                          onChange={(e) => setDownpaymentAmountInput(parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Payment Method <span className="required-star">*</span></label>
+                        <select
+                          className="input-field"
+                          value={downpaymentMethodInput}
+                          onChange={(e) => setDownpaymentMethodInput(e.target.value as PaymentMethod)}
+                        >
+                          <option value="GCash">GCash</option>
+                          <option value="Cash">Cash</option>
+                          <option value="Bank Transfer">Bank Transfer</option>
+                          <option value="Check">Check</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Reference No. / OR Slip No. <span className="required-star">*</span></label>
+                      <input
+                        className="input-field"
+                        required
+                        value={downpaymentRefNoInput}
+                        onChange={(e) => setDownpaymentRefNoInput(e.target.value)}
+                        placeholder="e.g. GCASH-9918203 or OR-881920"
+                      />
+                    </div>
+
+                    <div style={{ background: "#dcfce7", padding: 10, borderRadius: 8, border: "1px solid #86efac", fontSize: 11.5, color: "#15803d" }}>
+                      <strong>💡 AUTOMATIC REVENUE LINKING:</strong> Submitting this downpayment will automatically generate a verified <strong>Payment Record</strong> in the Financial Module and update customer balance metrics!
+                    </div>
+                  </div>
+
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowRecordDownpaymentModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#15803d", color: "#ffffff", padding: "8px 18px", borderRadius: 8, fontWeight: 700, border: "none" }}>
+                      💳 Save Downpayment
                     </button>
                   </div>
                 </form>
