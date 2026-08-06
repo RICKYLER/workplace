@@ -2,8 +2,10 @@
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import { supabase } from "../lib/supabase/client";
 
 // --- TYPES ALIGNED WITH REQUIRED FIELDS & DEVELOPER HANDOFF SPECIFICATIONS ---
+
 export type RecordMode = "ACTUAL" | "TEST";
 
 export type CustomerPiano = {

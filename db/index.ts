@@ -1,14 +1,16 @@
-import { drizzle } from "drizzle-orm/d1";
-import * as schema from "./schema";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "./schema/index";
+
+const connectionString =
+  process.env.DATABASE_URL ||
+  "postgresql://postgres.udluqqebhubfswvgodvh:rickycontiga123@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres?sslmode=require";
+
+// Disable prepare statements for serverless/Supabase connection pooler compatibility
+const client = postgres(connectionString, { prepare: false, ssl: { rejectUnauthorized: false } });
+
+export const db = drizzle(client, { schema });
 
 export async function getDb() {
-  try {
-    const { env } = await import("cloudflare:workers" as any);
-    if (env?.DB) {
-      return drizzle(env.DB, { schema });
-    }
-  } catch {
-    // cloudflare:workers unavailable in standard Next.js environment
-  }
-  throw new Error("Database binding unavailable in standard local dev mode.");
+  return db;
 }

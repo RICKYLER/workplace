@@ -3,7 +3,9 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import RhpsWorkspace from "./rhps-workspace";
-
+import { supabase } from "../lib/supabase/client";
+import PublicWebsite from "../components/public-website";
+import WebsiteEditor from "../components/website-editor";
 
 type Project = {
   id: number;
@@ -20,6 +22,7 @@ type Project = {
   nextAction: string;
   progress: number;
 };
+
 
 type NavItem = { id: string; label: string; icon: string; count?: number; disabled?: boolean };
 
@@ -90,7 +93,8 @@ const navGroups: { title: string; items: NavItem[] }[] = [
   {
     title: "FOCUS",
     items: [
-      { id: "dashboard", label: "Dashboard", icon: "⌂" },
+      { id: "dashboard", label: "Dashboard (3.1)", icon: "⌂" },
+      { id: "website_editor", label: "Public Website & Inquiries", icon: "🌐" },
       { id: "urgent", label: "Urgent", icon: "!", count: 5 },
       { id: "today", label: "Today", icon: "◷", count: 8 },
       { id: "upcoming", label: "Upcoming 15 Days", icon: "◫", count: 14 },
@@ -99,52 +103,58 @@ const navGroups: { title: string; items: NavItem[] }[] = [
   {
     title: "OPERATIONS",
     items: [
-      { id: "projects", label: "Projects & Units", icon: "▦" },
-      { id: "inventory", label: "Inventory", icon: "◇" },
-      { id: "tasks", label: "Tasks", icon: "✓" },
-      { id: "documents", label: "Documents", icon: "▤" },
+      { id: "leads", label: "Lead / Client Intake", icon: "♙" },
+      { id: "inventory", label: "Inventory (Units)", icon: "◇" },
+      { id: "allocations", label: "Allocation & Unit Assignment", icon: "⎍" },
+      { id: "documents", label: "Documents & Legal", icon: "▤" },
       { id: "followups", label: "Follow-Ups", icon: "↗" },
-      { id: "workflow", label: "Workflow", icon: "⇢" },
-      { id: "fabrication", label: "Fabrication & PDI", icon: "⚙" },
-      { id: "releases", label: "Releases", icon: "⌁" },
-      { id: "incentives", label: "Incentives", icon: "☆" },
-      { id: "caltex", label: "Caltex Cards", icon: "▣" },
+      { id: "pdi", label: "PDI & Inspection", icon: "⚙" },
+      { id: "releases", label: "Releases & Gate Pass", icon: "⌁" },
+      { id: "expenses", label: "Expenses & Budget", icon: "₱" },
+      { id: "collections", label: "Collection & Bank PO", icon: "🏦" },
+      { id: "insurance", label: "Insurance", icon: "🛡" },
+      { id: "incentives", label: "Incentives (PIN Locked)", icon: "☆" },
     ],
   },
   {
     title: "PEOPLE & INSIGHTS",
     items: [
-      { id: "clients", label: "Clients", icon: "♙" },
-      { id: "agents", label: "Agents / Persons", icon: "♢" },
-      { id: "reports", label: "Reports", icon: "◒" },
+      { id: "agents", label: "Agents & People Directory", icon: "♢" },
+      { id: "reports", label: "Reports & Analytics", icon: "◒" },
+      { id: "workflow", label: "17-Stage Workflow", icon: "⇢" },
       { id: "files", label: "File Library", icon: "▱" },
     ],
   },
   {
     title: "SYSTEM",
     items: [
-      { id: "ai", label: "AI Assistant", icon: "✦", disabled: false },
-      { id: "settings", label: "Settings", icon: "⚙" },
+      { id: "ai", label: "Haven AI Assistant", icon: "✦", disabled: false },
+      { id: "settings", label: "Master Lists & Settings", icon: "⚙" },
     ],
   },
 ];
 
 const trackerContent: Record<string, { title: string; subtitle: string; metrics: [string, string][]; columns: string[]; rows: string[][] }> = {
-  urgent: { title: "Urgent Work", subtitle: "Critical items that need action now.", metrics: [["5", "Urgent items"], ["2", "Overdue"], ["1", "Blocked"]], columns: ["Priority", "Record", "Issue", "Owner", "Due"], rows: [["Urgent", "CV-2026-001", "Fabrication update overdue", "Kath", "Today"], ["Urgent", "CV-2026-004", "Trucking not confirmed", "Ara", "Today"], ["High", "CV-2026-003", "2 documents missing", "Ergem", "Tomorrow"]] },
-  today: { title: "Today's Work", subtitle: "Everything lined up for today.", metrics: [["8", "Due today"], ["3", "Completed"], ["5", "Remaining"]], columns: ["Time", "Task", "Project", "Owner", "Status"], rows: [["9:00 AM", "Supplier coordination", "CV-2026-001", "Ara", "Ongoing"], ["11:00 AM", "PDI checklist", "CV-2026-002", "Ara", "Pending"], ["2:00 PM", "Delivery confirmation", "CV-2026-004", "Darnet", "Pending"]] },
-  upcoming: { title: "Upcoming 15 Days", subtitle: "A clear view of the next two weeks.", metrics: [["14", "Upcoming"], ["4", "Deliveries"], ["6", "Follow-ups"]], columns: ["Date", "Activity", "Project", "Category", "Days"], rows: [["Aug 06", "Confirm delivery team", "CV-2026-004", "Delivery", "3"], ["Aug 08", "Complete PDI", "CV-2026-002", "Inspection", "5"], ["Aug 12", "Fabrication target", "CV-2026-001", "Fabrication", "9"]] },
-  inventory: { title: "Inventory Tracker", subtitle: "Availability, assignments, age, and unit identifiers.", metrics: [["38", "Total units"], ["12", "Available"], ["9", "Assigned"]], columns: ["Unit Ref", "Model", "Location", "Age", "Status"], rows: [["INV-0261", "HD65 Cab & Chassis", "Davao Yard", "18 days", "Available"], ["INV-0254", "H-100", "Fabricator", "31 days", "Assigned"], ["INV-0248", "HD78", "Davao Yard", "47 days", "For Review"]] },
-  tasks: { title: "Daily Task Tracker", subtitle: "Prioritized work with clear owners and deadlines.", metrics: [["23", "Open"], ["8", "Due today"], ["5", "Completed"]], columns: ["Task", "Project", "Owner", "Priority", "Due"], rows: [["Request missing documents", "CV-2026-003", "Ara", "High", "Today"], ["Confirm accessory list", "CV-2026-001", "Kath", "Normal", "Aug 05"], ["Prepare delivery packet", "CV-2026-004", "Ara", "High", "Aug 06"]] },
-  documents: { title: "Document Tracker", subtitle: "Requirements, missing items, and completion status.", metrics: [["84%", "Overall complete"], ["7", "Missing"], ["18", "Received"]], columns: ["Project", "Document", "Status", "Responsible", "Updated"], rows: [["CV-2026-003", "Acceptance requirements", "Missing", "Ergem", "Aug 02"], ["CV-2026-002", "Insurance", "Received", "Ara", "Aug 03"], ["CV-2026-004", "Delivery receipt", "Draft", "Ara", "Aug 03"]] },
-  followups: { title: "Follow-Up Tracker", subtitle: "Every commitment has a next date and owner.", metrics: [["11", "Open"], ["3", "Due today"], ["2", "Overdue"]], columns: ["Contact", "Project", "Category", "Next Follow-Up", "Status"], rows: [["Body fabricator", "CV-2026-001", "Progress", "Today", "Due"], ["Client representative", "CV-2026-003", "Documents", "Tomorrow", "Scheduled"], ["Trucking provider", "CV-2026-004", "Delivery", "Today", "Due"]] },
-  fabrication: { title: "Fabrication & PDI", subtitle: "Track build progress, inspections, issues, and photos.", metrics: [["7", "In fabrication"], ["3", "For PDI"], ["1", "Needs recheck"]], columns: ["Project", "Application", "Progress", "Target", "Status"], rows: [["CV-2026-001", "Ambulance Body", "64%", "Aug 12", "In Progress"], ["CV-2026-002", "Wing Van", "100%", "Aug 08", "For PDI"], ["CV-2026-003", "Rescue Body", "22%", "Aug 17", "Waiting"]] },
-  releases: { title: "Release Tracker", subtitle: "Internal release, actual release, and delivery history.", metrics: [["9", "Ready"], ["6", "Released this month"], ["2", "For delivery"]], columns: ["Reference", "Client", "Model", "Agent", "Release Status"], rows: [["CV-2026-004", "Regional Logistics Support", "HD78", "Darnet", "Ready"], ["REL-2026-031", "Demo Client A", "H-100", "Kath", "Released"], ["REL-2026-030", "Demo Client B", "HD65", "RAM", "Delivered"]] },
-  incentives: { title: "Incentive Tracker", subtitle: "Restricted monitoring linked to actual released units.", metrics: [["6", "This month"], ["4", "Submitted"], ["2", "Pending"]], columns: ["Batch", "Unit Reference", "Consultant", "Status", "Proof"], rows: [["Aug 2026", "REL-2026-031", "Kath", "Submitted", "Attached"], ["Aug 2026", "REL-2026-030", "RAM", "Received", "Attached"], ["Aug 2026", "REL-2026-029", "Ergem", "Pending", "Missing"]] },
+  urgent: { title: "Urgent Work", subtitle: "Critical items that need action now.", metrics: [["5", "Urgent items"], ["2", "Overdue"], ["1", "Blocked"]], columns: ["Priority", "PROJECT", "Issue", "Owner", "Due"], rows: [["Urgent", "City Emergency Response Fleet", "Fabrication update overdue", "Kath", "Today"], ["Urgent", "Regional Logistics Support", "Trucking not confirmed", "Ara", "Today"], ["High", "Municipal Rescue Upgrade", "2 documents missing", "Ergem", "Tomorrow"]] },
+  today: { title: "Today's Work", subtitle: "Everything lined up for today.", metrics: [["8", "Due today"], ["3", "Completed"], ["5", "Remaining"]], columns: ["Time", "Task", "Project", "Owner", "Status"], rows: [["9:00 AM", "Supplier coordination", "City Emergency Response Fleet", "Ara", "Ongoing"], ["11:00 AM", "PDI checklist", "Provincial Mobile Services", "Ara", "Pending"], ["2:00 PM", "Delivery confirmation", "Regional Logistics Support", "Darnet", "Pending"]] },
+  upcoming: { title: "Upcoming 15 Days", subtitle: "A clear view of the next two weeks.", metrics: [["14", "Upcoming"], ["4", "Deliveries"], ["6", "Follow-ups"]], columns: ["Date", "Activity", "Project", "Category", "Days"], rows: [["Aug 06", "Confirm delivery team", "Regional Logistics Support", "Delivery", "3"], ["Aug 08", "Complete PDI", "Provincial Mobile Services", "Inspection", "5"], ["Aug 12", "Fabrication target", "City Emergency Response Fleet", "Fabrication", "9"]] },
+  leads: { title: "Lead / Client Intake (3.2)", subtitle: "Intake details, Account Type, PHILGEPS ITB, and legal check.", metrics: [["26", "Total clients"], ["4", "New leads"], ["11", "Active projects"]], columns: ["Client Name", "Account Type", "Contact Person", "PHILGEPS ITB", "Legal Status"], rows: [["City Emergency Response Fleet", "Government", "Juan Dela Cruz", "ITB-2026-901", "Complete"], ["Provincial Mobile Services", "Government", "Maria Santos", "ITB-2026-442", "Complete"], ["Coop Transport Federation", "Cooperative", "Pedro Reyes", "N/A", "Missing Docs"]] },
+  inventory: { title: "Inventory Tracker (3.3 - Source of Truth)", subtitle: "Availability, CS #, VIN #, Engine #, Model, Color, and Location.", metrics: [["38", "Total units"], ["12", "Available"], ["9", "Assigned"]], columns: ["CS #", "Model Description", "Color", "Location", "Dealers Price", "Status"], rows: [["CS-98124", "HD65 Cab & Chassis", "White", "Davao Yard", "₱1,850,000", "Available"], ["CS-87421", "H-100 Shuttle", "Silver", "Fabricator", "₱1,220,000", "Assigned"], ["CS-65239", "HD78 Dropside", "White", "Davao Yard", "₱2,100,000", "For Review"]] },
+  allocations: { title: "Allocation / Unit Assignment (3.4)", subtitle: "Unit selection from inventory assigned to agent & GSM.", metrics: [["9", "Active allocations"], ["2", "Docs missing"], ["7", "Ready"]], columns: ["CS #", "Client Name", "Assigned Agent", "GSM", "Legal Warning"], rows: [["CS-87421", "City Emergency Response Fleet", "Kath", "Robespierre T. Agir", "Clear"], ["CS-65239", "Coop Transport Federation", "RAM", "Robespierre T. Agir", "Warning: Missing PO"]] },
+  documents: { title: "Documents & Legal Compliance (3.5)", subtitle: "NOA, NTP, PO, Contract Agreement, Notarial, and Transmittal.", metrics: [["84%", "Overall complete"], ["7", "Missing"], ["18", "Received"]], columns: ["CS # / Client", "Document Type", "Requirement Status", "Notarial", "Transmittal"], rows: [["City Emergency Fleet", "NOA (Notice of Award)", "Submitted", "Not Required", "Complete"], ["City Emergency Fleet", "NTP (Notice to Proceed)", "Submitted", "Not Required", "Complete"], ["Coop Transport Federation", "Contract Agreement", "Missing", "For Notarial", "Pending"]] },
+  followups: { title: "Follow-Up Tracker (3.6)", subtitle: "18 spec categories: Missing PO, NOA, NTP, Contract, Bank PO, Insurance, Releases.", metrics: [["11", "Open follow-ups"], ["3", "Due today"], ["2", "Overdue"]], columns: ["CS #", "Client", "Lacking Requirement", "Action Needed", "Due Date", "Status"], rows: [["CS-98124", "Provincial Mobile Services", "Missing PO", "Call Procurement Officer", "Today", "Due"], ["CS-65239", "Coop Transport Federation", "Contract Agreement", "Submit for notarization", "Tomorrow", "Scheduled"]] },
+  pdi: { title: "PDI & Inspection (3.7)", subtitle: "Checklist before release: Findings, corrections, schedule, and waivers.", metrics: [["7", "In fabrication"], ["3", "For PDI"], ["1", "Needs recheck"]], columns: ["CS #", "Model", "PDI Status", "Findings / Remarks", "Scheduled Date"], rows: [["CS-87421", "H-100 Shuttle", "Completed", "All clear - ready for release", "Aug 04"], ["CS-65239", "HD78 Dropside", "Ongoing", "Checking mechanical & paint", "Aug 06"]] },
+  releases: { title: "Releases & Gate Pass (3.8)", subtitle: "13-item pre-release checklist, Gate Pass clearance, and actual release.", metrics: [["9", "Ready for release"], ["6", "Released"], ["1", "Gate pass pending"]], columns: ["CS #", "Client", "Gate Pass", "Checklist (13 Items)", "Release Status"], rows: [["CS-87421", "City Emergency Response Fleet", "Complete", "13/13 Complete", "Ready"], ["CS-65239", "Regional Logistics Support", "Missing", "10/13 - Gate Pass missing", "Blocked"]] },
+  expenses: { title: "Accounting & Expenses (3.9)", subtitle: "Budget requested, approved, released, liquidated, and unliquidated balance.", metrics: [["₱450,000", "Total requested"], ["₱380,000", "Released"], ["₱70,000", "Unliquidated"]], columns: ["Project / Client", "Requested", "Released", "Liquidated", "Unliquidated Balance", "Status"], rows: [["City Emergency Response Fleet", "₱150,000", "₱150,000", "₱110,000", "₱40,000", "Released"], ["Provincial Mobile Services", "₱200,000", "₱200,000", "₱170,000", "₱30,000", "Released"]] },
+  collections: { title: "Collection & Bank PO (3.10)", subtitle: "3+ month Bank PO tracking & collection statuses.", metrics: [["₱12.4M", "Pending collection"], ["5", "In submission"], ["3", "Approved"]], columns: ["Project / Client", "Bank PO Status", "Expected Amount", "Collected Amount", "Due Date"], rows: [["City Emergency Response Fleet", "Waiting Approval", "₱4,500,000", "₱0", "Sep 15, 2026"], ["Provincial Mobile Services", "Approved", "₱3,800,000", "₱1,000,000", "Aug 20, 2026"]] },
+  agents: { title: "Agents / People Directory (3.11)", subtitle: "Reference data directory for Sales Agents, GSM, and Accounting (no login auth).", metrics: [["6", "Active persons"], ["4", "Sales agents"], ["1", "Manager"]], columns: ["Full Name", "Role", "Department", "Contact Number", "Active Status"], rows: [["Ara Mae Marcillo", "CV Sales Admin", "Sales Admin", "0917-000-0000", "Active"], ["Robespierre T. Agir", "General Sales Manager", "Sales Management", "0918-111-2222", "Active"], ["RAM", "Sales Consultant", "Sales", "0919-222-3333", "Active"], ["Kath", "Sales Consultant", "Sales", "0920-333-4444", "Active"], ["Darnet", "Sales Consultant", "Sales", "0921-444-5555", "Active"], ["Ergem", "Sales Consultant", "Sales", "0922-555-6666", "Active"]] },
+  insurance: { title: "Insurance Management (3.12)", subtitle: "Policy records, custom company entries, active status, and expiry alerts.", metrics: [["18", "Active policies"], ["3", "Expiring soon"], ["5", "Companies"]], columns: ["CS #", "Insurance Company", "Policy #", "Expiry Date", "Status"], rows: [["CS-87421", "Standard Insurance", "POL-99214", "Dec 31, 2026", "Active"], ["CS-65239", "FPG Insurance", "POL-88123", "Aug 28, 2026", "Expiring Soon"]] },
+  incentives: { title: "Incentive Tracker (3.13 - PIN Protected)", subtitle: "Restricted monitoring requiring Invoice, DR, and HTB Sales Leads.", metrics: [["6", "This month"], ["4", "Submitted"], ["2", "Pending"]], columns: ["CS #", "Sales Consultant", "Req Docs (Invoice / DR / HTB)", "Incentive Amount", "Status"], rows: [["CS-87421", "Kath", "Attached (3/3)", "₱25,000", "Submitted"], ["CS-65239", "RAM", "Missing HTB Leads (2/3)", "₱30,000", "Pending Docs"]] },
+  reports: { title: "Reports & Analytics (3.14)", subtitle: "Clickable operational reports, printable views, Excel/PDF export.", metrics: [["12", "Saved reports"], ["6", "Operational"], ["4", "Monthly"]], columns: ["Report Title", "Period", "Format", "Last Generated", "Action"], rows: [["Inventory Status Report", "Current", "Excel / PDF", "Today", "Export"], ["Sales & Releases Summary", "August 2026", "PDF", "Yesterday", "Export"], ["Pending Expenses & Liquidation", "Current", "Excel", "Today", "Export"]] },
+  tasks: { title: "Daily Task Tracker", subtitle: "Prioritized work with clear owners and deadlines.", metrics: [["23", "Open"], ["8", "Due today"], ["5", "Completed"]], columns: ["Task", "Project", "Owner", "Priority", "Due"], rows: [["Request missing documents", "Municipal Rescue Upgrade", "Ara", "High", "Today"], ["Confirm accessory list", "City Emergency Response Fleet", "Kath", "Normal", "Aug 05"], ["Prepare delivery packet", "Regional Logistics Support", "Ara", "High", "Aug 06"]] },
   caltex: { title: "Caltex Card Monitoring", subtitle: "Card distribution with masked numbers and proof.", metrics: [["13", "Total cards"], ["9", "Received"], ["4", "Pending"]], columns: ["Card", "Recipient", "Unit", "Status", "Date"], rows: [["•••• 4821", "Demo Recipient A", "H-100", "Received", "Aug 01"], ["•••• 1176", "Demo Recipient B", "HD65", "Pending", "—"], ["•••• 9034", "Demo Recipient C", "HD78", "Received", "Jul 29"]] },
   clients: { title: "Client Directory", subtitle: "Reusable client records with connected projects and history.", metrics: [["26", "Active clients"], ["4", "New this month"], ["11", "With active projects"]], columns: ["Client", "Type", "Contact", "Active Projects", "Last Update"], rows: [["City Emergency Response Fleet", "Government", "Primary Contact", "1", "Today"], ["Provincial Mobile Services", "Government", "Primary Contact", "1", "Today"], ["Municipal Rescue Upgrade", "Government", "Primary Contact", "1", "Yesterday"]] },
-  agents: { title: "Agents / Persons", subtitle: "Assignments and history, separate from login access.", metrics: [["6", "Active persons"], ["4", "Sales agents"], ["1", "Manager"]], columns: ["Name", "Role", "Active Projects", "Units", "Status"], rows: [["Ara Mae Marcillo", "CV Sales Admin", "4", "10", "Active"], ["Robespierre T. Agir", "General Sales Manager", "4", "10", "Active"], ["RAM", "Sales Consultant", "1", "2", "Active"], ["Kath", "Sales Consultant", "1", "3", "Active"], ["Darnet", "Sales Consultant", "1", "4", "Active"], ["Ergem", "Sales Consultant", "1", "1", "Active"]] },
-  reports: { title: "Reports & Analytics", subtitle: "Filtered, printable, and export-ready operational views.", metrics: [["12", "Saved reports"], ["6", "Operational"], ["4", "Monthly"]], columns: ["Report", "Period", "Format", "Last Generated", "Access"], rows: [["Active Projects & Units", "Current", "Dashboard", "Today", "Standard"], ["Release History", "August 2026", "PDF / Excel", "Yesterday", "Restricted"], ["Pending Documents", "Current", "Dashboard", "Today", "Standard"]] },
-  files: { title: "File Library", subtitle: "Production-ready storage linked to projects, units, and stages.", metrics: [["34", "Files"], ["12", "Documents"], ["16", "Photos"]], columns: ["File", "Category", "Linked Record", "Uploaded", "Status"], rows: [["quotation-sample.pdf", "Quotation", "CV-2026-001", "Aug 03", "Available"], ["pdi-photo-01.jpg", "PDI Photo", "CV-2026-002", "Aug 03", "Available"], ["delivery-draft.pdf", "Delivery", "CV-2026-004", "Aug 02", "Draft"]] },
+  files: { title: "File Library", subtitle: "Production-ready storage linked to projects, units, and stages.", metrics: [["34", "Files"], ["12", "Documents"], ["16", "Photos"]], columns: ["File", "Category", "Linked Record", "Uploaded", "Status"], rows: [["quotation-sample.pdf", "Quotation", "City Emergency Response Fleet", "Aug 03", "Available"], ["pdi-photo-01.jpg", "PDI Photo", "Provincial Mobile Services", "Aug 03", "Available"], ["delivery-draft.pdf", "Delivery", "Regional Logistics Support", "Aug 02", "Draft"]] },
 };
 
 const themes = [
@@ -155,28 +165,41 @@ const themes = [
 
 const stages = ["Inquiry", "Sales Consultant", "Quotation", "Decision", "PO / NOA", "Project Encoding", "Documents", "Availability", "Fabrication", "Monitoring", "PDI", "Delivery Docs", "Scheduling", "Delivery", "Acceptance", "Billing", "After-Sales"];
 
-function statusTone(value: string) {
+function statusBadge(value: string) {
   const v = value.toLowerCase();
-  if (v.includes("urgent") || v.includes("overdue") || v.includes("missing")) return "red";
-  if (v.includes("pending") || v.includes("waiting") || v.includes("draft")) return "amber";
-  if (v.includes("complete") || v.includes("received") || v.includes("released") || v.includes("available")) return "green";
-  if (v.includes("review") || v.includes("pdi")) return "purple";
-  return "blue";
+  if (v.includes("urgent") || v.includes("overdue") || v.includes("missing") || v.includes("blocked")) return { icon: "🔴", tone: "red" };
+  if (v.includes("pending") || v.includes("waiting") || v.includes("draft") || v.includes("requested")) return { icon: "🟡", tone: "amber" };
+  if (v.includes("complete") || v.includes("received") || v.includes("released") || v.includes("available") || v.includes("clear")) return { icon: "🟢", tone: "green" };
+  if (v.includes("review") || v.includes("pdi") || v.includes("correction")) return { icon: "🟣", tone: "purple" };
+  return { icon: "🔵", tone: "blue" };
 }
 
 function placeholderAction(label: string) {
-  window.alert(`${label} is ready for the real database phase.`);
+  window.alert(`${label} is ready for Phase 1 execution.`);
 }
 
 function Status({ children }: { children: string }) {
-  return <span className={`status ${statusTone(children)}`}><i />{children}</span>;
+  const badge = statusBadge(children);
+  return <span className={`status ${badge.tone}`}><span style={{ marginRight: 5 }}>{badge.icon}</span>{children}</span>;
 }
 
 export default function WorkspaceApp({ authenticatedName }: { authenticatedName: string | null }) {
   const [activeUser, setActiveUser] = useState<"Ara Mae Marcillo" | "Robert Herrero">("Ara Mae Marcillo");
   const [activeWorkspace, setActiveWorkspace] = useState<"CV_SALES" | "RHPS">("CV_SALES");
   const [entered, setEntered] = useState(false);
+  const [showPortalLogin, setShowPortalLogin] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  const [portalMode, setPortalMode] = useState<"signin" | "register">("signin");
+  const [regName, setRegName] = useState("");
+  const [regPhone, setRegPhone] = useState("");
+  const [regAddress, setRegAddress] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regSuccessMsg, setRegSuccessMsg] = useState("");
 
 
   const [sessionMinutes, setSessionMinutes] = useState(15);
@@ -187,12 +210,15 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
   const [showSettings, setShowSettings] = useState(false);
   const [showVault, setShowVault] = useState(false);
   const [vaultUnlocked, setVaultUnlocked] = useState(false);
+  const [agentPinUnlocked, setAgentPinUnlocked] = useState(false);
+  const [showAgentPinModal, setShowAgentPinModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [theme, setTheme] = useState("rose");
   const [density, setDensity] = useState("comfortable");
-  const [fontSize, setFontSize] = useState("medium");
+  const [fontSize, setFontSize] = useState("large");
   const [fontColor, setFontColor] = useState("");
   const [backgroundColor, setBackgroundColor] = useState("");
+
   const [toast, setToast] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
@@ -207,7 +233,64 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
         if (Array.isArray(data.projects) && data.projects.length) setProjects(data.projects);
       })
       .catch(() => undefined);
+
+    const channel = supabase
+      .channel("realtime:projects")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "projects" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const newRow = payload.new;
+            const item: Project = {
+              id: newRow.id,
+              reference: newRow.reference,
+              client: newRow.client,
+              model: newRow.model,
+              quantity: newRow.quantity,
+              agent: newRow.agent,
+              manager: newRow.manager,
+              stage: newRow.stage,
+              status: newRow.status,
+              priority: newRow.priority,
+              targetDelivery: newRow.target_delivery || "",
+              nextAction: newRow.next_action || "",
+              progress: newRow.progress || 12,
+            };
+            setProjects((prev) => [item, ...prev.filter((p) => p.id !== item.id)]);
+            setToast(`⚡ Supabase Realtime: Project ${item.reference} added live!`);
+          } else if (payload.eventType === "UPDATE") {
+            const row = payload.new;
+            setProjects((prev) =>
+              prev.map((p) =>
+                p.id === row.id
+                  ? {
+                      ...p,
+                      client: row.client,
+                      model: row.model,
+                      quantity: row.quantity,
+                      agent: row.agent,
+                      stage: row.stage,
+                      status: row.status,
+                      priority: row.priority,
+                      targetDelivery: row.target_delivery || p.targetDelivery,
+                      nextAction: row.next_action || p.nextAction,
+                      progress: row.progress || p.progress,
+                    }
+                  : p
+              )
+            );
+            setToast(`⚡ Supabase Realtime: ${row.reference} updated live!`);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
+
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem("cv-sales-admin-theme");
@@ -289,13 +372,42 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
 
   function enterWorkspace(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (activeUser === "Robert Herrero") {
+    setLoginError("");
+
+    const u = loginUsername.trim().toLowerCase();
+    const p = loginPassword.trim();
+
+    // Check credentials for Robert Herrero or Ara Mae Marcillo
+    const isRobert = (u === "robert" || u === "roberth" || u === "robert@rhps-piano.com") && (p === "password123" || p === "robert2026" || p === "123456");
+    const isAra = (u === "ara" || u === "ara@rhps-piano.com") && (p === "password123" || p === "ara2026" || p === "123456");
+
+    if (isRobert) {
+      setActiveUser("Robert Herrero");
       setActiveWorkspace("RHPS");
-    } else {
+      setEntered(true);
+    } else if (isAra) {
+      setActiveUser("Ara Mae Marcillo");
       setActiveWorkspace("CV_SALES");
+      setEntered(true);
+    } else {
+      setLoginError("❌ Invalid Username or Password. Please try again.");
     }
-    setEntered(true);
   }
+
+  const handleCustomerRegister = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!regName || !regPhone) return;
+
+    try {
+      localStorage.setItem("rhps_customer_registered", "true");
+    } catch { /* fallback */ }
+
+    setRegSuccessMsg(`🎉 Welcome ${regName}! Your customer account has been created.`);
+    setTimeout(() => {
+      setRegSuccessMsg("");
+      setShowPortalLogin(false);
+    }, 2000);
+  };
 
   async function addProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -345,72 +457,595 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
   }
 
   if (!entered) {
+    if (!showPortalLogin) {
+      return <PublicWebsite onOpenLogin={() => setShowPortalLogin(true)} />;
+    }
+
     return (
-      <main className="login-page" data-theme={theme}>
-        <section className="login-portrait">
-          <Image src="/robert-herrero.png" alt="Robert Pogs Herrero" fill priority sizes="47vw" />
-          <div className="portrait-shade" />
-          <div className="prepared-card">
-            <span>Thoughtfully prepared by</span>
-            <strong>ROBERT POGS! HERRERO</strong>
-          </div>
-        </section>
-        <section className="login-panel">
-          <div className="login-box">
-            <div className="brand-mark">CV</div>
-            <p className="eyebrow">BUSINESS SYSTEMS PORTAL</p>
-            <h1>Welcome back.<br /><em>Select Account.</em></h1>
-            <p className="login-copy">Select your private user account & operating system to sign in.</p>
-            
-            <form onSubmit={enterWorkspace}>
-              <label>Select User Account & Workspace OS</label>
-              <div className="account-selector-row">
-                <button
-                  type="button"
-                  className={`account-card ${activeUser === "Ara Mae Marcillo" ? "selected" : ""}`}
-                  onClick={() => {
-                    setActiveUser("Ara Mae Marcillo");
-                    setActiveWorkspace("CV_SALES");
-                  }}
-                >
-                  <span className="account-icon">🏢</span>
-                  <div className="account-details">
-                    <strong>Ara Mae Marcillo</strong>
-                    <small>CV Sales Admin OS</small>
-                  </div>
-                  {activeUser === "Ara Mae Marcillo" && <b className="check">✓</b>}
-                </button>
+      <main
+        style={{
+          minHeight: "100vh",
+          backgroundColor: "#f1f5f9",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1.5rem",
+          fontFamily: "Inter, system-ui, -apple-system, sans-serif",
+          position: "relative",
+        }}
+      >
+        {/* Back Button */}
+        <div style={{ position: "absolute", top: "1.5rem", left: "1.5rem", zIndex: 10 }}>
+          <button
+            type="button"
+            onClick={() => setShowPortalLogin(false)}
+            style={{
+              background: "#ffffff",
+              border: "1px solid #cbd5e1",
+              color: "#334155",
+              padding: "0.5rem 1rem",
+              borderRadius: "10px",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+            }}
+          >
+            ← Back to Website
+          </button>
+        </div>
 
-                <button
-                  type="button"
-                  className={`account-card ${activeUser === "Robert Herrero" ? "selected" : ""}`}
-                  onClick={() => {
-                    setActiveUser("Robert Herrero");
-                    setActiveWorkspace("RHPS");
-                  }}
-                >
-                  <span className="account-icon">🎹</span>
-                  <div className="account-details">
-                    <strong>Robert Herrero</strong>
-                    <small>RHPS OS (Piano Services)</small>
-                  </div>
-                  {activeUser === "Robert Herrero" && <b className="check">✓</b>}
-                </button>
-              </div>
-
-
-              <label>Password</label>
-              <div className="input-shell"><span>◇</span><input required type={showPassword ? "text" : "password"} placeholder="Enter your secure password" aria-label="Password" /><button type="button" className="eye" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? "◌" : "◉"}</button></div>
-              <div className="session-note"><span>●</span> Secure private session · Auto-lock after 15 minutes</div>
-              <button className="primary login-button" type="submit">
-                Sign in to {activeUser === "Robert Herrero" ? "RHPS OS" : "CV Sales Admin OS"} <span>→</span>
+        {/* Split Auth Container (Outer Box) */}
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            borderRadius: "28px",
+            boxShadow: "0 25px 60px -15px rgba(15, 23, 42, 0.12)",
+            border: "1px solid #e2e8f0",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            width: "100%",
+            maxWidth: "1080px",
+            minHeight: "660px",
+            overflow: "hidden",
+            boxSizing: "border-box",
+          }}
+        >
+          {/* LEFT COLUMN: AUTH FORM */}
+          <div
+            style={{
+              padding: "2.8rem 2.6rem",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              boxSizing: "border-box",
+            }}
+          >
+            {/* Segmented Pill Tabs */}
+            <div
+              style={{
+                display: "inline-flex",
+                backgroundColor: "#f1f5f9",
+                padding: "4px",
+                borderRadius: "12px",
+                gap: "4px",
+                width: "fit-content",
+                marginBottom: "1.8rem",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setPortalMode("signin")}
+                style={{
+                  backgroundColor: portalMode === "signin" ? "#18181b" : "transparent",
+                  color: portalMode === "signin" ? "#ffffff" : "#64748b",
+                  border: "none",
+                  padding: "0.45rem 1.1rem",
+                  borderRadius: "9px",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Login
               </button>
-            </form>
-            <p className="login-foot">
-              {activeUser === "Robert Herrero" ? "RHPS OS • ROBERT'S PIANO & SERVICES" : "CV SALES ADMIN OS • ARA’S SAFE HAVEN"}
+              <button
+                type="button"
+                onClick={() => setPortalMode("register")}
+                style={{
+                  backgroundColor: portalMode === "register" ? "#18181b" : "transparent",
+                  color: portalMode === "register" ? "#ffffff" : "#64748b",
+                  border: "none",
+                  padding: "0.45rem 1.1rem",
+                  borderRadius: "9px",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Sign Up
+              </button>
+            </div>
+
+            {/* Title & Subtitle */}
+            <h1
+              style={{
+                fontSize: "2rem",
+                fontWeight: 800,
+                color: "#0f172a",
+                margin: "0 0 0.35rem 0",
+                letterSpacing: "-0.025em",
+              }}
+            >
+              {portalMode === "signin" ? "Welcome!" : "Create Account"}
+            </h1>
+            <p style={{ fontSize: "0.92rem", color: "#64748b", margin: "0 0 1.8rem 0" }}>
+              {portalMode === "signin"
+                ? "Please enter your details to login."
+                : "Enter your customer details to create an account."}
             </p>
+
+            {portalMode === "signin" ? (
+              /* LOGIN FORM */
+              <form onSubmit={enterWorkspace}>
+                <div style={{ marginBottom: "1.1rem" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      color: "#1e293b",
+                      marginBottom: "0.4rem",
+                    }}
+                  >
+                    Email address
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Enter your email address"
+                    value={loginUsername}
+                    onChange={(e) => setLoginUsername(e.target.value)}
+                    style={{
+                      width: "100%",
+                      height: "44px",
+                      padding: "0 1rem",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "10px",
+                      fontSize: "0.9rem",
+                      color: "#0f172a",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "1.4rem" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.4rem",
+                    }}
+                  >
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#1e293b" }}>
+                      Password
+                    </label>
+                    <a
+                      href="#forgot"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        alert("Password reset link sent to your email!");
+                      }}
+                      style={{
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        color: "#334155",
+                        textDecoration: "none",
+                      }}
+                    >
+                      Forgot password?
+                    </a>
+                  </div>
+
+                  <div style={{ position: "relative" }}>
+                    <input
+                      required
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter your password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      style={{
+                        width: "100%",
+                        height: "44px",
+                        padding: "0 2.5rem 0 1rem",
+                        backgroundColor: "#ffffff",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "10px",
+                        fontSize: "0.9rem",
+                        color: "#0f172a",
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: "absolute",
+                        right: "0.8rem",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        color: "#64748b",
+                        cursor: "pointer",
+                        fontSize: "1rem",
+                      }}
+                    >
+                      {showPassword ? "👁️" : "👁️‍🗨️"}
+                    </button>
+                  </div>
+                </div>
+
+                {loginError && (
+                  <div
+                    style={{
+                      backgroundColor: "#fef2f2",
+                      border: "1px solid #fca5a5",
+                      color: "#dc2626",
+                      padding: "0.65rem 0.9rem",
+                      borderRadius: "10px",
+                      fontSize: "0.85rem",
+                      fontWeight: 700,
+                      marginBottom: "1rem",
+                      textAlign: "center",
+                    }}
+                  >
+                    {loginError}
+                  </div>
+                )}
+
+                {/* Primary Button */}
+                <button
+                  type="submit"
+                  style={{
+                    width: "100%",
+                    height: "46px",
+                    backgroundColor: "#18181b",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "10px",
+                    fontSize: "0.95rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  }}
+                >
+                  Log In
+                </button>
+
+
+
+                {/* Footer Switch */}
+                <div style={{ marginTop: "1.5rem", textAlign: "center", fontSize: "0.85rem", color: "#64748b" }}>
+                  Don't have an account yet?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setPortalMode("register")}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#0f172a",
+                      fontWeight: 800,
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    Sign up
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* SIGN UP FORM */
+              <form onSubmit={handleCustomerRegister}>
+                {regSuccessMsg && (
+                  <div
+                    style={{
+                      backgroundColor: "#f0fdf4",
+                      border: "1px solid #86efac",
+                      color: "#16a34a",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "10px",
+                      fontSize: "0.88rem",
+                      fontWeight: 800,
+                      marginBottom: "1rem",
+                      textAlign: "center",
+                    }}
+                  >
+                    {regSuccessMsg}
+                  </div>
+                )}
+
+                <div style={{ marginBottom: "1rem" }}>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.4rem" }}>
+                    Full Name *
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Enter your full name"
+                    value={regName}
+                    onChange={(e) => setRegName(e.target.value)}
+                    style={{
+                      width: "100%",
+                      height: "44px",
+                      padding: "0 1rem",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "10px",
+                      fontSize: "0.9rem",
+                      color: "#0f172a",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "1rem" }}>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.4rem" }}>
+                    Mobile / Viber Number *
+                  </label>
+                  <input
+                    required
+                    type="tel"
+                    placeholder="e.g. 0917 123 4567"
+                    value={regPhone}
+                    onChange={(e) => setRegPhone(e.target.value)}
+                    style={{
+                      width: "100%",
+                      height: "44px",
+                      padding: "0 1rem",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "10px",
+                      fontSize: "0.9rem",
+                      color: "#0f172a",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "1rem" }}>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.4rem" }}>
+                    Email Address *
+                  </label>
+                  <input
+                    required
+                    type="email"
+                    placeholder="Enter your email address"
+                    value={regAddress}
+                    onChange={(e) => setRegAddress(e.target.value)}
+                    style={{
+                      width: "100%",
+                      height: "44px",
+                      padding: "0 1rem",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "10px",
+                      fontSize: "0.9rem",
+                      color: "#0f172a",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "1.4rem" }}>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.4rem" }}>
+                    Create Password *
+                  </label>
+                  <input
+                    required
+                    type="password"
+                    placeholder="Create your password"
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    style={{
+                      width: "100%",
+                      height: "44px",
+                      padding: "0 1rem",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "10px",
+                      fontSize: "0.9rem",
+                      color: "#0f172a",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  style={{
+                    width: "100%",
+                    height: "46px",
+                    backgroundColor: "#18181b",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "10px",
+                    fontSize: "0.95rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  }}
+                >
+                  Create Account
+                </button>
+
+                <div style={{ marginTop: "1.5rem", textAlign: "center", fontSize: "0.85rem", color: "#64748b" }}>
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setPortalMode("signin")}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#0f172a",
+                      fontWeight: 800,
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    Log in
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
-        </section>
+
+          {/* RIGHT COLUMN: PORTRAIT IMAGE WITH FROSTED GLASS OVERLAY */}
+          <div
+            style={{
+              position: "relative",
+              padding: "1rem",
+              display: "flex",
+              alignItems: "stretch",
+            }}
+          >
+            {/* Image Container */}
+            <div
+              style={{
+                position: "relative",
+                width: "100%",
+                borderRadius: "22px",
+                overflow: "hidden",
+              }}
+            >
+              <Image
+                src="/robert-herrero.png"
+                alt="Robert Pogs Herrero - Founder & Master Craftsman"
+                fill
+                priority
+                sizes="500px"
+                style={{ objectFit: "cover" }}
+              />
+
+              {/* Dark Gradient Overlay */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "linear-gradient(to top, rgba(15, 23, 42, 0.8) 0%, rgba(15, 23, 42, 0.1) 60%)",
+                }}
+              />
+
+              {/* Frosted Glass Testimonial Box (Matching Image 3) */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "1.2rem",
+                  left: "1.2rem",
+                  right: "1.2rem",
+                  backgroundColor: "rgba(255, 255, 255, 0.22)",
+                  backdropFilter: "blur(18px) saturate(180%)",
+                  WebkitBackdropFilter: "blur(18px) saturate(180%)",
+                  border: "1px solid rgba(255, 255, 255, 0.35)",
+                  borderRadius: "18px",
+                  padding: "1.4rem",
+                  color: "#ffffff",
+                  boxShadow: "0 10px 30px rgba(0, 0, 0, 0.25)",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "0.88rem",
+                    lineHeight: 1.5,
+                    margin: "0 0 1rem 0",
+                    fontWeight: 500,
+                    color: "#f8fafc",
+                    fontStyle: "italic",
+                  }}
+                >
+                  “With RHPS Piano Masters, I can manage our luxury acoustic piano portfolio and client tuning requests in minutes. It's the perfect blend of master craftsmanship and digital technology.”
+                </p>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                  <div>
+                    <strong style={{ fontSize: "1.05rem", fontWeight: 800, display: "block", color: "#ffffff" }}>
+                      Robert Pogs Herrero
+                    </strong>
+                    <small style={{ color: "#cbd5e1", fontSize: "0.78rem", fontWeight: 600, display: "block" }}>
+                      Founder & Master Piano Craftsman
+                    </small>
+                    <small style={{ color: "#94a3b8", fontSize: "0.74rem" }}>
+                      Robert's Piano & Services (RHPS)
+                    </small>
+                  </div>
+
+                  {/* Navigation Arrows */}
+                  <div style={{ display: "flex", gap: "0.4rem" }}>
+                    <button
+                      type="button"
+                      onClick={() => alert("Previous testimonial")}
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "50%",
+                        backgroundColor: "rgba(255, 255, 255, 0.2)",
+                        border: "1px solid rgba(255, 255, 255, 0.4)",
+                        color: "#ffffff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      ←
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => alert("Next testimonial")}
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "50%",
+                        backgroundColor: "rgba(255, 255, 255, 0.2)",
+                        border: "1px solid rgba(255, 255, 255, 0.4)",
+                        color: "#ffffff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
     );
   }
@@ -469,6 +1104,7 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
             <small style={{ marginLeft: 8, opacity: 0.7 }}>· Ara Mae Marcillo</small>
           </div>
           <div className="topbar-right" style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+            <button className="secondary" onClick={() => setShowAgentPinModal(true)}>🔑 Agent Incentive PIN</button>
             <button className="secondary" onClick={() => setShowVault(true)}>⌁ Commission Vault</button>
             <button className="secondary" onClick={() => setShowSettings(true)}>⚙ Settings</button>
             <button className="secondary" onClick={() => setEntered(false)}>🔒 Lock</button>
@@ -478,10 +1114,11 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
         {/* MAIN CONTENT */}
         <main className="content">
           {active === "dashboard" && <Dashboard projects={filteredProjects} setActive={setActive} setShowAdd={setShowAdd} setSelectedProject={setSelectedProject} />}
+          {active === "website_editor" && <WebsiteEditor onViewWebsite={() => { setEntered(false); setShowPortalLogin(false); }} />}
           {active === "projects" && <ProjectsView projects={filteredProjects} query={query} setQuery={setQuery} setShowAdd={setShowAdd} setSelectedProject={setSelectedProject} />}
           {active === "workflow" && <WorkflowView projects={filteredProjects} setSelectedProject={setSelectedProject} />}
           {active === "ai" && <AIAssistantView projects={filteredProjects} />}
-          {!["dashboard", "projects", "workflow", "ai"].includes(active) && (
+          {!["dashboard", "projects", "workflow", "ai", "website_editor"].includes(active) && (
             <TrackerView id={active} label={navGroups.flatMap((g) => g.items).find((i) => i.id === active)?.label ?? active} onAdd={() => placeholderAction("Add record")} onUpload={() => fileRef.current?.click()} />
           )}
         </main>
@@ -492,6 +1129,8 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
       {selectedProject && <ProjectDrawer project={selectedProject} close={() => setSelectedProject(null)} />}
       {showSettings && <SettingsDrawer close={() => setShowSettings(false)} theme={theme} setTheme={setTheme} density={density} setDensity={setDensity} fontSize={fontSize} setFontSize={setFontSize} fontColor={fontColor} setFontColor={setFontColor} backgroundColor={backgroundColor} setBackgroundColor={setBackgroundColor} sessionMinutes={sessionMinutes} setSessionMinutes={setSessionMinutes} />}
       {showVault && <VaultModal close={() => setShowVault(false)} unlocked={vaultUnlocked} unlock={() => setVaultUnlocked(true)} />}
+      {showAgentPinModal && <AgentPinModal close={() => setShowAgentPinModal(false)} unlock={() => { setAgentPinUnlocked(true); setShowAgentPinModal(false); setToast("Agent Incentive record unlocked!"); }} />}
+
 
       <input ref={fileRef} type="file" hidden onChange={uploadFile} />
     </div>
@@ -506,12 +1145,12 @@ function Dashboard({ projects, setActive, setShowAdd, setSelectedProject }: { pr
     <div className="focus-strip"><button onClick={() => setActive("urgent")}><span className="focus-icon urgent">!</span><div><strong>5 urgent items</strong><small>2 overdue · 3 need action</small></div><b>→</b></button><button onClick={() => setActive("today")}><span className="focus-icon today">◷</span><div><strong>8 tasks for today</strong><small>3 completed · 5 remaining</small></div><b>→</b></button><button onClick={() => setActive("upcoming")}><span className="focus-icon upcoming">◫</span><div><strong>14 upcoming</strong><small>Within the next 15 days</small></div><b>→</b></button></div>
     <div className="metric-grid">{cards.map(([label, value, note, icon, tone]) => <button className="metric-card" key={label} onClick={() => setActive(label === "Active Projects" || label === "Physical Units" ? "projects" : label === "Pending Documents" ? "documents" : label === "In Fabrication" ? "fabrication" : label === "Ready for Delivery" ? "releases" : "reports")}><span className={`metric-icon ${tone}`}>{icon}</span><small>{label}</small><strong>{value}</strong><p>{note}</p><b>↗</b></button>)}</div>
     <div className="dashboard-grid">
-      <section className="panel work-queue"><PanelHead title="Priority Work Queue" subtitle="Sorted by urgency and due date" action="View all" onAction={() => setActive("urgent")} /><div className="table-wrap"><table><thead><tr><th>PROJECT / CLIENT</th><th>NEXT ACTION</th><th>OWNER</th><th>DUE</th><th>STATUS</th><th /></tr></thead><tbody>{projects.slice(0, 4).map((p) => <tr key={p.id} onClick={() => setSelectedProject(p)}><td><strong>{p.reference}</strong><span>{p.client}</span></td><td><strong>{p.nextAction}</strong><span>{p.model} · {p.quantity} unit{p.quantity > 1 ? "s" : ""}</span></td><td><span className="agent-dot">{p.agent.slice(0, 1)}</span>{p.agent}</td><td><strong>{p.targetDelivery}</strong></td><td><Status>{p.priority === "Urgent" ? "Urgent" : p.status}</Status></td><td>›</td></tr>)}</tbody></table></div>
+      <section className="panel work-queue"><PanelHead title="Priority Work Queue" subtitle="Sorted by urgency and due date" action="View all" onAction={() => setActive("urgent")} /><div className="table-wrap"><table><thead><tr><th>PROJECT / CLIENT</th><th>NEXT ACTION</th><th>OWNER</th><th>DUE</th><th>STATUS</th><th /></tr></thead><tbody>{projects.slice(0, 4).map((p) => <tr key={p.id} onClick={() => setSelectedProject(p)}><td><strong>{p.client}</strong></td><td><strong>{p.nextAction}</strong><span>{p.model} · {p.quantity} unit{p.quantity > 1 ? "s" : ""}</span></td><td><span className="agent-dot">{p.agent.slice(0, 1)}</span>{p.agent}</td><td><strong>{p.targetDelivery}</strong></td><td><Status>{p.priority === "Urgent" ? "Urgent" : p.status}</Status></td><td>›</td></tr>)}</tbody></table></div>
       </section>
-      <section className="panel schedule-card"><PanelHead title="Upcoming Schedule" subtitle="Next 15 days" action="Calendar" onAction={() => setActive("upcoming")} /><div className="date-chip"><b>03</b><span>AUG<br />MON</span></div><div className="schedule-item"><i className="rose-line" /><div><strong>Fabrication follow-up</strong><span>CV-2026-001 · 9:00 AM</span></div><Status>Urgent</Status></div><div className="schedule-item"><i className="blue-line" /><div><strong>PDI checklist review</strong><span>CV-2026-002 · 11:00 AM</span></div><Status>For Review</Status></div><div className="schedule-item"><i className="green-line" /><div><strong>Delivery confirmation</strong><span>CV-2026-004 · 2:00 PM</span></div><Status>Active</Status></div>
+      <section className="panel schedule-card"><PanelHead title="Upcoming Schedule" subtitle="Next 15 days" action="Calendar" onAction={() => setActive("upcoming")} /><div className="date-chip"><b>03</b><span>AUG<br />MON</span></div><div className="schedule-item"><i className="rose-line" /><div><strong>Fabrication follow-up</strong><span>City Emergency Response Fleet · 9:00 AM</span></div><Status>Urgent</Status></div><div className="schedule-item"><i className="blue-line" /><div><strong>PDI checklist review</strong><span>Provincial Mobile Services · 11:00 AM</span></div><Status>For Review</Status></div><div className="schedule-item"><i className="green-line" /><div><strong>Delivery confirmation</strong><span>Regional Logistics Support · 2:00 PM</span></div><Status>Active</Status></div>
       </section>
       <section className="panel workflow-panel"><PanelHead title="17-Stage Workflow" subtitle="Click a stage to see its projects" action="Full workflow" onAction={() => setActive("workflow")} /><div className="mini-stages">{stages.slice(5, 14).map((stage, index) => <button key={stage} onClick={() => setActive("workflow")}><span>{index + 6}</span><strong>{stage}</strong><b>{[2, 3, 1, 7, 4, 3, 2, 4, 1][index]}</b></button>)}</div></section>
-      <section className="panel activity-panel"><PanelHead title="Recent Activity" subtitle="Latest workspace updates" /><div className="activity"><i className="green" /> <div><strong>PDI status updated</strong><span>CV-2026-002 moved to For PDI</span><small>10 minutes ago · Ara</small></div></div><div className="activity"><i className="purple" /> <div><strong>Document uploaded</strong><span>Insurance added to CV-2026-002</span><small>42 minutes ago · Ara</small></div></div><div className="activity"><i className="amber" /> <div><strong>Follow-up scheduled</strong><span>Fabricator call set for today</span><small>1 hour ago · Ara</small></div></div></section>
+      <section className="panel activity-panel"><PanelHead title="Recent Activity" subtitle="Latest workspace updates" /><div className="activity"><i className="green" /> <div><strong>PDI status updated</strong><span>Provincial Mobile Services moved to For PDI</span><small>10 minutes ago · Ara</small></div></div><div className="activity"><i className="purple" /> <div><strong>Document uploaded</strong><span>Insurance added to Provincial Mobile Services</span><small>42 minutes ago · Ara</small></div></div><div className="activity"><i className="amber" /> <div><strong>Follow-up scheduled</strong><span>Fabricator call set for today</span><small>1 hour ago · Ara</small></div></div></section>
     </div>
   </>;
 }
@@ -524,8 +1163,260 @@ function ProjectsView({ projects, query, setQuery, setShowAdd, setSelectedProjec
 
 function TrackerView({ id, label, onAdd, onUpload }: { id: string; label: string; onAdd: () => void; onUpload: () => void }) {
   const data = trackerContent[id] ?? { title: label, subtitle: "Organized records and clear next actions.", metrics: [["0", "Open"], ["0", "Due"], ["0", "Completed"]] as [string, string][], columns: ["Record", "Details", "Owner", "Status"], rows: [] };
-  return <><div className="module-hero"><div><p className="eyebrow">CV SALES ADMIN OS</p><h1>{data.title}</h1><p>{data.subtitle}</p></div><div className="hero-buttons">{id === "files" && <button className="secondary" onClick={onUpload}>⇧ Upload File</button>}<button className="primary" onClick={onAdd}>＋ Add Record</button></div></div><div className="module-metrics">{data.metrics.map(([value, text]) => <div key={text}><strong>{value}</strong><span>{text}</span></div>)}</div><div className="toolbar"><div className="small-search">⌕<input placeholder={`Search ${data.title.toLowerCase()}…`} /></div><button onClick={() => placeholderAction("Filter")}>☷ Filter</button><button onClick={() => placeholderAction("Sort")}>⇅ Sort</button><button onClick={() => placeholderAction("Columns")}>▦ Columns</button><button onClick={() => placeholderAction("Export")}>Export ⌄</button></div><section className="panel tracker-table"><table><thead><tr>{data.columns.map((c) => <th key={c}>{c.toUpperCase()}</th>)}<th /></tr></thead><tbody>{data.rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cellIndex === row.length - 1 || cell.toLowerCase().includes("pending") || cell.toLowerCase().includes("received") || cell.toLowerCase().includes("urgent") || cell.toLowerCase().includes("active") ? <Status>{cell}</Status> : <strong>{cell}</strong>}</td>)}<td>›</td></tr>)}</tbody></table></section></>;
+  const [activeFollowupCategory, setActiveFollowupCategory] = useState("All");
+
+  const followupCategories = [
+    "All", "Missing PO", "Missing NOA", "Missing NTP", "Missing Contract Agreement", "PHILGEPS/Bidding",
+    "Insurance Pending", "Budget Pending", "For Liquidation", "For Transmittal", "Notarial Pending",
+    "Payment/Collection", "Bank Processing", "Unit Transfer", "PDI/Service", "Fabrication",
+    "Internal Release", "Actual Release", "Client Decision"
+  ];
+
+  const getModuleButtons = () => {
+    switch (id) {
+      case "urgent":
+        return [];
+      case "leads":
+        return [
+          { text: "＋ Add Lead / Client", action: () => placeholderAction("Add Lead / Client") },
+          { text: "Save Lead Info", action: () => placeholderAction("Save Lead Info") },
+          { text: "Check Legal Requirements", action: () => placeholderAction("Check Legal Requirements") },
+          { text: "Proceed with Missing Docs", action: () => placeholderAction("Proceed with Missing Docs") },
+          { text: "Upload Legal Document", action: onUpload },
+          { text: "Allocate Unit", action: () => placeholderAction("Allocate Unit") },
+        ];
+      case "inventory":
+        return [
+          { text: "＋ Add Unit", action: () => placeholderAction("Add Unit") },
+          { text: "Edit Unit", action: () => placeholderAction("Edit Unit") },
+          { text: "Assign Unit", action: () => placeholderAction("Assign Unit") },
+          { text: "Reserve Unit", action: () => placeholderAction("Reserve Unit") },
+          { text: "Mark For Service", action: () => placeholderAction("Mark For Service") },
+          { text: "Upload Unit Document", action: onUpload },
+          { text: "Export Inventory", action: () => placeholderAction("Export Inventory") },
+        ];
+      case "allocations":
+        return [
+          { text: "＋ Allocate Unit", action: () => placeholderAction("Allocate Unit") },
+          { text: "Change Unit", action: () => placeholderAction("Change Unit") },
+          { text: "Change Assigned Person", action: () => placeholderAction("Change Assigned Person") },
+          { text: "Add Follow-up", action: () => placeholderAction("Add Follow-up") },
+          { text: "Request Budget", action: () => placeholderAction("Request Budget") },
+          { text: "Upload Required Document", action: onUpload },
+          { text: "Cancel Allocation", action: () => placeholderAction("Cancel Allocation") },
+        ];
+      case "documents":
+        return [
+          { text: "＋ Upload Document", action: onUpload },
+          { text: "Mark Submitted", action: () => placeholderAction("Mark Submitted") },
+          { text: "Mark Complete", action: () => placeholderAction("Mark Complete") },
+          { text: "Mark For Notarial", action: () => placeholderAction("Mark For Notarial") },
+          { text: "Mark Notarized", action: () => placeholderAction("Mark Notarized") },
+          { text: "Add Transmittal", action: () => placeholderAction("Add Transmittal") },
+          { text: "Replace File", action: onUpload },
+        ];
+      case "followups":
+        return [
+          { text: "＋ Add Follow-up", action: () => placeholderAction("Add Follow-up") },
+          { text: "Mark Done", action: () => placeholderAction("Mark Done") },
+          { text: "Reschedule", action: () => placeholderAction("Reschedule") },
+          { text: "Add Note", action: () => placeholderAction("Add Note") },
+          { text: "Mark Contacted", action: () => placeholderAction("Mark Contacted") },
+          { text: "Upload Document", action: onUpload },
+          { text: "Convert to Urgent", action: () => placeholderAction("Convert to Urgent") },
+        ];
+      case "pdi":
+        return [
+          { text: "＋ Schedule PDI", action: () => placeholderAction("Schedule PDI") },
+          { text: "Start PDI", action: () => placeholderAction("Start PDI") },
+          { text: "Add PDI Finding", action: () => placeholderAction("Add PDI Finding") },
+          { text: "Mark For Correction", action: () => placeholderAction("Mark For Correction") },
+          { text: "Upload PDI Document", action: onUpload },
+          { text: "Mark PDI Complete", action: () => placeholderAction("Mark PDI Complete") },
+          { text: "Waive PDI with Remarks", action: () => placeholderAction("Waive PDI with Remarks") },
+        ];
+      case "releases":
+        return [
+          { text: "＋ Prepare Gate Pass", action: () => placeholderAction("Prepare Gate Pass") },
+          { text: "Start Accounting Check", action: () => placeholderAction("Start Accounting Check") },
+          { text: "Upload Signed Gate Pass", action: onUpload },
+          { text: "Check Client Handover", action: () => placeholderAction("Check Client Handover Items") },
+          { text: "Add Stencil Copies", action: () => placeholderAction("Add Stencil Copies") },
+          { text: "Mark Ready for Release", action: () => placeholderAction("Mark Ready for Release") },
+          { text: "Release with Pending", action: () => placeholderAction("Release with Pending Requirements") },
+          { text: "Mark Actual Released", action: () => placeholderAction("Mark Actual Released") },
+        ];
+      case "expenses":
+        return [
+          { text: "＋ Request Budget", action: () => placeholderAction("Request Budget") },
+          { text: "Approve Budget", action: () => placeholderAction("Approve Budget") },
+          { text: "Release Amount", action: () => placeholderAction("Release Amount") },
+          { text: "Add Liquidation", action: () => placeholderAction("Add Liquidation") },
+          { text: "Add Transmittal", action: () => placeholderAction("Add Transmittal") },
+          { text: "Verify Expense", action: () => placeholderAction("Verify Expense") },
+          { text: "Close Expense", action: () => placeholderAction("Close Expense") },
+        ];
+      case "collections":
+        return [
+          { text: "＋ Add Collection Record", action: () => placeholderAction("Add Collection Record") },
+          { text: "Update Bank PO Status", action: () => placeholderAction("Update Bank PO Status") },
+          { text: "Mark For Collection", action: () => placeholderAction("Mark For Collection") },
+          { text: "Mark Collected", action: () => placeholderAction("Mark Collected") },
+          { text: "Add Follow-up", action: () => placeholderAction("Add Follow-up") },
+        ];
+      case "agents":
+        return [
+          { text: "＋ Add Person", action: () => placeholderAction("Add Person") },
+          { text: "Add Agent", action: () => placeholderAction("Add Agent") },
+          { text: "Add Manager", action: () => placeholderAction("Add Manager") },
+          { text: "Assign to Unit", action: () => placeholderAction("Assign to Unit") },
+          { text: "View Assigned Units", action: () => placeholderAction("View Assigned Units") },
+          { text: "View Follow-ups", action: () => placeholderAction("View Follow-ups") },
+          { text: "Edit Contact Info", action: () => placeholderAction("Edit Contact Info") },
+        ];
+      case "insurance":
+        return [
+          { text: "＋ Add Insurance Info", action: () => placeholderAction("Add Insurance Info") },
+          { text: "Select Company", action: () => placeholderAction("Select Insurance Company") },
+          { text: "Add New Company", action: () => placeholderAction("Add New Insurance Company") },
+          { text: "Upload Document", action: onUpload },
+          { text: "Mark Active", action: () => placeholderAction("Mark Active") },
+          { text: "Set Expiry Reminder", action: () => placeholderAction("Set Expiry Reminder") },
+        ];
+      case "incentives":
+        return [
+          { text: "🔓 Unlock Incentives", action: () => placeholderAction("Unlock Incentives") },
+          { text: "Check Requirements", action: () => placeholderAction("Check Incentive Requirements") },
+          { text: "Upload Sales Invoice", action: onUpload },
+          { text: "Upload Delivery Receipt", action: onUpload },
+          { text: "Upload HTB Sales Leads", action: onUpload },
+          { text: "Prepare Template", action: () => placeholderAction("Prepare CV Incentives Template") },
+          { text: "Submit Incentive", action: () => placeholderAction("Submit Incentive") },
+          { text: "Lock Incentives", action: () => placeholderAction("Lock Incentives") },
+        ];
+      case "reports":
+        return [
+          { text: "＋ Generate Report", action: () => placeholderAction("Generate Report") },
+          { text: "Export Excel", action: () => placeholderAction("Export Excel") },
+          { text: "Export PDF", action: () => placeholderAction("Export PDF") },
+          { text: "Print Report", action: () => placeholderAction("Print Report") },
+          { text: "Save View", action: () => placeholderAction("Save View") },
+        ];
+      case "settings":
+        return [
+          { text: "＋ Add New Option", action: () => placeholderAction("Add New Option") },
+          { text: "Edit Option", action: () => placeholderAction("Edit Option") },
+          { text: "Deactivate Option", action: () => placeholderAction("Deactivate Option") },
+          { text: "Reactivate Option", action: () => placeholderAction("Reactivate Option") },
+          { text: "Merge Duplicate", action: () => placeholderAction("Merge Duplicate") },
+          { text: "Manage Options", action: () => placeholderAction("Manage Options") },
+        ];
+      default:
+        return [
+          { text: "＋ Add Record", action: onAdd },
+          { text: "⇧ Upload File", action: onUpload },
+        ];
+    }
+  };
+
+  const moduleButtons = getModuleButtons();
+
+  return (
+    <>
+      <div className="module-hero">
+        <div>
+          <p className="eyebrow">CV SALES ADMIN OS • ARA MAE MARCILLO</p>
+          <h1>{data.title}</h1>
+          <p>{data.subtitle}</p>
+        </div>
+        <div className="hero-buttons" style={{ display: "flex", flexWrap: "wrap", gap: 8, maxWidth: 500, justifyContent: "flex-end" }}>
+          {moduleButtons.slice(0, 4).map((btn, idx) => (
+            <button key={idx} className={idx === 0 ? "primary" : "secondary"} onClick={btn.action}>
+              {btn.text}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="module-metrics">
+        {data.metrics.map(([value, text]) => (
+          <div key={text}>
+            <strong>{value}</strong>
+            <span>{text}</span>
+          </div>
+        ))}
+      </div>
+
+      {id === "expenses" && (
+        <div className="info-card" style={{ marginBottom: 16, background: "var(--surface)", padding: "12px 16px", borderRadius: 8, border: "1px solid var(--line)" }}>
+          <strong>Formula Rule (3.9):</strong> <span style={{ marginLeft: 8, fontFamily: "monospace" }}>Unliquidated Balance = Released Amount − Liquidated Amount</span>
+        </div>
+      )}
+
+      {id === "followups" && (
+        <div className="category-pills-bar" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 10, marginBottom: 12 }}>
+          {followupCategories.map((cat) => (
+            <button
+              key={cat}
+              className={`chip ${activeFollowupCategory === cat ? "primary" : "secondary"}`}
+              style={{ fontSize: "13px", padding: "4px 12px", borderRadius: 16, cursor: "pointer", whiteSpace: "nowrap" }}
+              onClick={() => setActiveFollowupCategory(cat)}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="toolbar">
+        <div className="small-search">
+          ⌕<input placeholder={`Search ${data.title.toLowerCase()}…`} />
+        </div>
+        <button onClick={() => placeholderAction("Filter")}>☷ Filter</button>
+        <button onClick={() => placeholderAction("Sort")}>⇅ Sort</button>
+        <button onClick={() => placeholderAction("Columns")}>▦ Columns</button>
+        <button onClick={() => placeholderAction("Export")}>Export ⌄</button>
+      </div>
+
+      <section className="panel tracker-table">
+        <table>
+          <thead>
+            <tr>
+              {data.columns.map((c) => (
+                <th key={c}>{c.toUpperCase()}</th>
+              ))}
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.map((row, index) => (
+              <tr key={index}>
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex}>
+                    {cellIndex === row.length - 1 ||
+                    cell.toLowerCase().includes("pending") ||
+                    cell.toLowerCase().includes("received") ||
+                    cell.toLowerCase().includes("urgent") ||
+                    cell.toLowerCase().includes("active") ||
+                    cell.toLowerCase().includes("complete") ||
+                    cell.toLowerCase().includes("submitted") ||
+                    cell.toLowerCase().includes("missing") ? (
+                      <Status>{cell}</Status>
+                    ) : (
+                      <strong>{cell}</strong>
+                    )}
+                  </td>
+                ))}
+                <td>›</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </>
+  );
 }
+
 
 function WorkflowView({ projects, setSelectedProject }: { projects: Project[]; setSelectedProject: (v: Project) => void }) {
   return <><div className="module-hero"><div><p className="eyebrow">FAST AUTO CORE INC.</p><h1>17-Stage CV Admin Workflow</h1><p>Every project has a visible current stage, owner, and next action.</p></div><button className="secondary" onClick={() => placeholderAction("Workflow editor")}>Edit Workflow</button></div><div className="workflow-board">{stages.map((stage, index) => { const matches = projects.filter((p) => p.stage === index + 1); return <section className="stage-card" key={stage}><header><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{stage}</strong><small>{matches.length} active project{matches.length !== 1 ? "s" : ""}</small></div><b>{matches.length}</b></header>{matches.map((p) => <button key={p.id} onClick={() => setSelectedProject(p)}><strong>{p.reference}</strong><span>{p.client}</span><Status>{p.status}</Status></button>)}</section>; })}</div></>;
@@ -547,6 +1438,40 @@ function VaultModal({ close, unlocked, unlock }: { close: () => void; unlocked: 
   const [pin, setPin] = useState("");
   return <div className="overlay vault-overlay"><section className="modal vault-modal"><button className="close" onClick={close}>×</button>{!unlocked ? <><div className="vault-lock">⌁</div><p className="eyebrow">PRIVATE · ARA ONLY</p><h2>Commission Vault</h2><p>Your solo commissions are separated from the dashboard, global search, reports, and ordinary exports.</p><label>Separate 6-digit PIN<div className="pin-input"><input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••••" /><button className="primary" disabled={pin.length !== 6} onClick={unlock}>Unlock</button></div></label><div className="secure-note">Preview protection only. A live PIN will be encrypted and securely configured before importing real commission data.</div></> : <><div className="vault-unlocked"><span>✓</span> Vault unlocked</div><p className="eyebrow">PRIVATE COMMISSION SUMMARY</p><h2>Solo Commission</h2><div className="vault-metrics"><div><span>Expected</span><strong>₱ •••,•••</strong></div><div><span>Received</span><strong>₱ •••,•••</strong></div><div><span>Pending</span><strong>₱ •••,•••</strong></div></div><p className="empty-vault">No live commission records have been imported.</p><button className="primary full-button" onClick={() => placeholderAction("Commission record creator")}>＋ Add Commission Record</button></>}</section></div>;
 }
+
+function AgentPinModal({ close, unlock }: { close: () => void; unlock: () => void }) {
+  const [pin, setPin] = useState("");
+  const [agentName, setAgentName] = useState("Kath");
+  return (
+    <div className="overlay vault-overlay">
+      <section className="modal vault-modal">
+        <button className="close" onClick={close}>×</button>
+        <div className="vault-lock">☆</div>
+        <p className="eyebrow">SALES AGENT INCENTIVE VERIFICATION (RULE 1 & 3.13)</p>
+        <h2>Check My Incentive</h2>
+        <p>Option (b) single-operator access: Type your agent PIN to unlock your personal incentive record only.</p>
+        <label style={{ display: "block", marginBottom: 12 }}>Select Consultant Name
+          <select value={agentName} onChange={(e) => setAgentName(e.target.value)} style={{ width: "100%", marginTop: 6, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)" }}>
+            <option>Kath</option>
+            <option>RAM</option>
+            <option>Darnet</option>
+            <option>Ergem</option>
+          </select>
+        </label>
+        <label style={{ display: "block" }}>Enter 4-Digit Agent PIN
+          <div className="pin-input" style={{ display: "flex", gap: 8, marginTop: 6 }}>
+            <input type="password" inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" style={{ flex: 1, padding: "8px 12px", borderRadius: 6, border: "1px solid var(--line)" }} />
+            <button className="primary" disabled={pin.length < 4} onClick={unlock}>Unlock My Record</button>
+          </div>
+        </label>
+        <div className="secure-note" style={{ marginTop: 12, fontSize: "12px", opacity: 0.8 }}>
+          Verification active. Only released units with signed Sales Invoice, DR, and HTB Sales Leads allow template preparation.
+        </div>
+      </section>
+    </div>
+  );
+}
+
 
 function renderFormattedMarkdown(content: string) {
   const lines = content.split("\n");
