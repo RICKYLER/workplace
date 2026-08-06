@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminAuth } from "../../../../lib/auth/api-guard";
 
 export async function POST(req: NextRequest) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   try {
     const { prompt, history, workspaceContext } = await req.json();
 
@@ -8,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    const apiKey = process.env.OLLAMA_API_KEY || "1417162be54c41aa9a323e30c47517a8.EcUJSKEOo_X-93t_Kn7d_Da0";
+    const apiKey = process.env.OLLAMA_API_KEY;
 
     const baseSystemPrompt = `You are RHPS Master AI, the private executive AI assistant for Robert Herrero, owner and master technician of R. Herrero Pianos & Services (RHPS) in Davao City, Mindanao, Philippines.
 

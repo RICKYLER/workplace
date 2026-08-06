@@ -1,7 +1,12 @@
 import { getDb } from "../../../db";
 import { files } from "../../../db/schema";
+import { requireAdminAuth } from "../../../lib/auth/api-guard";
+import { NextRequest } from "next/server";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const authError = requireAdminAuth(request);
+  if (authError) return authError;
+
   try {
     let env: any = null;
     try {

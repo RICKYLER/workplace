@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminAuth } from "../../../lib/auth/api-guard";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -6,9 +7,12 @@ export interface ChatMessage {
 }
 
 export async function POST(req: NextRequest) {
+  const authError = requireAdminAuth(req);
+  if (authError) return authError;
+
   try {
     const { messages, projectsContext } = await req.json();
-    const apiKey = process.env.OLLAMA_API_KEY || "1417162be54c41aa9a323e30c47517a8.EcUJSKEOo_X-93t_Kn7d_Da0";
+    const apiKey = process.env.OLLAMA_API_KEY;
 
     const lastMessage = messages[messages.length - 1]?.content || "";
 

@@ -1,6 +1,10 @@
 import { supabaseAdmin } from "../../../lib/supabase/server";
+import { requireAdminAuth } from "../../../lib/auth/api-guard";
+import { NextRequest } from "next/server";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authError = requireAdminAuth(request);
+  if (authError) return authError;
   try {
     const { data, error } = await supabaseAdmin
       .from("projects")
@@ -35,7 +39,10 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const authError = requireAdminAuth(request);
+  if (authError) return authError;
+
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const clientName = String(body.client ?? "").trim();
