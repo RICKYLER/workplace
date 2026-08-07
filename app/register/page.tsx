@@ -16,6 +16,28 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [success, setSuccess] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
+
+  const handleResendEmail = async () => {
+    if (!formData.email) return;
+    setResending(true);
+    setResendMsg("");
+    try {
+      const res = await fetch("/api/clients/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to resend verification email.");
+      setResendMsg("✅ Verification email re-sent! Please check your Gmail inbox.");
+    } catch (err: unknown) {
+      setResendMsg("❌ " + (err instanceof Error ? err.message : "Failed to resend email."));
+    } finally {
+      setResending(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,15 +184,49 @@ export default function RegisterPage() {
           </div>
         ) : (
           <div style={styles.successCard}>
-            <div style={styles.successIcon}>✅</div>
-            <h2 style={styles.successTitle}>Registration Successful!</h2>
+            <div style={styles.successIcon}>📧</div>
+            <h2 style={styles.successTitle}>Check Your Gmail Inbox!</h2>
             <p style={styles.successSubtitle}>
-              Thank you for registering, <strong>{formData.fullName}</strong>. Your account has been created.
+              Na-send na ang confirmation email sa imong Gmail: <strong>{formData.email}</strong>.
             </p>
+            <div style={{ backgroundColor: "#0f172a", border: "1px dashed #38bdf8", padding: "1.2rem", borderRadius: "12px", margin: "1.2rem 0", textAlign: "left" }}>
+              <p style={{ color: "#38bdf8", fontWeight: 700, margin: "0 0 0.4rem 0", fontSize: "0.95rem" }}>
+                📩 Step 1: Open your Gmail Inbox
+              </p>
+              <p style={{ color: "#cbd5e1", fontSize: "0.88rem", margin: 0, lineHeight: 1.5 }}>
+                Palihug i-open ang imong Gmail ug i-click ang <strong>&quot;👉 CLICK HERE TO CONFIRM &amp; REGISTER OFFICIAL 👈&quot;</strong> button para ma-official na ang imong account.
+              </p>
+            </div>
 
-            <Link href="/" style={styles.loginBtn}>
-              Proceed to Sign In <span>→</span>
-            </Link>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem", marginTop: "1rem" }}>
+              <Link href={`/verify?email=${encodeURIComponent(formData.email)}`} style={styles.loginBtn}>
+                Enter Verification Code Manually <span>→</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={handleResendEmail}
+                disabled={resending}
+                style={{
+                  background: "transparent",
+                  border: "1px solid #334155",
+                  color: "#60a5fa",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "10px",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {resending ? "🔄 Sending email..." : "🔄 Resend Verification Email"}
+              </button>
+
+              {resendMsg && (
+                <p style={{ fontSize: "0.85rem", margin: 0, color: resendMsg.includes("✅") ? "#4ade80" : "#fca5a5" }}>
+                  {resendMsg}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </main>

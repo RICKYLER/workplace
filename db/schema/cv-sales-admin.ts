@@ -40,9 +40,27 @@ export const commissionRecords = pgTable("commission_records", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const userProfiles = pgTable("user_profiles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").unique(),
+  email: text("email").notNull().unique(),
+  fullName: text("full_name").notNull(),
+  phone: text("phone"),
+  address: text("address"),
+  role: text("role").notNull().default("customer"),
+  verified: boolean("verified").notNull().default(false),
+  verificationToken: text("verification_token"),
+  verificationOtp: text("verification_otp"),
+  verificationExpires: timestamp("verification_expires"),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const clients = pgTable("clients", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  email: text("email"),
+  userId: text("user_id"),
   accountType: text("account_type").notNull().default("Government"), // Government, LGU, Cooperative, Private
   contactPerson: text("contact_person").notNull(),
   contactNumber: text("contact_number").notNull(),

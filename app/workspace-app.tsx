@@ -3,9 +3,12 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import RhpsWorkspace from "./rhps-workspace";
+import "./workspace.css";
 import { supabase } from "../lib/supabase/client";
 import PublicWebsite from "../components/public-website";
 import WebsiteEditor from "../components/website-editor";
+import CustomerPortal, { CustomerUser } from "../components/customer-portal";
+import AdminUserManagementModal from "../components/admin-user-management";
 
 type Project = {
   id: number;
@@ -108,18 +111,20 @@ const navGroups: { title: string; items: NavItem[] }[] = [
       { id: "allocations", label: "Allocation & Unit Assignment", icon: "⎍" },
       { id: "documents", label: "Documents & Legal", icon: "▤" },
       { id: "followups", label: "Follow-Ups", icon: "↗" },
-      { id: "pdi", label: "PDI & Inspection", icon: "⚙" },
+      { id: "pdi", label: "Fabrication & PDI", icon: "⚙" },
       { id: "releases", label: "Releases & Gate Pass", icon: "⌁" },
       { id: "expenses", label: "Expenses & Budget", icon: "₱" },
       { id: "collections", label: "Collection & Bank PO", icon: "🏦" },
       { id: "insurance", label: "Insurance", icon: "🛡" },
       { id: "incentives", label: "Incentives (PIN Locked)", icon: "☆" },
+      { id: "caltex", label: "Caltex Cards", icon: "回" },
     ],
   },
   {
     title: "PEOPLE & INSIGHTS",
     items: [
-      { id: "agents", label: "Agents & People Directory", icon: "♢" },
+      { id: "clients", label: "Clients", icon: "♟" },
+      { id: "agents", label: "Agents / Persons", icon: "♢" },
       { id: "reports", label: "Reports & Analytics", icon: "◒" },
       { id: "workflow", label: "17-Stage Workflow", icon: "⇢" },
       { id: "files", label: "File Library", icon: "▱" },
@@ -147,7 +152,7 @@ const trackerContent: Record<string, { title: string; subtitle: string; metrics:
   releases: { title: "Releases & Gate Pass (3.8)", subtitle: "13-item pre-release checklist, Gate Pass clearance, and actual release.", metrics: [["9", "Ready for release"], ["6", "Released"], ["1", "Gate pass pending"]], columns: ["CS #", "Client", "Gate Pass", "Checklist (13 Items)", "Release Status"], rows: [["CS-87421", "City Emergency Response Fleet", "Complete", "13/13 Complete", "Ready"], ["CS-65239", "Regional Logistics Support", "Missing", "10/13 - Gate Pass missing", "Blocked"]] },
   expenses: { title: "Accounting & Expenses (3.9)", subtitle: "Budget requested, approved, released, liquidated, and unliquidated balance.", metrics: [["₱450,000", "Total requested"], ["₱380,000", "Released"], ["₱70,000", "Unliquidated"]], columns: ["Project / Client", "Requested", "Released", "Liquidated", "Unliquidated Balance", "Status"], rows: [["City Emergency Response Fleet", "₱150,000", "₱150,000", "₱110,000", "₱40,000", "Released"], ["Provincial Mobile Services", "₱200,000", "₱200,000", "₱170,000", "₱30,000", "Released"]] },
   collections: { title: "Collection & Bank PO (3.10)", subtitle: "3+ month Bank PO tracking & collection statuses.", metrics: [["₱12.4M", "Pending collection"], ["5", "In submission"], ["3", "Approved"]], columns: ["Project / Client", "Bank PO Status", "Expected Amount", "Collected Amount", "Due Date"], rows: [["City Emergency Response Fleet", "Waiting Approval", "₱4,500,000", "₱0", "Sep 15, 2026"], ["Provincial Mobile Services", "Approved", "₱3,800,000", "₱1,000,000", "Aug 20, 2026"]] },
-  agents: { title: "Agents / People Directory (3.11)", subtitle: "Reference data directory for Sales Agents, GSM, and Accounting (no login auth).", metrics: [["6", "Active persons"], ["4", "Sales agents"], ["1", "Manager"]], columns: ["Full Name", "Role", "Department", "Contact Number", "Active Status"], rows: [["Ara Mae Marcillo", "CV Sales Admin", "Sales Admin", "0917-000-0000", "Active"], ["Robespierre T. Agir", "General Sales Manager", "Sales Management", "0918-111-2222", "Active"], ["RAM", "Sales Consultant", "Sales", "0919-222-3333", "Active"], ["Kath", "Sales Consultant", "Sales", "0920-333-4444", "Active"], ["Darnet", "Sales Consultant", "Sales", "0921-444-5555", "Active"], ["Ergem", "Sales Consultant", "Sales", "0922-555-6666", "Active"]] },
+  agents: { title: "Agents / Persons", subtitle: "Reference data directory for Sales Agents, GSM, and Accounting (no login auth).", metrics: [["6", "Active persons"], ["4", "Sales agents"], ["1", "Manager"]], columns: ["Full Name", "Role", "Department", "Contact Number", "Active Status"], rows: [["Ara Mae Marcillo", "CV Sales Admin", "Sales Admin", "0917-000-0000", "Active"], ["Robespierre T. Agir", "General Sales Manager", "Sales Management", "0918-111-2222", "Active"], ["RAM", "Sales Consultant", "Sales", "0919-222-3333", "Active"], ["Kath", "Sales Consultant", "Sales", "0920-333-4444", "Active"], ["Darnet", "Sales Consultant", "Sales", "0921-444-5555", "Active"], ["Ergem", "Sales Consultant", "Sales", "0922-555-6666", "Active"]] },
   insurance: { title: "Insurance Management (3.12)", subtitle: "Policy records, custom company entries, active status, and expiry alerts.", metrics: [["18", "Active policies"], ["3", "Expiring soon"], ["5", "Companies"]], columns: ["CS #", "Insurance Company", "Policy #", "Expiry Date", "Status"], rows: [["CS-87421", "Standard Insurance", "POL-99214", "Dec 31, 2026", "Active"], ["CS-65239", "FPG Insurance", "POL-88123", "Aug 28, 2026", "Expiring Soon"]] },
   incentives: { title: "Incentive Tracker (3.13 - PIN Protected)", subtitle: "Restricted monitoring requiring Invoice, DR, and HTB Sales Leads.", metrics: [["6", "This month"], ["4", "Submitted"], ["2", "Pending"]], columns: ["CS #", "Sales Consultant", "Req Docs (Invoice / DR / HTB)", "Incentive Amount", "Status"], rows: [["CS-87421", "Kath", "Attached (3/3)", "₱25,000", "Submitted"], ["CS-65239", "RAM", "Missing HTB Leads (2/3)", "₱30,000", "Pending Docs"]] },
   reports: { title: "Reports & Analytics (3.14)", subtitle: "Clickable operational reports, printable views, Excel/PDF export.", metrics: [["12", "Saved reports"], ["6", "Operational"], ["4", "Monthly"]], columns: ["Report Title", "Period", "Format", "Last Generated", "Action"], rows: [["Inventory Status Report", "Current", "Excel / PDF", "Today", "Export"], ["Sales & Releases Summary", "August 2026", "PDF", "Yesterday", "Export"], ["Pending Expenses & Liquidation", "Current", "Excel", "Today", "Export"]] },
@@ -167,9 +172,9 @@ const stages = ["Inquiry", "Sales Consultant", "Quotation", "Decision", "PO / NO
 
 function statusBadge(value: string) {
   const v = value.toLowerCase();
-  if (v.includes("urgent") || v.includes("overdue") || v.includes("missing") || v.includes("blocked")) return { icon: "🔴", tone: "red" };
+  if (v.includes("urgent") || v.includes("overdue") || v.includes("missing") || v.includes("blocked") || v.includes("awol") || v.includes("resigned")) return { icon: "🔴", tone: "red" };
   if (v.includes("pending") || v.includes("waiting") || v.includes("draft") || v.includes("requested")) return { icon: "🟡", tone: "amber" };
-  if (v.includes("complete") || v.includes("received") || v.includes("released") || v.includes("available") || v.includes("clear")) return { icon: "🟢", tone: "green" };
+  if (v.includes("complete") || v.includes("received") || v.includes("released") || v.includes("available") || v.includes("clear") || v.includes("active")) return { icon: "🟢", tone: "green" };
   if (v.includes("review") || v.includes("pdi") || v.includes("correction")) return { icon: "🟣", tone: "purple" };
   return { icon: "🔵", tone: "blue" };
 }
@@ -184,10 +189,12 @@ function Status({ children }: { children: string }) {
 }
 
 export default function WorkspaceApp({ authenticatedName }: { authenticatedName: string | null }) {
-  const [activeUser, setActiveUser] = useState<"Ara Mae Marcillo" | "Robert Herrero">("Ara Mae Marcillo");
-  const [activeWorkspace, setActiveWorkspace] = useState<"CV_SALES" | "RHPS">("CV_SALES");
-  const [entered, setEntered] = useState(false);
+  const [activeUser, setActiveUser] = useState<string>("Ara Mae Marcillo");
+  const [activeWorkspace, setActiveWorkspace] = useState<"CV_SALES" | "RHPS" | "CUSTOMER">("CV_SALES");
+  const [customerData, setCustomerData] = useState<CustomerUser | null>(null);
+  const [entered, setEntered] = useState(true);
   const [showPortalLogin, setShowPortalLogin] = useState(false);
+  const [showAdminUserManagement, setShowAdminUserManagement] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const [loginUsername, setLoginUsername] = useState("");
@@ -196,6 +203,7 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
 
   const [portalMode, setPortalMode] = useState<"signin" | "register">("signin");
   const [regName, setRegName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
   const [regPhone, setRegPhone] = useState("");
   const [regAddress, setRegAddress] = useState("");
   const [regPassword, setRegPassword] = useState("");
@@ -207,6 +215,15 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
   const [projects, setProjects] = useState<Project[]>(demoProjects);
   const [query, setQuery] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [showAddPersonModal, setShowAddPersonModal] = useState(false);
+  const [personsList, setPersonsList] = useState<string[][]>([
+    ["Ara Mae Marcillo", "CV Sales Admin", "Sales Admin", "ara@cars.com", "Active"],
+    ["Robespierre T. Agir", "General Sales Manager", "Sales Management", "0918-111-2222", "Active"],
+    ["RAM", "Sales Consultant", "Sales", "0919-222-3333", "Active"],
+    ["Kath", "Sales Consultant", "Sales", "0920-333-4444", "Active"],
+    ["Darnet", "Sales Consultant", "Sales", "0921-444-5555", "Active"],
+    ["Ergem", "Sales Consultant", "Sales", "0922-555-6666", "Active"],
+  ]);
   const [showSettings, setShowSettings] = useState(false);
   const [showVault, setShowVault] = useState(false);
   const [vaultUnlocked, setVaultUnlocked] = useState(false);
@@ -225,6 +242,25 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
   const fileRef = useRef<HTMLInputElement>(null);
   const lastActivityRef = useRef(0);
   const warningShownRef = useRef(false);
+
+  const handleAddPerson = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const fullName = formData.get("fullName") as string;
+    const position = formData.get("position") as string;
+    const email = (formData.get("email") as string) || "N/A";
+    const status = (formData.get("status") as string) || "Active";
+
+    if (fullName && position) {
+      setPersonsList((prev) => [
+        [fullName, position, "Sales / Admin", email, status],
+        ...prev,
+      ]);
+      setShowAddPersonModal(false);
+      setToast(`Person "${fullName}" added successfully!`);
+      setTimeout(() => setToast(""), 4000);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/projects")
@@ -315,6 +351,45 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
   }, []);
 
   useEffect(() => {
+    try {
+      const noirUserRaw = window.localStorage.getItem("atelier-noir-user");
+      if (noirUserRaw) {
+        const u = JSON.parse(noirUserRaw);
+        if (u && (u.email || u.name)) {
+          const identifier = String(u.email || u.name).toLowerCase();
+          if (identifier.includes("robert") || identifier.includes("roberth")) {
+            setActiveWorkspace("RHPS");
+            setActiveUser(u.name || "Robert Herrero");
+            return;
+          } else if (identifier.includes("ara")) {
+            setActiveWorkspace("CV_SALES");
+            setActiveUser(u.name || "Ara Mae Marcillo");
+            return;
+          }
+        }
+      }
+
+      const savedUser = window.localStorage.getItem("rhps_customer_user");
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && (parsed.email || parsed.fullName)) {
+          const identifier = String(parsed.email || parsed.fullName).toLowerCase();
+          if (identifier.includes("robert") || identifier.includes("roberth")) {
+            setActiveWorkspace("RHPS");
+            setActiveUser(parsed.fullName || "Robert Herrero");
+          } else if (identifier.includes("ara")) {
+            setActiveWorkspace("CV_SALES");
+            setActiveUser(parsed.fullName || "Ara Mae Marcillo");
+          } else {
+            setCustomerData(parsed);
+            setActiveUser(parsed.fullName);
+          }
+        }
+      }
+    } catch { /* fallback */ }
+  }, []);
+
+  useEffect(() => {
     window.localStorage.setItem("cv-sales-admin-theme", theme);
   }, [theme]);
 
@@ -370,44 +445,112 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
     return projects.filter((p) => [p.reference, p.client, p.model, p.agent, p.status].some((v) => String(v).toLowerCase().includes(q)));
   }, [projects, query]);
 
-  function enterWorkspace(event: FormEvent<HTMLFormElement>) {
+  async function enterWorkspace(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoginError("");
 
-    const u = loginUsername.trim().toLowerCase();
-    const p = loginPassword.trim();
+    const email = loginUsername.trim();
+    const password = loginPassword.trim();
 
-    // Check credentials for Robert Herrero or Ara Mae Marcillo
-    const isRobert = (u === "robert" || u === "roberth" || u === "robert@rhps-piano.com") && (p === "password123" || p === "robert2026" || p === "123456");
-    const isAra = (u === "ara" || u === "ara@rhps-piano.com") && (p === "password123" || p === "ara2026" || p === "123456");
+    if (!email || !password) {
+      setLoginError("❌ Email and password are required.");
+      return;
+    }
 
-    if (isRobert) {
-      setActiveUser("Robert Herrero");
-      setActiveWorkspace("RHPS");
-      setEntered(true);
-    } else if (isAra) {
-      setActiveUser("Ara Mae Marcillo");
-      setActiveWorkspace("CV_SALES");
-      setEntered(true);
-    } else {
-      setLoginError("❌ Invalid Username or Password. Please try again.");
+    try {
+      const res = await fetch("/api/clients/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setLoginError(data.error || "❌ Invalid credentials. Please try again.");
+        return;
+      }
+
+      const u = data.user;
+      const userObj: CustomerUser = {
+        id: u.id,
+        fullName: u.fullName || u.email,
+        email: u.email,
+        phone: u.phone,
+        address: u.address,
+        role: u.role,
+      };
+      setActiveUser(userObj.fullName);
+      setCustomerData(userObj);
+      try {
+        localStorage.setItem("rhps_customer_user", JSON.stringify(userObj));
+      } catch {}
+
+      if (u.role === "admin" && u.workspace === "RHPS") {
+        setActiveWorkspace("RHPS");
+        setEntered(true);
+      } else if (u.role === "admin" && u.workspace === "CV_SALES") {
+        setActiveWorkspace("CV_SALES");
+        setEntered(true);
+      } else {
+        setActiveWorkspace("CUSTOMER");
+        setShowPortalLogin(false);
+      }
+    } catch (err) {
+      console.error("Login request error:", err);
+      setLoginError("❌ Connection error. Please check your network and try again.");
     }
   }
 
-  const handleCustomerRegister = (e: FormEvent<HTMLFormElement>) => {
+  async function handleCustomerRegister(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!regName || !regPhone) return;
+    setRegSuccessMsg("");
+
+    const targetEmail = (regEmail || regAddress).trim();
+    if (!regName || !targetEmail || !regPassword) {
+      setRegSuccessMsg("⚠️ Please fill in all required fields (Name, Email, Password).");
+      return;
+    }
 
     try {
-      localStorage.setItem("rhps_customer_registered", "true");
-    } catch { /* fallback */ }
+      const res = await fetch("/api/clients/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: regName,
+          phone: regPhone,
+          email: targetEmail,
+          address: regAddress,
+          password: regPassword,
+        }),
+      });
 
-    setRegSuccessMsg(`🎉 Welcome ${regName}! Your customer account has been created.`);
-    setTimeout(() => {
-      setRegSuccessMsg("");
-      setShowPortalLogin(false);
-    }, 2000);
-  };
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setRegSuccessMsg(`⚠️ ${data.error || "Failed to create account."}`);
+        return;
+      }
+
+      setRegSuccessMsg(
+        `📩 Confirmation email sent to ${targetEmail}! Palihug i-open ang imong Gmail ug i-click ang "CONFIRM & REGISTER OFFICIAL" link para ma-official ang imong account bago ka maka-login.`
+      );
+
+      setLoginUsername(targetEmail);
+      setRegName("");
+      setRegEmail("");
+      setRegPhone("");
+      setRegAddress("");
+      setRegPassword("");
+
+      setTimeout(() => {
+        setPortalMode("signin");
+      }, 5000);
+    } catch (err) {
+      console.error("Register request error:", err);
+      setRegSuccessMsg("⚠️ Connection error. Could not complete registration.");
+    }
+  }
 
   async function addProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -456,606 +599,81 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
     event.target.value = "";
   }
 
+  const [showCustomerDashboard, setShowCustomerDashboard] = useState(false);
+  const [customerDashboardTab, setCustomerDashboardTab] = useState<string>("settings");
+
   if (!entered) {
-    if (!showPortalLogin) {
-      return <PublicWebsite onOpenLogin={() => setShowPortalLogin(true)} />;
+    if (typeof window !== "undefined") {
+      window.location.href = "/";
     }
-
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          backgroundColor: "#f1f5f9",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "1.5rem",
-          fontFamily: "Inter, system-ui, -apple-system, sans-serif",
-          position: "relative",
-        }}
-      >
-        {/* Back Button */}
-        <div style={{ position: "absolute", top: "1.5rem", left: "1.5rem", zIndex: 10 }}>
-          <button
-            type="button"
-            onClick={() => setShowPortalLogin(false)}
-            style={{
-              background: "#ffffff",
-              border: "1px solid #cbd5e1",
-              color: "#334155",
-              padding: "0.5rem 1rem",
-              borderRadius: "10px",
-              cursor: "pointer",
-              fontSize: "0.85rem",
-              fontWeight: 600,
-              boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.4rem",
-            }}
-          >
-            ← Back to Website
-          </button>
-        </div>
-
-        {/* Split Auth Container (Outer Box) */}
-        <div
-          style={{
-            backgroundColor: "#ffffff",
-            borderRadius: "28px",
-            boxShadow: "0 25px 60px -15px rgba(15, 23, 42, 0.12)",
-            border: "1px solid #e2e8f0",
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            width: "100%",
-            maxWidth: "1080px",
-            minHeight: "660px",
-            overflow: "hidden",
-            boxSizing: "border-box",
-          }}
-        >
-          {/* LEFT COLUMN: AUTH FORM */}
-          <div
-            style={{
-              padding: "2.8rem 2.6rem",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              boxSizing: "border-box",
-            }}
-          >
-            {/* Segmented Pill Tabs */}
-            <div
-              style={{
-                display: "inline-flex",
-                backgroundColor: "#f1f5f9",
-                padding: "4px",
-                borderRadius: "12px",
-                gap: "4px",
-                width: "fit-content",
-                marginBottom: "1.8rem",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setPortalMode("signin")}
-                style={{
-                  backgroundColor: portalMode === "signin" ? "#18181b" : "transparent",
-                  color: portalMode === "signin" ? "#ffffff" : "#64748b",
-                  border: "none",
-                  padding: "0.45rem 1.1rem",
-                  borderRadius: "9px",
-                  fontSize: "0.85rem",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Login
-              </button>
-              <button
-                type="button"
-                onClick={() => setPortalMode("register")}
-                style={{
-                  backgroundColor: portalMode === "register" ? "#18181b" : "transparent",
-                  color: portalMode === "register" ? "#ffffff" : "#64748b",
-                  border: "none",
-                  padding: "0.45rem 1.1rem",
-                  borderRadius: "9px",
-                  fontSize: "0.85rem",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Sign Up
-              </button>
-            </div>
-
-            {/* Title & Subtitle */}
-            <h1
-              style={{
-                fontSize: "2rem",
-                fontWeight: 800,
-                color: "#0f172a",
-                margin: "0 0 0.35rem 0",
-                letterSpacing: "-0.025em",
-              }}
-            >
-              {portalMode === "signin" ? "Welcome!" : "Create Account"}
-            </h1>
-            <p style={{ fontSize: "0.92rem", color: "#64748b", margin: "0 0 1.8rem 0" }}>
-              {portalMode === "signin"
-                ? "Please enter your details to login."
-                : "Enter your customer details to create an account."}
-            </p>
-
-            {portalMode === "signin" ? (
-              /* LOGIN FORM */
-              <form onSubmit={enterWorkspace}>
-                <div style={{ marginBottom: "1.1rem" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: 600,
-                      color: "#1e293b",
-                      marginBottom: "0.4rem",
-                    }}
-                  >
-                    Email address
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    placeholder="Enter your email address"
-                    value={loginUsername}
-                    onChange={(e) => setLoginUsername(e.target.value)}
-                    style={{
-                      width: "100%",
-                      height: "44px",
-                      padding: "0 1rem",
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "10px",
-                      fontSize: "0.9rem",
-                      color: "#0f172a",
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-
-                <div style={{ marginBottom: "1.4rem" }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "0.4rem",
-                    }}
-                  >
-                    <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#1e293b" }}>
-                      Password
-                    </label>
-                    <a
-                      href="#forgot"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        alert("Password reset link sent to your email!");
-                      }}
-                      style={{
-                        fontSize: "0.8rem",
-                        fontWeight: 600,
-                        color: "#334155",
-                        textDecoration: "none",
-                      }}
-                    >
-                      Forgot password?
-                    </a>
-                  </div>
-
-                  <div style={{ position: "relative" }}>
-                    <input
-                      required
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter your password"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      style={{
-                        width: "100%",
-                        height: "44px",
-                        padding: "0 2.5rem 0 1rem",
-                        backgroundColor: "#ffffff",
-                        border: "1px solid #cbd5e1",
-                        borderRadius: "10px",
-                        fontSize: "0.9rem",
-                        color: "#0f172a",
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      style={{
-                        position: "absolute",
-                        right: "0.8rem",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        background: "none",
-                        border: "none",
-                        color: "#64748b",
-                        cursor: "pointer",
-                        fontSize: "1rem",
-                      }}
-                    >
-                      {showPassword ? "👁️" : "👁️‍🗨️"}
-                    </button>
-                  </div>
-                </div>
-
-                {loginError && (
-                  <div
-                    style={{
-                      backgroundColor: "#fef2f2",
-                      border: "1px solid #fca5a5",
-                      color: "#dc2626",
-                      padding: "0.65rem 0.9rem",
-                      borderRadius: "10px",
-                      fontSize: "0.85rem",
-                      fontWeight: 700,
-                      marginBottom: "1rem",
-                      textAlign: "center",
-                    }}
-                  >
-                    {loginError}
-                  </div>
-                )}
-
-                {/* Primary Button */}
-                <button
-                  type="submit"
-                  style={{
-                    width: "100%",
-                    height: "46px",
-                    backgroundColor: "#18181b",
-                    color: "#ffffff",
-                    border: "none",
-                    borderRadius: "10px",
-                    fontSize: "0.95rem",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                  }}
-                >
-                  Log In
-                </button>
-
-
-
-                {/* Footer Switch */}
-                <div style={{ marginTop: "1.5rem", textAlign: "center", fontSize: "0.85rem", color: "#64748b" }}>
-                  Don't have an account yet?{" "}
-                  <button
-                    type="button"
-                    onClick={() => setPortalMode("register")}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#0f172a",
-                      fontWeight: 800,
-                      textDecoration: "underline",
-                      cursor: "pointer",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    Sign up
-                  </button>
-                </div>
-              </form>
-            ) : (
-              /* SIGN UP FORM */
-              <form onSubmit={handleCustomerRegister}>
-                {regSuccessMsg && (
-                  <div
-                    style={{
-                      backgroundColor: "#f0fdf4",
-                      border: "1px solid #86efac",
-                      color: "#16a34a",
-                      padding: "0.75rem 1rem",
-                      borderRadius: "10px",
-                      fontSize: "0.88rem",
-                      fontWeight: 800,
-                      marginBottom: "1rem",
-                      textAlign: "center",
-                    }}
-                  >
-                    {regSuccessMsg}
-                  </div>
-                )}
-
-                <div style={{ marginBottom: "1rem" }}>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.4rem" }}>
-                    Full Name *
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={regName}
-                    onChange={(e) => setRegName(e.target.value)}
-                    style={{
-                      width: "100%",
-                      height: "44px",
-                      padding: "0 1rem",
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "10px",
-                      fontSize: "0.9rem",
-                      color: "#0f172a",
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-
-                <div style={{ marginBottom: "1rem" }}>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.4rem" }}>
-                    Mobile / Viber Number *
-                  </label>
-                  <input
-                    required
-                    type="tel"
-                    placeholder="e.g. 0917 123 4567"
-                    value={regPhone}
-                    onChange={(e) => setRegPhone(e.target.value)}
-                    style={{
-                      width: "100%",
-                      height: "44px",
-                      padding: "0 1rem",
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "10px",
-                      fontSize: "0.9rem",
-                      color: "#0f172a",
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-
-                <div style={{ marginBottom: "1rem" }}>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.4rem" }}>
-                    Email Address *
-                  </label>
-                  <input
-                    required
-                    type="email"
-                    placeholder="Enter your email address"
-                    value={regAddress}
-                    onChange={(e) => setRegAddress(e.target.value)}
-                    style={{
-                      width: "100%",
-                      height: "44px",
-                      padding: "0 1rem",
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "10px",
-                      fontSize: "0.9rem",
-                      color: "#0f172a",
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-
-                <div style={{ marginBottom: "1.4rem" }}>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.4rem" }}>
-                    Create Password *
-                  </label>
-                  <input
-                    required
-                    type="password"
-                    placeholder="Create your password"
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    style={{
-                      width: "100%",
-                      height: "44px",
-                      padding: "0 1rem",
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "10px",
-                      fontSize: "0.9rem",
-                      color: "#0f172a",
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  style={{
-                    width: "100%",
-                    height: "46px",
-                    backgroundColor: "#18181b",
-                    color: "#ffffff",
-                    border: "none",
-                    borderRadius: "10px",
-                    fontSize: "0.95rem",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                  }}
-                >
-                  Create Account
-                </button>
-
-                <div style={{ marginTop: "1.5rem", textAlign: "center", fontSize: "0.85rem", color: "#64748b" }}>
-                  Already have an account?{" "}
-                  <button
-                    type="button"
-                    onClick={() => setPortalMode("signin")}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#0f172a",
-                      fontWeight: 800,
-                      textDecoration: "underline",
-                      cursor: "pointer",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    Log in
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-
-          {/* RIGHT COLUMN: PORTRAIT IMAGE WITH FROSTED GLASS OVERLAY */}
-          <div
-            style={{
-              position: "relative",
-              padding: "1rem",
-              display: "flex",
-              alignItems: "stretch",
-            }}
-          >
-            {/* Image Container */}
-            <div
-              style={{
-                position: "relative",
-                width: "100%",
-                borderRadius: "22px",
-                overflow: "hidden",
-              }}
-            >
-              <Image
-                src="/robert-herrero.png"
-                alt="Robert Pogs Herrero - Founder & Master Craftsman"
-                fill
-                priority
-                sizes="500px"
-                style={{ objectFit: "cover" }}
-              />
-
-              {/* Dark Gradient Overlay */}
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background: "linear-gradient(to top, rgba(15, 23, 42, 0.8) 0%, rgba(15, 23, 42, 0.1) 60%)",
-                }}
-              />
-
-              {/* Frosted Glass Testimonial Box (Matching Image 3) */}
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: "1.2rem",
-                  left: "1.2rem",
-                  right: "1.2rem",
-                  backgroundColor: "rgba(255, 255, 255, 0.22)",
-                  backdropFilter: "blur(18px) saturate(180%)",
-                  WebkitBackdropFilter: "blur(18px) saturate(180%)",
-                  border: "1px solid rgba(255, 255, 255, 0.35)",
-                  borderRadius: "18px",
-                  padding: "1.4rem",
-                  color: "#ffffff",
-                  boxShadow: "0 10px 30px rgba(0, 0, 0, 0.25)",
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: "0.88rem",
-                    lineHeight: 1.5,
-                    margin: "0 0 1rem 0",
-                    fontWeight: 500,
-                    color: "#f8fafc",
-                    fontStyle: "italic",
-                  }}
-                >
-                  “With RHPS Piano Masters, I can manage our luxury acoustic piano portfolio and client tuning requests in minutes. It's the perfect blend of master craftsmanship and digital technology.”
-                </p>
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-                  <div>
-                    <strong style={{ fontSize: "1.05rem", fontWeight: 800, display: "block", color: "#ffffff" }}>
-                      Robert Pogs Herrero
-                    </strong>
-                    <small style={{ color: "#cbd5e1", fontSize: "0.78rem", fontWeight: 600, display: "block" }}>
-                      Founder & Master Piano Craftsman
-                    </small>
-                    <small style={{ color: "#94a3b8", fontSize: "0.74rem" }}>
-                      Robert's Piano & Services (RHPS)
-                    </small>
-                  </div>
-
-                  {/* Navigation Arrows */}
-                  <div style={{ display: "flex", gap: "0.4rem" }}>
-                    <button
-                      type="button"
-                      onClick={() => alert("Previous testimonial")}
-                      style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        backgroundColor: "rgba(255, 255, 255, 0.2)",
-                        border: "1px solid rgba(255, 255, 255, 0.4)",
-                        color: "#ffffff",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        fontSize: "0.9rem",
-                      }}
-                    >
-                      ←
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => alert("Next testimonial")}
-                      style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        backgroundColor: "rgba(255, 255, 255, 0.2)",
-                        border: "1px solid rgba(255, 255, 255, 0.4)",
-                        color: "#ffffff",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        fontSize: "0.9rem",
-                      }}
-                    >
-                      →
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    );
+    return null;
   }
 
+
+  // If regular Customer logged in → Customer Portal Interface
+  if (activeWorkspace === "CUSTOMER") {
+    return (
+      <CustomerPortal
+        customer={customerData || { fullName: activeUser, email: loginUsername }}
+        onSignOut={() => {
+          setEntered(false);
+          setActiveWorkspace("CV_SALES");
+        }}
+      />
+    );
+  }
 
   // If Robert Herrero logged in → RHPS OS
   if (activeWorkspace === "RHPS") {
     return (
-      <div className="workspace-wrapper">
+      <div className="workspace-wrapper" style={{ position: "relative" }}>
+        {/* Floating Quick Action for Workspace Switcher & User Management */}
+        <div style={{ position: "fixed", bottom: "1.5rem", right: "1.5rem", zIndex: 900, display: "flex", gap: "0.75rem" }}>
+          <button
+            type="button"
+            onClick={() => setActiveWorkspace("CV_SALES")}
+            style={{
+              background: "#18181b",
+              color: "#f59e0b",
+              border: "1px solid #f59e0b",
+              padding: "0.75rem 1.25rem",
+              borderRadius: "14px",
+              fontWeight: 800,
+              fontSize: "0.9rem",
+              cursor: "pointer",
+              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.4)",
+            }}
+          >
+            ⇄ Switch to CV Sales OS (Ara)
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAdminUserManagement(true)}
+            style={{
+              background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+              color: "#ffffff",
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+              padding: "0.75rem 1.25rem",
+              borderRadius: "14px",
+              fontWeight: 800,
+              fontSize: "0.9rem",
+              cursor: "pointer",
+              boxShadow: "0 10px 25px rgba(37, 99, 235, 0.4)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <span>👥</span> Registered User Management
+          </button>
+        </div>
+
         <RhpsWorkspace activeUser="Robert Herrero" onLockWorkspace={() => setEntered(false)} />
+
+        <AdminUserManagementModal
+          isOpen={showAdminUserManagement}
+          onClose={() => setShowAdminUserManagement(false)}
+        />
       </div>
     );
   }
@@ -1075,9 +693,9 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
           </div>
         </div>
         <nav>
-          {navGroups.map((group) => (
-            <div key={group.title} className="nav-group">
-              <p className="nav-group-title">{group.title}</p>
+          {navGroups.map((group, idx) => (
+            <div key={group.title || idx} className="nav-group">
+              {group.title ? <p className="nav-group-title">{group.title}</p> : null}
               {group.items.map((item) => (
                 <button
                   key={item.id}
@@ -1104,6 +722,7 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
             <small style={{ marginLeft: 8, opacity: 0.7 }}>· Ara Mae Marcillo</small>
           </div>
           <div className="topbar-right" style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+            <button className="secondary" onClick={() => setActiveWorkspace("RHPS")}>⇄ Switch to RHPS OS (Robert)</button>
             <button className="secondary" onClick={() => setShowAgentPinModal(true)}>🔑 Agent Incentive PIN</button>
             <button className="secondary" onClick={() => setShowVault(true)}>⌁ Commission Vault</button>
             <button className="secondary" onClick={() => setShowSettings(true)}>⚙ Settings</button>
@@ -1119,13 +738,14 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
           {active === "workflow" && <WorkflowView projects={filteredProjects} setSelectedProject={setSelectedProject} />}
           {active === "ai" && <AIAssistantView projects={filteredProjects} />}
           {!["dashboard", "projects", "workflow", "ai", "website_editor"].includes(active) && (
-            <TrackerView id={active} label={navGroups.flatMap((g) => g.items).find((i) => i.id === active)?.label ?? active} onAdd={() => placeholderAction("Add record")} onUpload={() => fileRef.current?.click()} />
+            <TrackerView id={active} label={navGroups.flatMap((g) => g.items).find((i) => i.id === active)?.label ?? active} onAdd={() => placeholderAction("Add record")} onUpload={() => fileRef.current?.click()} personsList={personsList} onAddPerson={() => setShowAddPersonModal(true)} />
           )}
         </main>
       </div>
 
       {/* MODALS */}
       {showAdd && <AddProjectModal close={() => setShowAdd(false)} submit={addProject} />}
+      {showAddPersonModal && <AddPersonModal close={() => setShowAddPersonModal(false)} submit={handleAddPerson} />}
       {selectedProject && <ProjectDrawer project={selectedProject} close={() => setSelectedProject(null)} />}
       {showSettings && <SettingsDrawer close={() => setShowSettings(false)} theme={theme} setTheme={setTheme} density={density} setDensity={setDensity} fontSize={fontSize} setFontSize={setFontSize} fontColor={fontColor} setFontColor={setFontColor} backgroundColor={backgroundColor} setBackgroundColor={setBackgroundColor} sessionMinutes={sessionMinutes} setSessionMinutes={setSessionMinutes} />}
       {showVault && <VaultModal close={() => setShowVault(false)} unlocked={vaultUnlocked} unlock={() => setVaultUnlocked(true)} />}
@@ -1161,7 +781,7 @@ function ProjectsView({ projects, query, setQuery, setShowAdd, setSelectedProjec
   return <><div className="module-hero"><div><p className="eyebrow">OPERATIONS</p><h1>Projects & Units</h1><p>One organized record from inquiry to after-sales support.</p></div><button className="primary" onClick={() => setShowAdd(true)}>＋ Add Project</button></div><div className="toolbar"><div className="small-search">⌕<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search this table…" /></div><button onClick={() => placeholderAction("Filter")}>☷ Filter</button><button onClick={() => placeholderAction("Sort")}>⇅ Sort</button><button onClick={() => placeholderAction("Columns")}>▦ Columns</button><button onClick={() => placeholderAction("Saved views")}>Saved Views ⌄</button></div><section className="panel project-table"><table><thead><tr><th>PROJECT</th><th>CLIENT & UNIT</th><th>AGENT</th><th>WORKFLOW</th><th>DELIVERY</th><th>STATUS</th><th>PROGRESS</th><th /></tr></thead><tbody>{projects.map((p) => <tr key={p.id} onClick={() => setSelectedProject(p)}><td><strong>{p.reference}</strong><span>{p.quantity} physical unit{p.quantity > 1 ? "s" : ""}</span></td><td><strong>{p.client}</strong><span>{p.model}</span></td><td><span className="agent-dot">{p.agent[0]}</span>{p.agent}</td><td><strong>Stage {p.stage}</strong><span>{stages[p.stage - 1]}</span></td><td>{p.targetDelivery}</td><td><Status>{p.status}</Status></td><td><div className="progress"><i style={{ width: `${p.progress}%` }} /></div><span>{p.progress}% complete</span></td><td>›</td></tr>)}</tbody></table></section></>;
 }
 
-function TrackerView({ id, label, onAdd, onUpload }: { id: string; label: string; onAdd: () => void; onUpload: () => void }) {
+function TrackerView({ id, label, onAdd, onUpload, personsList, onAddPerson }: { id: string; label: string; onAdd: () => void; onUpload: () => void; personsList?: string[][]; onAddPerson?: () => void }) {
   const data = trackerContent[id] ?? { title: label, subtitle: "Organized records and clear next actions.", metrics: [["0", "Open"], ["0", "Due"], ["0", "Completed"]] as [string, string][], columns: ["Record", "Details", "Owner", "Status"], rows: [] };
   const [activeFollowupCategory, setActiveFollowupCategory] = useState("All");
 
@@ -1266,13 +886,7 @@ function TrackerView({ id, label, onAdd, onUpload }: { id: string; label: string
         ];
       case "agents":
         return [
-          { text: "＋ Add Person", action: () => placeholderAction("Add Person") },
-          { text: "Add Agent", action: () => placeholderAction("Add Agent") },
-          { text: "Add Manager", action: () => placeholderAction("Add Manager") },
-          { text: "Assign to Unit", action: () => placeholderAction("Assign to Unit") },
-          { text: "View Assigned Units", action: () => placeholderAction("View Assigned Units") },
-          { text: "View Follow-ups", action: () => placeholderAction("View Follow-ups") },
-          { text: "Edit Contact Info", action: () => placeholderAction("Edit Contact Info") },
+          { text: "＋ Add Person", action: onAddPerson || onAdd },
         ];
       case "insurance":
         return [
@@ -1320,6 +934,14 @@ function TrackerView({ id, label, onAdd, onUpload }: { id: string; label: string
   };
 
   const moduleButtons = getModuleButtons();
+  const displayRows = (id === "agents" && personsList) ? personsList : data.rows;
+  const displayMetrics: [string, string][] = (id === "agents" && personsList)
+    ? [
+        [String(personsList.filter((p) => p[4] === "Active").length), "Active persons"],
+        [String(personsList.filter((p) => p[1].toLowerCase().includes("consultant") || p[1].toLowerCase().includes("representative")).length), "Sales agents"],
+        [String(personsList.filter((p) => p[1].toLowerCase().includes("manager") || p[1].toLowerCase().includes("admin")).length), "Managers & Admin"],
+      ]
+    : data.metrics;
 
   return (
     <>
@@ -1339,7 +961,7 @@ function TrackerView({ id, label, onAdd, onUpload }: { id: string; label: string
       </div>
 
       <div className="module-metrics">
-        {data.metrics.map(([value, text]) => (
+        {displayMetrics.map(([value, text]) => (
           <div key={text}>
             <strong>{value}</strong>
             <span>{text}</span>
@@ -1389,7 +1011,7 @@ function TrackerView({ id, label, onAdd, onUpload }: { id: string; label: string
             </tr>
           </thead>
           <tbody>
-            {data.rows.map((row, index) => (
+            {displayRows.map((row, index) => (
               <tr key={index}>
                 {row.map((cell, cellIndex) => (
                   <td key={cellIndex}>
@@ -1398,6 +1020,8 @@ function TrackerView({ id, label, onAdd, onUpload }: { id: string; label: string
                     cell.toLowerCase().includes("received") ||
                     cell.toLowerCase().includes("urgent") ||
                     cell.toLowerCase().includes("active") ||
+                    cell.toLowerCase().includes("resigned") ||
+                    cell.toLowerCase().includes("awol") ||
                     cell.toLowerCase().includes("complete") ||
                     cell.toLowerCase().includes("submitted") ||
                     cell.toLowerCase().includes("missing") ? (
@@ -1424,6 +1048,95 @@ function WorkflowView({ projects, setSelectedProject }: { projects: Project[]; s
 
 function AddProjectModal({ close, submit }: { close: () => void; submit: (e: FormEvent<HTMLFormElement>) => void }) {
   return <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close()}><form className="modal add-modal" onSubmit={submit}><button type="button" className="close" onClick={close}>×</button><p className="eyebrow">QUICK ADD</p><h2>Create a new project</h2><p>Start with the essentials. You can complete unit identifiers later.</p><div className="form-grid"><label className="full">Client / Project Name<input name="client" required placeholder="Enter official client or project name" /></label><label>Sales Consultant<select name="agent" required defaultValue=""><option value="" disabled>Select agent</option><option>RAM</option><option>Kath</option><option>Darnet</option><option>Ergem</option><option>Ara Mae Marcillo</option></select></label><label>General Sales Manager<input name="manager" defaultValue="Robespierre T. Agir" /></label><label>Unit Model<input name="model" required placeholder="e.g. H-100 Ambulance" /></label><label>Quantity<input name="quantity" type="number" min="1" defaultValue="1" /></label><label>Target Delivery<input name="targetDelivery" type="date" /></label><label>Current Stage<select name="stage" defaultValue="1">{stages.map((s, i) => <option value={i + 1} key={s}>{i + 1}. {s}</option>)}</select></label><label>Priority<select name="priority"><option>Normal</option><option>High</option><option>Urgent</option></select></label><label className="full">Next Action / Notes<textarea name="nextAction" placeholder="What needs to happen next?" /></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={close}>Cancel</button><button className="primary">Save Project & Create Unit Slots</button></div></form></div>;
+}
+
+function AddPersonModal({ close, submit }: { close: () => void; submit: (e: FormEvent<HTMLFormElement>) => void }) {
+  const [birthdate, setBirthdate] = useState("");
+  const [age, setAge] = useState<number | "">("");
+
+  const handleBirthdateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setBirthdate(val);
+    if (val) {
+      const birth = new Date(val);
+      const today = new Date();
+      let calcAge = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        calcAge--;
+      }
+      setAge(calcAge >= 0 ? calcAge : "");
+    } else {
+      setAge("");
+    }
+  };
+
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <form className="modal add-modal" onSubmit={submit}>
+        <button type="button" className="close" onClick={close}>×</button>
+        <p className="eyebrow">PERSONAL INFORMATION</p>
+        <h2>Add New Person</h2>
+        <p>Register official staff or sales team member information.</p>
+        <div className="form-grid">
+          <label className="full">
+            FULL NAME
+            <input name="fullName" required placeholder="Enter official full name" />
+          </label>
+          <label>
+            POSITION
+            <select name="position" required defaultValue="">
+              <option value="" disabled>Select position</option>
+              <option value="CV Sales Representative">CV SALES REPRESENTATIVE</option>
+              <option value="CV Fleet Representative">CV FLEET REPRESENTATIVE</option>
+              <option value="CV Sales Supervisor">CV SALES SUPERVISOR</option>
+              <option value="CV PDI">CV PDI</option>
+              <option value="CV Technician">CV TECHNICIAN</option>
+              <option value="CV Sales Admin/Coordinator">CV SALES ADMIN/COORDINATOR</option>
+              <option value="General Sales Manager">GENERAL SALES MANAGER</option>
+              <option value="Sales Consultant">SALES CONSULTANT</option>
+            </select>
+          </label>
+          <label>
+            EMAIL ADDRESS
+            <input name="email" type="email" placeholder="INPUT EMAIL ADDRESS PERSONAL / BUSINESS" />
+          </label>
+          <label>
+            BIRTHDATE
+            <input name="birthdate" type="date" value={birthdate} onChange={handleBirthdateChange} />
+          </label>
+          <label>
+            AGE:
+            <input name="age" type="number" value={age} onChange={(e) => setAge(e.target.value ? Number(e.target.value) : "")} placeholder="Age" />
+          </label>
+          <label>
+            DATE HIRED:
+            <input name="dateHired" type="date" />
+          </label>
+          <label className="full">
+            HOME ADDRESS:
+            <input name="homeAddress" placeholder="Enter complete home address" />
+          </label>
+          <label>
+            STATUS
+            <select name="status" defaultValue="Active">
+              <option value="Active">Active</option>
+              <option value="Resigned">Resigned</option>
+              <option value="AWOL">AWOL</option>
+            </select>
+          </label>
+          <label className="full">
+            NOTES:
+            <textarea name="notes" placeholder="What needs to happen next?" />
+          </label>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="secondary" onClick={close}>Cancel</button>
+          <button className="primary" type="submit">Save Person</button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
 function ProjectDrawer({ project, close }: { project: Project; close: () => void }) {

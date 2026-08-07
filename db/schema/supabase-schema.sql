@@ -47,10 +47,24 @@ CREATE TABLE IF NOT EXISTS public.units (
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- 3. CLIENTS TABLE (Lead Intake & Legal Compliance Check)
+-- 3. USER PROFILES TABLE (Registered User Accounts)
+CREATE TABLE IF NOT EXISTS public.user_profiles (
+  id SERIAL PRIMARY KEY,
+  user_id TEXT UNIQUE,
+  email TEXT NOT NULL UNIQUE,
+  full_name TEXT NOT NULL,
+  phone TEXT,
+  address TEXT,
+  role TEXT NOT NULL DEFAULT 'customer',
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- 4. CLIENTS TABLE (Lead Intake & Legal Compliance Check)
 CREATE TABLE IF NOT EXISTS public.clients (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
+  email TEXT,
+  user_id TEXT,
   account_type TEXT NOT NULL DEFAULT 'Government',
   contact_person TEXT NOT NULL,
   contact_number TEXT NOT NULL,

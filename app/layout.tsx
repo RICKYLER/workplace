@@ -1,41 +1,41 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import type { Metadata, Viewport } from 'next'
+import { Playfair_Display, Jost } from 'next/font/google'
+import { AuthProvider } from '@/components/auth-provider'
+import './globals.css'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-playfair',
+  display: 'swap',
+})
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const jost = Jost({
+  subsets: ['latin'],
+  variable: '--font-jost',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
-  title: "CV Sales Admin OS | Ara's Safe Haven",
-  description: "A private, organized workspace for CV sales administration.",
-  other: {
-    "codex-preview": "development",
-  },
-  icons: {
-    icon: "/ara-mae.png",
-    shortcut: "/ara-mae.png",
-  },
-};
+  title: 'Atelier Noir — Handcrafted Pianos',
+  description:
+    'A small, obsessive collection of grands, uprights and stage pianos, each voiced by hand before it leaves the atelier. Est. 1974 — Manila & Kyoto.',
+}
+
+export const viewport: Viewport = {
+  colorScheme: 'dark',
+  themeColor: '#0c0a08',
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+    <html lang="en" className={`dark bg-background ${playfair.variable} ${jost.variable}`} suppressHydrationWarning>
+      <body className="font-sans antialiased">
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
-  );
+  )
 }

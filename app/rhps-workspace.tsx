@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "../lib/supabase/client";
+import "./workspace.css";
 
 // --- TYPES ALIGNED WITH REQUIRED FIELDS & DEVELOPER HANDOFF SPECIFICATIONS ---
 
@@ -4863,251 +4864,409 @@ Total Invoices: ${invoices.length}
         <main className="rhps-content" ref={mainContentRef}>
           {toastMessage && <div className="rhps-toast">{toastMessage}</div>}
 
-          {/* 1. DASHBOARD - GRAPH-FREE OPERATIONS MONITORING WITH 4 CONTROLS */}
+          {/* 1. RHPS OWNER DASHBOARD (EXACT REFERENCE SCREENSHOT UI/UX) */}
           {activeTab === "dashboard" && (
-            <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
+            <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* TOP HEADER */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                 <div>
-                  <h2>Dashboard & Owner Operations Monitoring</h2>
-                  <p className="subtitle" style={{ margin: 0 }}>
-                    Clean operational queue for open service items, follow-ups, and instant resolution.
+                  <h1 style={{ fontSize: "1.8rem", fontWeight: 900, color: "#0f172a", margin: 0 }}>RHPS Owner Dashboard</h1>
+                  <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "4px 0 0 0" }}>
+                    2026-08-02 · Pag-open nimo, kabalo dayon ka asa ka padulong.
                   </p>
                 </div>
-
-                {/* THE 4 REQUIRED ACTION CONTROLS / FILTERS */}
-                <div style={{ display: "flex", gap: 8, background: "#e1e2e4", padding: 5, borderRadius: 12 }}>
-                  {(["Open", "View All", "Resolve", "Follow Up"] as const).map((filterOpt) => (
-                    <button
-                      key={filterOpt}
-                      type="button"
-                      style={{
-                        padding: "8px 18px",
-                        borderRadius: 9,
-                        fontSize: 13,
-                        fontWeight: 800,
-                        border: "none",
-                        cursor: "pointer",
-                        background: dashboardFilter === filterOpt ? "#0f172a" : "transparent",
-                        color: dashboardFilter === filterOpt ? "#ffffff" : "#475569",
-                        transition: "all 0.15s ease",
-                      }}
-                      onClick={() => setDashboardFilter(filterOpt)}
-                    >
-                      {filterOpt === "Open" && "📂 Open"}
-                      {filterOpt === "View All" && "👁 View All"}
-                      {filterOpt === "Resolve" && "✅ Resolve"}
-                      {filterOpt === "Follow Up" && "↗ Follow Up"}
-                    </button>
-                  ))}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={() => setActiveTab("crm_leads")}
+                    style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: "18px", padding: "0.45rem 1.1rem", fontSize: "0.82rem", fontWeight: 700, cursor: "pointer" }}
+                  >
+                    CRM Leads
+                  </button>
+                  <button
+                    onClick={() => onLockWorkspace && onLockWorkspace()}
+                    style={{ background: "#f59e0b", color: "#ffffff", border: "none", borderRadius: "18px", padding: "0.45rem 1.1rem", fontSize: "0.82rem", fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Public Website
+                  </button>
                 </div>
               </div>
 
-              {/* CLEAN GRAPH-FREE METRIC CARDS */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
-                <div className="purely-card-white" style={{ padding: 20 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Open Service Operations</span>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a", margin: "6px 0" }}>
-                    {jobOrders.filter((j) => j.status !== "Completed" && j.status !== "Cancelled").length} Active Jobs
-                  </div>
-                  <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 700 }}>⚙️ In Field / Service Workshop</span>
-                </div>
-
-                <div className="purely-card-white" style={{ padding: 20 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Pending Follow-Ups</span>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: "#d97706", margin: "6px 0" }}>
-                    {followUps.filter((f) => f.status === "Pending").length} Reminders
-                  </div>
-                  <span style={{ fontSize: 11, color: "#d97706", fontWeight: 700 }}>📲 6-Month Tuning Check-Ins</span>
-                </div>
-
-                <div className="purely-card-white" style={{ padding: 20 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Actual Verified Revenue</span>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: "#059669", margin: "6px 0" }}>₱18,500</div>
-                  <span style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>🟢 Verified Collections YTD</span>
-                </div>
-
-                <div className="purely-card-white" style={{ padding: 20 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Net Operating Profit</span>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a", margin: "6px 0" }}>₱6,100</div>
-                  <span style={{ fontSize: 11, color: "#64748b" }}>After parts & fuel expenses</span>
-                </div>
-              </div>
-
-              {/* OPERATIONS QUEUE TABLE FILTERED BY THE 4 CONTROLS */}
-              <div className="purely-card-white" style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ padding: "16px 20px", background: "#e1e2e4", borderBottom: "1px solid #d2d5d8", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <strong style={{ fontSize: 14, color: "#0f172a" }}>
-                    📋 Operations Priority Queue — Filtered by: <span style={{ color: "#2563eb" }}>{dashboardFilter}</span>
+              {/* ⚠️ ALERTS (Action Required) RED CONTAINER */}
+              <div style={{ backgroundColor: "#fff1f2", border: "1px solid #fecdd3", borderRadius: "14px", padding: "1rem 1.2rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.8rem" }}>
+                  <strong style={{ color: "#dc2626", fontSize: "0.95rem", fontWeight: 900, display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                    <span>⚠️</span> ALERTS (Action Required)
                   </strong>
-                  <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>
-                    Click 'Resolve' to complete items or 'Follow Up' to send client SMS
-                  </span>
+                  <span style={{ fontSize: "0.8rem", color: "#dc2626", fontWeight: 800, cursor: "pointer" }}>View All Alerts &gt;</span>
                 </div>
 
-                <table className="rhps-table" style={{ margin: 0, borderRadius: 0, border: "none" }}>
-                  <thead>
-                    <tr>
-                      <th>Item ID</th>
-                      <th>Category / Module</th>
-                      <th>Customer & Piano Instrument</th>
-                      <th>Scope / Main Concern</th>
-                      <th>Target Date</th>
-                      <th>Status</th>
-                      <th style={{ textAlign: "right" }}>Quick Operations Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* JOB ORDERS */}
-                    {jobOrders
-                      .filter((j) => {
-                        if (dashboardFilter === "Open") return j.status !== "Completed" && j.status !== "Cancelled";
-                        if (dashboardFilter === "Resolve") return j.status === "Assigned" || j.status === "In Progress";
-                        if (dashboardFilter === "Follow Up") return j.status === "Additional Finding Pending";
-                        return true;
-                      })
-                      .map((j) => (
-                        <tr key={j.id}>
-                          <td><strong>{j.id}</strong></td>
-                          <td><span style={{ background: "#eff6ff", color: "#1d4ed8", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Job Order</span></td>
-                          <td>
-                            <strong>{j.customerName}</strong>
-                            <span style={{ display: "block", fontSize: 11, color: "#64748b" }}>{j.pianoDetails}</span>
-                          </td>
-                          <td>{j.approvedScope}</td>
-                          <td>{j.serviceDate}</td>
-                          <td>
-                            <span
-                              style={{
-                                background: j.status === "Completed" ? "#dcfce7" : j.status === "In Progress" ? "#fef3c7" : "#e0f2fe",
-                                color: j.status === "Completed" ? "#15803d" : j.status === "In Progress" ? "#92400e" : "#0369a1",
-                                padding: "3px 10px",
-                                borderRadius: 99,
-                                fontSize: 11,
-                                fontWeight: 800,
-                              }}
-                            >
-                              {j.status}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              <button
-                                className="secondary-sm"
-                                style={{ fontSize: 11, padding: "4px 10px", background: "#dcfce7", color: "#15803d", border: "1px solid #86efac", fontWeight: 800 }}
-                                onClick={() => {
-                                  setJobOrders(jobOrders.map((item) => item.id === j.id ? { ...item, status: "Completed" } : item));
-                                  showToast(`✅ Job Order ${j.id} marked as RESOLVED & Completed!`);
-                                }}
-                              >
-                                ✓ Resolve
-                              </button>
-                              <button
-                                className="secondary-sm"
-                                style={{ fontSize: 11, padding: "4px 10px", background: "#eff6ff", color: "#1d4ed8", border: "1px solid #93c5fd", fontWeight: 800 }}
-                                onClick={() => showToast(`📲 SMS Follow-Up sent to ${j.customerName} for ${j.id}!`)}
-                              >
-                                ↗ Follow Up
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+                  <div style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: "1.4rem" }}>📅</span>
+                    <div>
+                      <strong style={{ fontSize: "0.82rem", display: "block", color: "#0f172a" }}>Juan rescheduled to Aug 12</strong>
+                      <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Today 10:30 AM</span>
+                      <span style={{ display: "inline-block", marginTop: 4, background: "#fee2e2", color: "#991b1b", fontSize: "0.65rem", fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>Rescheduled</span>
+                    </div>
+                  </div>
 
-                    {/* FOLLOW UPS */}
-                    {followUps
-                      .filter((f) => {
-                        if (dashboardFilter === "Open") return f.status === "Pending";
-                        if (dashboardFilter === "Resolve") return f.status === "Pending";
-                        if (dashboardFilter === "Follow Up") return f.status === "Pending";
-                        return true;
-                      })
-                      .map((f) => (
-                        <tr key={f.id}>
-                          <td><strong>{f.id}</strong></td>
-                          <td><span style={{ background: "#fef3c7", color: "#92400e", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Follow-Up</span></td>
-                          <td>
-                            <strong>{f.customerName}</strong>
-                            <span style={{ display: "block", fontSize: 11, color: "#64748b" }}>{f.pianoDetails}</span>
-                          </td>
-                          <td>{f.notes || f.followUpType}</td>
-                          <td>{f.targetDate}</td>
-                          <td>
-                            <span style={{ background: "#fee2e2", color: "#b91c1c", padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
-                              {f.status}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              <button
-                                className="secondary-sm"
-                                style={{ fontSize: 11, padding: "4px 10px", background: "#dcfce7", color: "#15803d", border: "1px solid #86efac", fontWeight: 800 }}
-                                onClick={() => {
-                                  setFollowUps(followUps.map((item) => item.id === f.id ? { ...item, status: "Completed" } : item));
-                                  showToast(`✅ Follow-Up ${f.id} marked as RESOLVED!`);
-                                }}
-                              >
-                                ✓ Resolve
-                              </button>
-                              <button
-                                className="secondary-sm"
-                                style={{ fontSize: 11, padding: "4px 10px", background: "#eff6ff", color: "#1d4ed8", border: "1px solid #93c5fd", fontWeight: 800 }}
-                                onClick={() => showToast(`📲 SMS 6-Month Reminder sent to ${f.customerName}!`)}
-                              >
-                                ↗ Follow Up
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                  <div style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: "1.4rem" }}>❌</span>
+                    <div>
+                      <strong style={{ fontSize: "0.82rem", display: "block", color: "#0f172a" }}>Maria cancelled today's booking</strong>
+                      <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Today 2:00 PM</span>
+                      <span style={{ display: "inline-block", marginTop: 4, background: "#ffffff", color: "#dc2626", border: "1px solid #fca5a5", fontSize: "0.65rem", fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>Cancelled</span>
+                    </div>
+                  </div>
 
-                    {/* LEADS */}
-                    {leads
-                      .filter((l) => {
-                        if (dashboardFilter === "Open") return l.status !== "Lost / Closed No Sale";
-                        if (dashboardFilter === "Resolve") return l.status === "New Lead" || l.status === "Contacted";
-                        if (dashboardFilter === "Follow Up") return l.status === "Qualified" || l.status === "Converted to Estimate";
-                        return true;
-                      })
-                      .map((l) => (
-                        <tr key={l.id}>
-                          <td><strong>{l.id}</strong></td>
-                          <td><span style={{ background: "#f3e8ff", color: "#7e22ce", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>CRM Lead</span></td>
-                          <td>
-                            <strong>{l.customerName}</strong>
-                            <span style={{ display: "block", fontSize: 11, color: "#64748b" }}>{l.contactNumber} • {l.locationCity}</span>
-                          </td>
-                          <td>{l.mainConcern} ({l.inquiryType})</td>
-                          <td>{l.createdDate}</td>
-                          <td>
-                            <span style={{ background: "#e0e7ff", color: "#3730a3", padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
-                              {l.status}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              <button
-                                className="secondary-sm"
-                                style={{ fontSize: 11, padding: "4px 10px", background: "#dcfce7", color: "#15803d", border: "1px solid #86efac", fontWeight: 800 }}
-                                onClick={() => {
-                                  setLeads(leads.map((item) => item.id === l.id ? { ...item, status: "Converted to Estimate" } : item));
-                                  showToast(`✅ Lead ${l.id} RESOLVED & Converted to Estimate!`);
-                                }}
-                              >
-                                ✓ Resolve
-                              </button>
-                              <button
-                                className="secondary-sm"
-                                style={{ fontSize: 11, padding: "4px 10px", background: "#eff6ff", color: "#1d4ed8", border: "1px solid #93c5fd", fontWeight: 800 }}
-                                onClick={() => showToast(`📲 Inquiry Follow-Up sent to ${l.customerName}!`)}
-                              >
-                                ↗ Follow Up
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                  <div style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: "1.4rem" }}>❓</span>
+                    <div>
+                      <strong style={{ fontSize: "0.82rem", display: "block", color: "#0f172a" }}>Pedro waiting for approval</strong>
+                      <span style={{ fontSize: "0.72rem", color: "#64748b" }}>General Repair</span>
+                      <span style={{ display: "inline-block", marginTop: 4, background: "#fef3c7", color: "#92400e", fontSize: "0.65rem", fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>Pending Approval</span>
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: "1.4rem" }}>🚐</span>
+                    <div>
+                      <strong style={{ fontSize: "0.82rem", display: "block", color: "#0f172a" }}>Butuan trip incomplete</strong>
+                      <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Aug 6 - Aug 7</span>
+                      <span style={{ display: "inline-block", marginTop: 4, background: "#fef08a", color: "#854d0e", fontSize: "0.65rem", fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>2 not confirmed</span>
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: "1.4rem" }}>🎹</span>
+                    <div>
+                      <strong style={{ fontSize: "0.82rem", display: "block", color: "#0f172a" }}>Yamaha U3 reserved</strong>
+                      <span style={{ fontSize: "0.72rem", color: "#64748b" }}>For ABC School</span>
+                      <span style={{ display: "inline-block", marginTop: 4, background: "#ffedd5", color: "#c2410c", fontSize: "0.65rem", fontWeight: 800, padding: "1px 6px", borderRadius: 4 }}>Reserved</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TOP 4 KPI METRICS GRID */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>New Website Leads</span>
+                    <div style={{ fontSize: "2rem", fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>3</div>
+                    <span style={{ fontSize: "0.75rem", color: "#2563eb", fontWeight: 600 }}>2 new today</span>
+                  </div>
+                  <div style={{ width: "42px", height: "42px", borderRadius: "12px", backgroundColor: "#eff6ff", color: "#2563eb", fontSize: "1.3rem", display: "flex", alignItems: "center", justifyContent: "center" }}>👥</div>
+                </div>
+
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Today's Appointments</span>
+                    <div style={{ fontSize: "2rem", fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>3</div>
+                    <span style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 600 }}>2 confirmed</span>
+                  </div>
+                  <div style={{ width: "42px", height: "42px", borderRadius: "12px", backgroundColor: "#f0fdf4", color: "#16a34a", fontSize: "1.3rem", display: "flex", alignItems: "center", justifyContent: "center" }}>📅</div>
+                </div>
+
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Pending Confirmation</span>
+                    <div style={{ fontSize: "2rem", fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>1</div>
+                    <span style={{ fontSize: "0.75rem", color: "#d97706", fontWeight: 600 }}>Needs confirmation</span>
+                  </div>
+                  <div style={{ width: "42px", height: "42px", borderRadius: "12px", backgroundColor: "#fffbeb", color: "#d97706", fontSize: "1.3rem", display: "flex", alignItems: "center", justifyContent: "center" }}>🕒</div>
+                </div>
+
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Available Pianos</span>
+                    <div style={{ fontSize: "2rem", fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>7</div>
+                    <span style={{ fontSize: "0.75rem", color: "#7c3aed", fontWeight: 600 }}>Total available</span>
+                  </div>
+                  <div style={{ width: "42px", height: "42px", borderRadius: "12px", backgroundColor: "#f3e8ff", color: "#7c3aed", fontSize: "1.3rem", display: "flex", alignItems: "center", justifyContent: "center" }}>🎹</div>
+                </div>
+              </div>
+
+              {/* MIDDLE TWO-COLUMN SCHEDULE CARDS */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                {/* TODAY'S SCHEDULE */}
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <strong style={{ fontSize: "0.92rem", color: "#0f172a" }}>📅 TODAY'S SCHEDULE</strong>
+                    <span onClick={() => setActiveTab("schedule")} style={{ fontSize: "0.78rem", color: "#2563eb", fontWeight: 700, cursor: "pointer" }}>View Calendar</span>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.82rem", padding: "0.5rem 0", borderBottom: "1px solid #f1f5f9" }}>
+                      <div>
+                        <strong>09:00 AM ●</strong> <span style={{ marginLeft: 6 }}>Juan Dela Cruz</span>
+                        <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b" }}>Piano Tuning · Talomo, Davao City</span>
+                      </div>
+                      <span style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: "0.68rem", fontWeight: 800, padding: "2px 8px", borderRadius: 4 }}>Confirmed</span>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.82rem", padding: "0.5rem 0", borderBottom: "1px solid #f1f5f9" }}>
+                      <div>
+                        <strong>10:30 AM ●</strong> <span style={{ marginLeft: 6 }}>ABC School</span>
+                        <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b" }}>Inspection · Matina, Davao City</span>
+                      </div>
+                      <span style={{ background: "#fef3c7", color: "#92400e", fontSize: "0.68rem", fontWeight: 800, padding: "2px 8px", borderRadius: 4 }}>Pending</span>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.82rem", padding: "0.5rem 0" }}>
+                      <div>
+                        <strong>02:00 PM ●</strong> <span style={{ marginLeft: 6 }}>Hotel Marco</span>
+                        <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b" }}>Piano Check · Roxas Ave., Davao City</span>
+                      </div>
+                      <span style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: "0.68rem", fontWeight: 800, padding: "2px 8px", borderRadius: 4 }}>Confirmed</span>
+                    </div>
+                  </div>
+                  <small style={{ color: "#94a3b8", fontSize: "0.72rem", marginTop: 8, display: "block" }}>3 appointments today</small>
+                </div>
+
+                {/* UPCOMING SCHEDULE */}
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <strong style={{ fontSize: "0.92rem", color: "#0f172a" }}>📅 UPCOMING SCHEDULE</strong>
+                    <span onClick={() => setActiveTab("schedule")} style={{ fontSize: "0.78rem", color: "#2563eb", fontWeight: 700, cursor: "pointer" }}>View All Schedule</span>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, fontSize: "0.78rem" }}>
+                    <div>
+                      <strong style={{ color: "#64748b", fontSize: "0.72rem", textTransform: "uppercase" }}>Tomorrow</strong>
+                      <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+                        <div>● Aug 3 - 9:00 AM<br /><span style={{ color: "#334155", fontWeight: 600 }}>Maria Santos</span></div>
+                        <div>● Aug 3 - 1:00 PM<br /><span style={{ color: "#334155", fontWeight: 600 }}>Pedro Reyes</span></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <strong style={{ color: "#64748b", fontSize: "0.72rem", textTransform: "uppercase" }}>This Week</strong>
+                      <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+                        <div>● Aug 5 - 10:00 AM<br /><span style={{ color: "#334155", fontWeight: 600 }}>Davao Doctors Hospital</span></div>
+                        <div>● Aug 6 - 8:00 AM<br /><span style={{ color: "#334155", fontWeight: 600 }}>Butuan Trip (2)</span></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <strong style={{ color: "#64748b", fontSize: "0.72rem", textTransform: "uppercase" }}>Next Week</strong>
+                      <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+                        <div>● Aug 11 - 2:00 PM<br /><span style={{ color: "#334155", fontWeight: 600 }}>Amor Residence</span></div>
+                        <div>● Aug 12 - 10:30 AM<br /><span style={{ color: "#334155", fontWeight: 600 }}>Juan Dela Cruz</span> <span style={{ background: "#fee2e2", color: "#991b1b", fontSize: "0.62rem", padding: "1px 4px", borderRadius: 3 }}>Rescheduled</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* MIDDLE TWO-COLUMN TABLE CARDS */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                {/* ONGOING GENERAL REPAIRS */}
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.8rem" }}>
+                    <strong style={{ fontSize: "0.92rem", color: "#0f172a" }}>🔧 ONGOING GENERAL REPAIRS</strong>
+                    <span onClick={() => setActiveTab("repairs")} style={{ fontSize: "0.78rem", color: "#2563eb", fontWeight: 700, cursor: "pointer" }}>View All Repairs</span>
+                  </div>
+
+                  <table style={{ width: "100%", fontSize: "0.78rem", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #e2e8f0", textAlign: "left", color: "#64748b" }}>
+                        <th style={{ padding: "4px 0" }}>Customer</th>
+                        <th>Piano</th>
+                        <th>Current Stage</th>
+                        <th>Next Action</th>
+                        <th style={{ textAlign: "right" }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "6px 0", fontWeight: 700 }}>Pedro Reyes</td>
+                        <td>Yamaha U3</td>
+                        <td>Waiting Parts</td>
+                        <td>Replace hammers</td>
+                        <td style={{ textAlign: "right" }}><span style={{ background: "#fef3c7", color: "#92400e", fontSize: "0.65rem", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>Waiting Parts</span></td>
+                      </tr>
+                      <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "6px 0", fontWeight: 700 }}>Maria Santos</td>
+                        <td>Kawai KU-2</td>
+                        <td>Disassembly</td>
+                        <td>Clean & Inspect</td>
+                        <td style={{ textAlign: "right" }}><span style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: "0.65rem", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>In Progress</span></td>
+                      </tr>
+                      <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "6px 0", fontWeight: 700 }}>ABC School</td>
+                        <td>Yamaha U1</td>
+                        <td>Reassembly</td>
+                        <td>Regulate action</td>
+                        <td style={{ textAlign: "right" }}><span style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: "0.65rem", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>In Progress</span></td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "6px 0", fontWeight: 700 }}>Hotel Marco</td>
+                        <td>Pearl River GP</td>
+                        <td>Testing</td>
+                        <td>Tonal voicing</td>
+                        <td style={{ textAlign: "right" }}><span style={{ background: "#fef3c7", color: "#92400e", fontSize: "0.65rem", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>Return Visit</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* TRADE-IN / NEW PIANO OPPORTUNITIES */}
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.8rem" }}>
+                    <strong style={{ fontSize: "0.92rem", color: "#0f172a" }}>📋 TRADE-IN / NEW PIANO OPPORTUNITIES</strong>
+                    <span onClick={() => setActiveTab("trade_in")} style={{ fontSize: "0.78rem", color: "#2563eb", fontWeight: 700, cursor: "pointer" }}>View All Opportunities</span>
+                  </div>
+
+                  <table style={{ width: "100%", fontSize: "0.78rem", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #e2e8f0", textAlign: "left", color: "#64748b" }}>
+                        <th style={{ padding: "4px 0" }}>Customer</th>
+                        <th>Current Piano / Need</th>
+                        <th>Interest</th>
+                        <th>Next Step</th>
+                        <th style={{ textAlign: "right" }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "6px 0", fontWeight: 700 }}>Juan Dela Cruz</td>
+                        <td>Old Kimball Upright</td>
+                        <td>Trade-In</td>
+                        <td>Evaluate trade-in value</td>
+                        <td style={{ textAlign: "right" }}><span style={{ background: "#fef3c7", color: "#92400e", fontSize: "0.65rem", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>For Follow-up</span></td>
+                      </tr>
+                      <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "6px 0", fontWeight: 700 }}>Maria Santos</td>
+                        <td>Needs Upright Piano</td>
+                        <td>Buy New</td>
+                        <td>Show Yamaha U3</td>
+                        <td style={{ textAlign: "right" }}><span style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: "0.65rem", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>Active</span></td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "6px 0", fontWeight: 700 }}>Pedro Reyes</td>
+                        <td>Too costly to repair</td>
+                        <td>Buy New</td>
+                        <td>Send options & price</td>
+                        <td style={{ textAlign: "right" }}><span style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: "0.65rem", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>Active</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* BOTTOM 5 MINI-WIDGET CARDS GRID */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+                {/* WIDGET 1: LEADS */}
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "0.9rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", marginBottom: 6 }}>
+                    <strong style={{ color: "#0f172a" }}>👥 LATEST WEBSITE LEADS</strong>
+                    <span onClick={() => setActiveTab("crm_leads")} style={{ color: "#2563eb", cursor: "pointer" }}>View All</span>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div>1. Alex Garcia <span style={{ color: "#94a3b8" }}>Aug 2 - 8:45 AM</span> <span style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>New</span></div>
+                    <div>2. Jenny Lim <span style={{ color: "#94a3b8" }}>Aug 2 - 10:20 AM</span> <span style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>New</span></div>
+                    <div>3. Mark Anthony <span style={{ color: "#94a3b8" }}>Aug 2 - 11:05 AM</span> <span style={{ background: "#f1f5f9", color: "#475569", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>Contacted</span></div>
+                  </div>
+                </div>
+
+                {/* WIDGET 2: QUOTATIONS */}
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "0.9rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", marginBottom: 6 }}>
+                    <strong style={{ color: "#0f172a" }}>📑 PENDING QUOTATIONS</strong>
+                    <span onClick={() => setActiveTab("quotations")} style={{ color: "#2563eb", cursor: "pointer" }}>View All</span>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div>● ABC School <span style={{ color: "#94a3b8" }}>Aug 1</span> <span style={{ background: "#f1f5f9", color: "#475569", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>Draft</span></div>
+                    <div>● Maria Santos <span style={{ color: "#94a3b8" }}>Jul 31</span> <span style={{ background: "#fef3c7", color: "#92400e", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>Waiting Approval</span></div>
+                    <div>● Pedro Reyes <span style={{ color: "#94a3b8" }}>Jul 30</span> <span style={{ background: "#fef3c7", color: "#92400e", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>Waiting Approval</span></div>
+                  </div>
+                </div>
+
+                {/* WIDGET 3: PAYMENTS TO COLLECT */}
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "0.9rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", marginBottom: 6 }}>
+                    <strong style={{ color: "#0f172a" }}>💰 PAYMENTS TO COLLECT</strong>
+                    <span onClick={() => setActiveTab("payments")} style={{ color: "#2563eb", cursor: "pointer" }}>View All</span>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div>● Hotel Marco <strong>₱12,000</strong> <span style={{ background: "#fee2e2", color: "#991b1b", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>Overdue</span></div>
+                    <div>● ABC School <strong>₱8,500</strong> <span style={{ background: "#fef08a", color: "#854d0e", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>Due Today</span></div>
+                    <div>● Maria Santos <strong>₱5,000</strong> <span style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>Due This Week</span></div>
+                  </div>
+                </div>
+
+                {/* WIDGET 4: TRIPS */}
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "0.9rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", marginBottom: 6 }}>
+                    <strong style={{ color: "#0f172a" }}>🚐 UPCOMING TRIPS</strong>
+                    <span onClick={() => setActiveTab("trips")} style={{ color: "#2563eb", cursor: "pointer" }}>View All</span>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div>● Butuan Trip <span style={{ color: "#94a3b8" }}>Aug 6 - Aug 7</span> <span style={{ background: "#fef3c7", color: "#92400e", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>2 Pending</span></div>
+                    <div>● Tagum Trip <span style={{ color: "#94a3b8" }}>Aug 13</span> <span style={{ background: "#fef3c7", color: "#92400e", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>1 Pending</span></div>
+                    <div>● Digos Trip <span style={{ color: "#94a3b8" }}>Aug 20</span> <span style={{ background: "#f1f5f9", color: "#475569", fontSize: "0.6rem", padding: "1px 4px", borderRadius: 3 }}>TBD</span></div>
+                  </div>
+                </div>
+
+                {/* WIDGET 5: INVENTORY SUMMARY */}
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "0.9rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", marginBottom: 6 }}>
+                    <strong style={{ color: "#0f172a" }}>🎹 INVENTORY SUMMARY</strong>
+                    <span onClick={() => setActiveTab("inventory")} style={{ color: "#2563eb", cursor: "pointer" }}>View Inventory</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-around", textAlign: "center", marginTop: 8 }}>
+                    <div>
+                      <strong style={{ fontSize: "1.2rem", color: "#16a34a", display: "block" }}>7</strong>
+                      <span style={{ fontSize: "0.65rem", color: "#64748b" }}>Available</span>
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: "1.2rem", color: "#d97706", display: "block" }}>3</strong>
+                      <span style={{ fontSize: "0.65rem", color: "#64748b" }}>Reserved</span>
+                    </div>
+                    <div>
+                      <strong style={{ fontSize: "1.2rem", color: "#2563eb", display: "block" }}>5</strong>
+                      <span style={{ fontSize: "0.65rem", color: "#64748b" }}>Sold</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* BOTTOM ACTIONS ROW (FOLLOW UPS & QUICK ACTIONS) */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 16 }}>
+                {/* FOLLOW UPS */}
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.8rem" }}>
+                    <strong style={{ fontSize: "0.92rem", color: "#0f172a" }}>🔔 FOLLOW UPS</strong>
+                    <span onClick={() => setActiveTab("follow_ups")} style={{ fontSize: "0.78rem", color: "#2563eb", fontWeight: 700, cursor: "pointer" }}>View All</span>
+                  </div>
+                  <div style={{ fontSize: "0.78rem", display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ padding: "0.5rem", background: "#fff1f2", borderRadius: 8, border: "1px solid #fecdd3" }}>
+                      <strong style={{ color: "#991b1b", display: "block" }}>Due Today</strong>
+                      <span style={{ color: "#334155" }}>● Follow up: Juan Dela Cruz (Reschedule confirmation)</span>
+                      <span style={{ background: "#fee2e2", color: "#991b1b", fontSize: "0.62rem", padding: "1px 6px", borderRadius: 4, fontWeight: 800, marginLeft: 6 }}>High</span>
+                    </div>
+                    <div style={{ padding: "0.5rem", background: "#fffbeb", borderRadius: 8, border: "1px solid #fef3c7" }}>
+                      <strong style={{ color: "#92400e", display: "block" }}>Due This Week</strong>
+                      <span style={{ color: "#334155" }}>● Follow up: Pedro Reyes (Quotation approval)</span>
+                      <span style={{ background: "#fef3c7", color: "#92400e", fontSize: "0.62rem", padding: "1px 6px", borderRadius: 4, fontWeight: 800, marginLeft: 6 }}>Medium</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* QUICK ACTIONS */}
+                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem" }}>
+                  <strong style={{ fontSize: "0.92rem", color: "#0f172a", display: "block", marginBottom: "0.8rem" }}>⚡ QUICK ACTIONS</strong>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button onClick={openCreateLeadModal} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ New Customer</button>
+                    <button onClick={() => setActiveTab("schedule")} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ New Schedule</button>
+                    <button onClick={openCreateRepairModal} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ General Repair</button>
+                    <button onClick={() => setActiveTab("trade_in")} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ Trade-In / Sale</button>
+                    <button onClick={() => setActiveTab("quotations")} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ Quotation</button>
+                    <button onClick={() => setActiveTab("payments")} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ Payment</button>
+                    <button onClick={() => setActiveTab("inventory")} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ Inventory</button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
