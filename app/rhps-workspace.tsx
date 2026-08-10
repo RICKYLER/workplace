@@ -465,6 +465,8 @@ export type TradeInSale = {
   closeLostReason?: string;
 };
 
+export type InventoryCategory = "Personal Inventory" | "Shop Inventory";
+
 export type InventoryUnit = {
   id: string;
   brand: string;
@@ -473,6 +475,7 @@ export type InventoryUnit = {
   condition: "Refurbished" | "Pre-Owned Excellent" | "Brand New" | "As Is";
   price: number;
   status: "In Stock" | "Reserved" | "Sold" | "Under Repair";
+  inventoryCategory?: InventoryCategory;
   recordMode: RecordMode;
   notes?: string;
   photos?: string[];
@@ -1268,8 +1271,52 @@ const demoTradeIns: TradeInSale[] = [
 ];
 
 const demoInventory: InventoryUnit[] = [
-  { id: "RHPS-INV-001", brand: "Yamaha", model: "U1 Professional Upright", serialNumber: "YM-491028", condition: "Refurbished", price: 165000, status: "In Stock", recordMode: "ACTUAL" },
-  { id: "RHPS-INV-002", brand: "Kawai", model: "KG-2 Grand Piano 5'10\"", serialNumber: "KW-382910", condition: "Pre-Owned Excellent", price: 285000, status: "In Stock", recordMode: "ACTUAL" },
+  {
+    id: "RHPS-INV-001",
+    brand: "Yamaha",
+    model: "U1 Professional Upright",
+    serialNumber: "YM-491028",
+    condition: "Refurbished",
+    price: 165000,
+    status: "In Stock",
+    inventoryCategory: "Shop Inventory",
+    recordMode: "ACTUAL",
+  },
+  {
+    id: "RHPS-INV-002",
+    brand: "Kawai",
+    model: "KG-2 Grand Piano 5'10\"",
+    serialNumber: "KW-382910",
+    condition: "Pre-Owned Excellent",
+    price: 285000,
+    status: "In Stock",
+    inventoryCategory: "Shop Inventory",
+    recordMode: "ACTUAL",
+  },
+  {
+    id: "RHPS-INV-003",
+    brand: "Steinway & Sons",
+    model: "Model K-52 Crown Oak Upright",
+    serialNumber: "ST-592810",
+    condition: "Pre-Owned Excellent",
+    price: 380000,
+    status: "In Stock",
+    inventoryCategory: "Personal Inventory",
+    recordMode: "ACTUAL",
+    notes: "Owner's personal collection upright piano, pristine crown oak finish.",
+  },
+  {
+    id: "RHPS-INV-004",
+    brand: "Yamaha",
+    model: "C3 Conservatory Grand 6'1\"",
+    serialNumber: "YM-610293",
+    condition: "Refurbished",
+    price: 495000,
+    status: "In Stock",
+    inventoryCategory: "Personal Inventory",
+    recordMode: "ACTUAL",
+    notes: "Personal residence studio grand piano unit.",
+  },
 ];
 
 export type BackupType = "Manual" | "Scheduled Auto";
@@ -4250,6 +4297,9 @@ export default function RhpsWorkspace({
   };
 
   // --- INVENTORY MODULE STATE & HANDLERS ---
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState<"ALL" | "Shop Inventory" | "Personal Inventory">("Shop Inventory");
+  const [invCategory, setInvCategory] = useState<InventoryCategory>("Shop Inventory");
+
   const [showInventoryModal, setShowInventoryModal] = useState<boolean>(false);
   const [editingInventory, setEditingInventory] = useState<InventoryUnit | null>(null);
   const [inventoryActionTarget, setInventoryActionTarget] = useState<InventoryUnit | null>(null);
@@ -4269,6 +4319,24 @@ export default function RhpsWorkspace({
   const [invPhotoInput, setInvPhotoInput] = useState<string>("");
   const [invPhotos, setInvPhotos] = useState<string[]>([]);
 
+  const shopUnitsCount = useMemo(
+    () => inventory.filter((i) => (i.inventoryCategory || "Shop Inventory") === "Shop Inventory").length,
+    [inventory]
+  );
+  const personalUnitsCount = useMemo(
+    () => inventory.filter((i) => (i.inventoryCategory || "Shop Inventory") === "Personal Inventory").length,
+    [inventory]
+  );
+
+  const filteredInventory = useMemo(() => {
+    return inventory.filter((inv) => {
+      const cat = inv.inventoryCategory || "Shop Inventory";
+      if (inventoryCategoryFilter === "Shop Inventory") return cat === "Shop Inventory";
+      if (inventoryCategoryFilter === "Personal Inventory") return cat === "Personal Inventory";
+      return true;
+    });
+  }, [inventory, inventoryCategoryFilter]);
+
   const [reserveByInput, setReserveByInput] = useState<string>("");
   const [reserveUntilInput, setReserveUntilInput] = useState<string>("");
   const [reserveNotesInput, setReserveNotesInput] = useState<string>("");
@@ -4280,7 +4348,7 @@ export default function RhpsWorkspace({
   const [adjustPriceInput, setAdjustPriceInput] = useState<number>(0);
   const [adjustPriceReasonInput, setAdjustPriceReasonInput] = useState<string>("");
 
-  const openCreateInventoryModal = () => {
+  const openCreateInventoryModal = (defaultCategory?: InventoryCategory) => {
     setEditingInventory(null);
     setInvBrand("");
     setInvModel("");
@@ -4288,6 +4356,7 @@ export default function RhpsWorkspace({
     setInvCondition("Refurbished");
     setInvPrice(0);
     setInvStatus("In Stock");
+    setInvCategory(defaultCategory || (inventoryCategoryFilter === "Personal Inventory" ? "Personal Inventory" : "Shop Inventory"));
     setInvRecordMode("ACTUAL");
     setInvNotes("");
     setInvPhotos([]);
@@ -4303,6 +4372,7 @@ export default function RhpsWorkspace({
     setInvCondition(inv.condition);
     setInvPrice(inv.price);
     setInvStatus(inv.status);
+    setInvCategory(inv.inventoryCategory || "Shop Inventory");
     setInvRecordMode(inv.recordMode);
     setInvNotes(inv.notes || "");
     setInvPhotos(inv.photos || []);
@@ -4385,6 +4455,7 @@ export default function RhpsWorkspace({
                 condition: invCondition,
                 price: invPrice,
                 status: invStatus,
+                inventoryCategory: invCategory,
                 recordMode: invRecordMode,
                 notes: invNotes.trim() || undefined,
                 photos: invPhotos.length ? invPhotos : undefined,
@@ -4403,6 +4474,7 @@ export default function RhpsWorkspace({
         condition: invCondition,
         price: invPrice,
         status: invStatus,
+        inventoryCategory: invCategory,
         recordMode: invRecordMode,
         notes: invNotes.trim() || undefined,
         photos: invPhotos.length ? invPhotos : undefined,
@@ -5065,7 +5137,47 @@ Total Invoices: ${invoices.length}
           </div>
         </div>
 
-        <div className="rhps-safeguard-bar">
+        <div className="rhps-safeguard-bar" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {activeTab === "inventory" && (
+            <div style={{ display: "flex", background: "#334155", padding: "4px", borderRadius: "999px", gap: 4, marginRight: 8 }}>
+              <button
+                type="button"
+                onClick={() => setInventoryCategoryFilter("Personal Inventory")}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "999px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  background: inventoryCategoryFilter === "Personal Inventory" ? "#ffffff" : "transparent",
+                  color: inventoryCategoryFilter === "Personal Inventory" ? "#0f172a" : "#cbd5e1",
+                  boxShadow: inventoryCategoryFilter === "Personal Inventory" ? "0 2px 4px rgba(0,0,0,0.2)" : "none",
+                }}
+              >
+                👤 Personal Inventory ({personalUnitsCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setInventoryCategoryFilter("Shop Inventory")}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "999px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  background: inventoryCategoryFilter === "Shop Inventory" ? "#ffffff" : "transparent",
+                  color: inventoryCategoryFilter === "Shop Inventory" ? "#0f172a" : "#cbd5e1",
+                  boxShadow: inventoryCategoryFilter === "Shop Inventory" ? "0 2px 4px rgba(0,0,0,0.2)" : "none",
+                }}
+              >
+                🏪 Shop Inventory ({shopUnitsCount})
+              </button>
+            </div>
+          )}
           {isRegistered && <span className="registered-badge">VAT Registered</span>}
           {onLockWorkspace && (
             <button className="secondary-sm" onClick={onLockWorkspace} style={{ marginLeft: 8 }}>
@@ -5584,53 +5696,90 @@ Total Invoices: ${invoices.length}
                   </tr>
                 </thead>
                 <tbody>
-                  {leads.map((lead) => (
-                    <tr key={lead.id}>
-                      <td><strong>{lead.id}</strong></td>
-                      <td>{lead.createdDate}</td>
-                      <td>{lead.source}</td>
-                      <td>{lead.customerName}</td>
-                      <td>{lead.contactNumber}</td>
-                      <td>
-                        <div>{lead.locationCity}</div>
-                        {lead.gmapsLink && (
-                          <a
-                            href={lead.gmapsLink}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 2, color: "#2563eb", fontWeight: 700, fontSize: "0.72rem", textDecoration: "underline" }}
-                          >
-                            <span>📍</span> GMaps Pin
-                          </a>
-                        )}
-                      </td>
-                      <td>{lead.inquiryType}</td>
-                      <td>{lead.pianoType}</td>
-                      <td>{lead.mainConcern}</td>
-                      <td>{lead.preferredSchedule}</td>
-                      <td>{lead.status}</td>
-                      <td>{lead.nextAction}</td>
-                      <td>{lead.assignedOwner}</td>
-                      <td>{lead.followUpDate || "N/A"}</td>
-                      <td style={{ textAlign: "right" }}>
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
-                          <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 10px" }} onClick={() => openEditLeadModal(lead)}>
-                            ✏️ Edit Details
-                          </button>
-                          <button
-                            className="secondary-sm"
-                            style={{ fontSize: 11, padding: "4px 10px", background: "#dcfce7", color: "#15803d", border: "1px solid #86efac", fontWeight: 800 }}
-                            onClick={() => {
-                              setLeads(leads.map((item) => item.id === lead.id ? { ...item, status: "Converted to Estimate" } : item));
-                              showToast(`✅ Lead ${lead.id} converted to Estimate!`);
-                            }}
-                          >
-                            ✓ Resolve
-                          </button>
-                        </div>
+                  {filteredInventory.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
+                        No inventory units found under <strong>{inventoryCategoryFilter}</strong>.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredInventory.map((inv) => {
+                      const isPersonal = (inv.inventoryCategory || "Shop Inventory") === "Personal Inventory";
+                      return (
+                        <tr key={inv.id}>
+                          <td><strong>{inv.id}</strong></td>
+                          <td>
+                            {isPersonal ? (
+                              <span style={{ background: "#f3e8ff", color: "#7e22ce", border: "1px solid #d8b4fe", padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                👤 Personal
+                              </span>
+                            ) : (
+                              <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc", padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                🏪 Shop
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <div><strong>{inv.brand} {inv.model}</strong></div>
+                            {inv.notes && <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{inv.notes}</div>}
+                          </td>
+                          <td>{inv.serialNumber}</td>
+                          <td>{inv.condition}</td>
+                          <td>₱{inv.price.toLocaleString()}</td>
+                          <td>{inv.status}</td>
+                          <td style={{ fontSize: 12 }}>
+                            {inv.reservedBy ? (
+                              <>
+                                <div><strong>{inv.reservedBy}</strong></div>
+                                <div style={{ color: "#64748b" }}>Until: {inv.reservedUntil || "N/A"}</div>
+                              </>
+                            ) : (
+                              <span style={{ color: "#94a3b8" }}>None</span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: 12 }}>
+                            {inv.soldTo ? (
+                              <>
+                                <div><strong>{inv.soldTo}</strong></div>
+                                <div style={{ color: "#64748b" }}>Date: {inv.soldDate || "N/A"}</div>
+                              </>
+                            ) : (
+                              <span style={{ color: "#94a3b8" }}>Not Sold</span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: 12 }}>{inv.photos?.length || 0} photo(s)</td>
+                          <td>
+                            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
+                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
+                                ✏️ Edit Details
+                              </button>
+                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
+                                📷 Upload Photos
+                              </button>
+                              {inv.status !== "Reserved" && inv.status !== "Sold" && (
+                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dbeafe", border: "1px solid #93c5fd", color: "#1d4ed8" }} onClick={() => openReserveInventoryModal(inv)}>
+                                  🔒 Reserve
+                                </button>
+                              )}
+                              {inv.status === "Reserved" && (
+                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#fef3c7", border: "1px solid #fcd34d", color: "#92400e" }} onClick={() => openReleaseReservationModal(inv)}>
+                                  🔓 Release Reservation
+                                </button>
+                              )}
+                              {inv.status !== "Sold" && (
+                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dcfce7", border: "1px solid #86efac", color: "#166534" }} onClick={() => openMarkSoldModal(inv)}>
+                                  ✅ Mark Sold
+                                </button>
+                              )}
+                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#ede9fe", border: "1px solid #c4b5fd", color: "#5b21b6" }} onClick={() => openAdjustPriceModal(inv)}>
+                                💰 Adjust Price
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -8847,21 +8996,99 @@ Total Invoices: ${invoices.length}
           {/* 15. INVENTORY */}
           {activeTab === "inventory" && (
             <div className="rhps-view">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
-                <h2 style={{ margin: 0 }}>Store Inventory Units</h2>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+                <div>
+                  <h2 style={{ margin: 0 }}>
+                    {inventoryCategoryFilter === "Personal Inventory"
+                      ? "👤 Personal Inventory Units"
+                      : inventoryCategoryFilter === "Shop Inventory"
+                      ? "🏪 Store Inventory Units"
+                      : "🌐 All Store & Personal Inventory Units"}
+                  </h2>
+                  <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>
+                    Manage inventory categorization between Store Inventory (Sales) and Personal Inventory (Owner/Private).
+                  </p>
+                </div>
                 <button
                   className="primary"
-                  style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700 }}
+                  style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}
                   onClick={() => openCreateInventoryModal()}
                 >
                   ➕ Add Unit
                 </button>
               </div>
 
+              {/* INVENTORY CATEGORY TABS BAR */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16, background: "#f8fafc", padding: "10px 14px", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    style={{
+                      borderRadius: 20,
+                      padding: "7px 18px",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      border: "none",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      background: inventoryCategoryFilter === "Shop Inventory" ? "#0f172a" : "#ffffff",
+                      color: inventoryCategoryFilter === "Shop Inventory" ? "#ffffff" : "#475569",
+                      boxShadow: inventoryCategoryFilter === "Shop Inventory" ? "0 2px 6px rgba(15,23,42,0.25)" : "0 1px 2px rgba(0,0,0,0.05)",
+                    }}
+                    onClick={() => setInventoryCategoryFilter("Shop Inventory")}
+                  >
+                    🏪 Shop Inventory ({shopUnitsCount})
+                  </button>
+
+                  <button
+                    type="button"
+                    style={{
+                      borderRadius: 20,
+                      padding: "7px 18px",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      border: "none",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      background: inventoryCategoryFilter === "Personal Inventory" ? "#0f172a" : "#ffffff",
+                      color: inventoryCategoryFilter === "Personal Inventory" ? "#ffffff" : "#475569",
+                      boxShadow: inventoryCategoryFilter === "Personal Inventory" ? "0 2px 6px rgba(15,23,42,0.25)" : "0 1px 2px rgba(0,0,0,0.05)",
+                    }}
+                    onClick={() => setInventoryCategoryFilter("Personal Inventory")}
+                  >
+                    👤 Personal Inventory ({personalUnitsCount})
+                  </button>
+
+                  <button
+                    type="button"
+                    style={{
+                      borderRadius: 20,
+                      padding: "7px 18px",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      border: "none",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      background: inventoryCategoryFilter === "ALL" ? "#0f172a" : "#ffffff",
+                      color: inventoryCategoryFilter === "ALL" ? "#ffffff" : "#475569",
+                      boxShadow: inventoryCategoryFilter === "ALL" ? "0 2px 6px rgba(15,23,42,0.25)" : "0 1px 2px rgba(0,0,0,0.05)",
+                    }}
+                    onClick={() => setInventoryCategoryFilter("ALL")}
+                  >
+                    🌐 All Units ({inventory.length})
+                  </button>
+                </div>
+
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>
+                  Showing <strong style={{ color: "#0f172a" }}>{filteredInventory.length}</strong> unit(s) • Total Valuation: <strong style={{ color: "#166534" }}>₱{filteredInventory.reduce((acc, curr) => acc + curr.price, 0).toLocaleString()}</strong>
+                </div>
+              </div>
+
               <table className="rhps-table">
                 <thead>
                   <tr>
                     <th>Inventory ID</th>
+                    <th>Category</th>
                     <th>Brand & Model</th>
                     <th>Serial Number</th>
                     <th>Condition</th>
@@ -8874,65 +9101,90 @@ Total Invoices: ${invoices.length}
                   </tr>
                 </thead>
                 <tbody>
-                  {inventory.map((inv) => (
-                    <tr key={inv.id}>
-                      <td><strong>{inv.id}</strong></td>
-                      <td>{inv.brand} {inv.model}</td>
-                      <td>{inv.serialNumber}</td>
-                      <td>{inv.condition}</td>
-                      <td>₱{inv.price.toLocaleString()}</td>
-                      <td>{inv.status}</td>
-                      <td style={{ fontSize: 12 }}>
-                        {inv.reservedBy ? (
-                          <>
-                            <div><strong>{inv.reservedBy}</strong></div>
-                            <div style={{ color: "#64748b" }}>Until: {inv.reservedUntil || "N/A"}</div>
-                          </>
-                        ) : (
-                          <span style={{ color: "#94a3b8" }}>None</span>
-                        )}
-                      </td>
-                      <td style={{ fontSize: 12 }}>
-                        {inv.soldTo ? (
-                          <>
-                            <div><strong>{inv.soldTo}</strong></div>
-                            <div style={{ color: "#64748b" }}>Date: {inv.soldDate || "N/A"}</div>
-                          </>
-                        ) : (
-                          <span style={{ color: "#94a3b8" }}>Not Sold</span>
-                        )}
-                      </td>
-                      <td style={{ fontSize: 12 }}>{inv.photos?.length || 0} photo(s)</td>
-                      <td>
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
-                          <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
-                            ✏️ Edit Details
-                          </button>
-                          <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
-                            📷 Upload Photos
-                          </button>
-                          {inv.status !== "Reserved" && inv.status !== "Sold" && (
-                            <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dbeafe", border: "1px solid #93c5fd", color: "#1d4ed8" }} onClick={() => openReserveInventoryModal(inv)}>
-                              🔒 Reserve
-                            </button>
-                          )}
-                          {inv.status === "Reserved" && (
-                            <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#fef3c7", border: "1px solid #fcd34d", color: "#92400e" }} onClick={() => openReleaseReservationModal(inv)}>
-                              🔓 Release Reservation
-                            </button>
-                          )}
-                          {inv.status !== "Sold" && (
-                            <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dcfce7", border: "1px solid #86efac", color: "#166534" }} onClick={() => openMarkSoldModal(inv)}>
-                              ✅ Mark Sold
-                            </button>
-                          )}
-                          <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#ede9fe", border: "1px solid #c4b5fd", color: "#5b21b6" }} onClick={() => openAdjustPriceModal(inv)}>
-                            💰 Adjust Price
-                          </button>
-                        </div>
+                  {filteredInventory.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
+                        No inventory units found under <strong>{inventoryCategoryFilter}</strong>.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredInventory.map((inv) => {
+                      const isPersonal = (inv.inventoryCategory || "Shop Inventory") === "Personal Inventory";
+                      return (
+                        <tr key={inv.id}>
+                          <td><strong>{inv.id}</strong></td>
+                          <td>
+                            {isPersonal ? (
+                              <span style={{ background: "#f3e8ff", color: "#7e22ce", border: "1px solid #d8b4fe", padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                👤 Personal
+                              </span>
+                            ) : (
+                              <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc", padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                🏪 Shop
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <div><strong>{inv.brand} {inv.model}</strong></div>
+                            {inv.notes && <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{inv.notes}</div>}
+                          </td>
+                          <td>{inv.serialNumber}</td>
+                          <td>{inv.condition}</td>
+                          <td>₱{inv.price.toLocaleString()}</td>
+                          <td>{inv.status}</td>
+                          <td style={{ fontSize: 12 }}>
+                            {inv.reservedBy ? (
+                              <>
+                                <div><strong>{inv.reservedBy}</strong></div>
+                                <div style={{ color: "#64748b" }}>Until: {inv.reservedUntil || "N/A"}</div>
+                              </>
+                            ) : (
+                              <span style={{ color: "#94a3b8" }}>None</span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: 12 }}>
+                            {inv.soldTo ? (
+                              <>
+                                <div><strong>{inv.soldTo}</strong></div>
+                                <div style={{ color: "#64748b" }}>Date: {inv.soldDate || "N/A"}</div>
+                              </>
+                            ) : (
+                              <span style={{ color: "#94a3b8" }}>Not Sold</span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: 12 }}>{inv.photos?.length || 0} photo(s)</td>
+                          <td>
+                            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
+                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
+                                ✏️ Edit Details
+                              </button>
+                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
+                                📷 Upload Photos
+                              </button>
+                              {inv.status !== "Reserved" && inv.status !== "Sold" && (
+                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dbeafe", border: "1px solid #93c5fd", color: "#1d4ed8" }} onClick={() => openReserveInventoryModal(inv)}>
+                                  🔒 Reserve
+                                </button>
+                              )}
+                              {inv.status === "Reserved" && (
+                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#fef3c7", border: "1px solid #fcd34d", color: "#92400e" }} onClick={() => openReleaseReservationModal(inv)}>
+                                  🔓 Release Reservation
+                                </button>
+                              )}
+                              {inv.status !== "Sold" && (
+                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dcfce7", border: "1px solid #86efac", color: "#166534" }} onClick={() => openMarkSoldModal(inv)}>
+                                  ✅ Mark Sold
+                                </button>
+                              )}
+                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#ede9fe", border: "1px solid #c4b5fd", color: "#5b21b6" }} onClick={() => openAdjustPriceModal(inv)}>
+                                💰 Adjust Price
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -10185,6 +10437,37 @@ Total Invoices: ${invoices.length}
                       <div className="form-group">
                         <label>Model <span className="required-star">*</span></label>
                         <input className="input-field" required value={invModel} onChange={(e) => setInvModel(e.target.value)} placeholder="e.g. U1 Professional Upright" />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Inventory Category <span className="required-star">*</span></label>
+                        <select
+                          className="input-field"
+                          style={{ fontWeight: 700, color: invCategory === "Personal Inventory" ? "#7e22ce" : "#0369a1", borderColor: invCategory === "Personal Inventory" ? "#c084fc" : "#38bdf8" }}
+                          value={invCategory}
+                          onChange={(e) => setInvCategory(e.target.value as InventoryCategory)}
+                        >
+                          <option value="Shop Inventory">🏪 Shop Inventory (Store Sales)</option>
+                          <option value="Personal Inventory">👤 Personal Inventory (Owner / Private)</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Status</label>
+                        <select className="input-field" value={invStatus} onChange={(e) => setInvStatus(e.target.value as InventoryUnit["status"])}>
+                          <option value="In Stock">In Stock</option>
+                          <option value="Reserved">Reserved</option>
+                          <option value="Sold">Sold</option>
+                          <option value="Under Repair">Under Repair</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Record Mode</label>
+                        <select className="input-field" value={invRecordMode} onChange={(e) => setInvRecordMode(e.target.value as RecordMode)}>
+                          <option value="ACTUAL">ACTUAL</option>
+                          <option value="TEST">TEST</option>
+                        </select>
                       </div>
                     </div>
 

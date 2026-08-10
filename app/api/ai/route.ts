@@ -9,13 +9,14 @@ export interface ChatMessage {
 export async function POST(req: NextRequest) {
   try {
     const { messages, projectsContext } = await req.json();
-    const apiKey = process.env.OLLAMA_API_KEY || "17cfcad6ba3a42bf9612caaea4f97e43.1j4TEyIAKNgoYKbjEgXTgc4d";
+    const apiKey = process.env.OLLAMA_API_KEY;
 
     const lastMessage = messages[messages.length - 1]?.content || "";
 
     // 1. Call Ollama Cloud API endpoint with user's key OLLAMA_API_KEY
-    try {
-      const ollamaEndpoint = "https://ollama.com/api/chat";
+    if (apiKey) {
+      try {
+        const ollamaEndpoint = "https://ollama.com/api/chat";
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 90000);
 
@@ -66,6 +67,7 @@ ${JSON.stringify(projectsContext || [], null, 2)}`;
     } catch (err: any) {
       console.error("Ollama Cloud call failed:", err?.message);
     }
+  }
 
     // 2. Intelligent Fallback AI Engine with full workspace domain context
     const reply = generateWorkspaceAIReply(lastMessage, projectsContext);

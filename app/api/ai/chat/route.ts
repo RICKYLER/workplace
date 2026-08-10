@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    const apiKey = process.env.OLLAMA_API_KEY || "17cfcad6ba3a42bf9612caaea4f97e43.1j4TEyIAKNgoYKbjEgXTgc4d";
+    const apiKey = process.env.OLLAMA_API_KEY;
     const baseSystemPrompt = `You are RHPS Master AI, the private executive AI assistant for Robert Herrero, owner and master technician of R. Herrero Pianos & Services (RHPS) in Davao City, Mindanao, Philippines.
 
 PERSONALITY & COMMUNICATION STYLE:
@@ -113,3 +113,5 @@ function rhpsFallbackReply(prompt: string): string {
 
   return `Hello Robert! I am RHPS Master AI, your private assistant for R. Herrero Pianos & Services.\n\nLet me know what you need help with - whether it's client quotations, tuning reminders, technical diagnostics, or business reports!`;
 }
+
+
