@@ -154,6 +154,18 @@
   }
 }
 
+/* Mobile bottom nav drawer animation */
+@keyframes slideUpDrawer {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* felt/hammer strip texture at the base of the hero */
 @utility keybar {
   background-image: repeating-linear-gradient(

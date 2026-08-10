@@ -237,6 +237,7 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
   const [backgroundColor, setBackgroundColor] = useState("");
 
   const [toast, setToast] = useState("");
+  const [openAiTrigger, setOpenAiTrigger] = useState<number>(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -628,7 +629,37 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
     return (
       <div className="workspace-wrapper" style={{ position: "relative" }}>
         {/* Floating Quick Action for Workspace Switcher & User Management */}
-        <div style={{ position: "fixed", bottom: "1.5rem", right: "1.5rem", zIndex: 900, display: "flex", gap: "0.75rem" }}>
+        <div style={{ position: "fixed", bottom: "1.5rem", right: "1.5rem", zIndex: 900, display: "flex", gap: "0.75rem", alignItems: "center" }}>
+          <button
+            type="button"
+            onClick={() => setOpenAiTrigger((prev) => prev + 1)}
+            style={{
+              background: "linear-gradient(135deg, #0f172a, #1e293b)",
+              color: "#38bdf8",
+              border: "1.5px solid #38bdf8",
+              padding: "0.75rem 1.25rem",
+              borderRadius: "99px",
+              fontWeight: 800,
+              fontSize: "0.9rem",
+              cursor: "pointer",
+              boxShadow: "0 10px 25px rgba(56, 189, 248, 0.4)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.06) translateY(-2px)";
+              e.currentTarget.style.boxShadow = "0 15px 30px rgba(56, 189, 248, 0.55)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1) translateY(0)";
+              e.currentTarget.style.boxShadow = "0 10px 25px rgba(56, 189, 248, 0.4)";
+            }}
+          >
+            <span style={{ fontSize: "1.1rem" }}>🤖</span> RHPS Master AI
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 8px #4ade80" }} />
+          </button>
           <button
             type="button"
             onClick={() => setActiveWorkspace("CV_SALES")}
@@ -668,7 +699,7 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
           </button>
         </div>
 
-        <RhpsWorkspace activeUser="Robert Herrero" onLockWorkspace={() => setEntered(false)} />
+        <RhpsWorkspace activeUser="Robert Herrero" onLockWorkspace={() => setEntered(false)} openAiTrigger={openAiTrigger} />
 
         <AdminUserManagementModal
           isOpen={showAdminUserManagement}

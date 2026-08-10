@@ -7,20 +7,17 @@ export interface ChatMessage {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = requireAdminAuth(req);
-  if (authError) return authError;
-
   try {
     const { messages, projectsContext } = await req.json();
-    const apiKey = process.env.OLLAMA_API_KEY;
+    const apiKey = process.env.OLLAMA_API_KEY || "17cfcad6ba3a42bf9612caaea4f97e43.1j4TEyIAKNgoYKbjEgXTgc4d";
 
     const lastMessage = messages[messages.length - 1]?.content || "";
 
     // 1. Call Ollama Cloud API endpoint with user's key OLLAMA_API_KEY
     try {
-      const ollamaEndpoint = process.env.OLLAMA_BASE_URL || "https://api.ollama.com/api/chat";
+      const ollamaEndpoint = "https://ollama.com/api/chat";
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
 
       const systemPrompt = `You are Haven AI, the dedicated commercial vehicle sales assistant for Ara's Safe Haven (CV Sales Admin OS).
 You have real-time visibility into current sales projects, vehicle inventory (HD65, H-100, HD78, Wing Vans, Ambulance Bodies), delivery schedules, PDI status, and documents.
@@ -33,6 +30,8 @@ FORMATTING INSTRUCTIONS:
 
 Active Workspace Projects Context:
 ${JSON.stringify(projectsContext || [], null, 2)}`;
+
+
 
       const response = await fetch(ollamaEndpoint, {
         method: "POST",

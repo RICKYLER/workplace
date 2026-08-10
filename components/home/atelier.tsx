@@ -32,6 +32,7 @@ export function Atelier() {
           <dl className="mt-12 grid grid-cols-3 gap-6 border-t border-border pt-10">
             {STATS.map((s) => (
               <div key={s.label}>
+
                 <dt className="font-serif text-4xl text-gold-gradient">{s.value}</dt>
                 <dd className="mt-2 text-xs leading-snug text-muted-foreground">{s.label}</dd>
               </div>

@@ -33,6 +33,8 @@ import {
   Wrench,
   MessageSquare,
   Trash2,
+  MoreHorizontal,
+  ChevronUp,
 } from 'lucide-react'
 import { useAuth } from '@/components/auth-provider'
 import { Wordmark } from '@/components/wordmark'
@@ -153,6 +155,21 @@ const NAV = [
 
 type TabKey = (typeof NAV)[number]['key']
 
+// Bottom nav: primary tabs shown in the bar
+const BOTTOM_NAV = [
+  { key: 'overview' as TabKey, label: 'Overview', icon: Music2 },
+  { key: 'orders' as TabKey, label: 'Orders', icon: Package },
+  { key: 'services' as TabKey, label: 'Services', icon: Wrench },
+  { key: 'trade-ins' as TabKey, label: 'Trade-ins', icon: Repeat2 },
+]
+
+// More drawer: remaining tabs
+const MORE_NAV = [
+  { key: 'saved' as TabKey, label: 'Saved', icon: Heart },
+  { key: 'customer-service' as TabKey, label: 'Customer Service', icon: Headphones },
+  { key: 'settings' as TabKey, label: 'Settings', icon: Settings },
+]
+
 export function DashboardView() {
   const router = useRouter()
   const { user, ready, signOut } = useAuth()
@@ -161,6 +178,7 @@ export function DashboardView() {
   const [discussionTradeInId, setDiscussionTradeInId] = useState<string | null>(null)
   const [notifications, setNotifications] = useState(NOTIFICATIONS)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   const unreadCount = notifications.filter((notification) => notification.unread).length
   const selectedOrder = ORDERS.find((order) => order.id === selectedOrderId) ?? ORDERS[0]
@@ -180,13 +198,16 @@ export function DashboardView() {
 
   const saved = products.slice(0, 4)
 
+  // Whether the active tab is in the "More" group
+  const isMoreTab = MORE_NAV.some((n) => n.key === tab)
+
   return (
-    <div className="min-h-svh">
+    <div className="min-h-svh pb-24 lg:pb-0">
       {/* top bar */}
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 md:px-8">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:h-20 md:px-8">
           <Wordmark className="text-lg" />
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 md:gap-6">
             <div className="relative">
               <button
                 type="button"
@@ -195,7 +216,7 @@ export function DashboardView() {
                 aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
                 aria-expanded={notificationsOpen}
               >
-                <Bell className="size-4" />
+                <Bell className="size-5" />
                 {unreadCount > 0 && <span className="absolute -right-2 -top-2 grid size-3.5 place-items-center rounded-full bg-gold text-[0.5rem] text-primary-foreground">{unreadCount}</span>}
               </button>
               {notificationsOpen && (
@@ -214,7 +235,7 @@ export function DashboardView() {
             </div>
             <Link
               href="/"
-              className="text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground hover:text-gold"
+              className="hidden text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground hover:text-gold sm:block"
             >
               Store
             </Link>
@@ -223,7 +244,7 @@ export function DashboardView() {
                 signOut()
                 router.push('/')
               }}
-              className="flex items-center gap-2 text-[0.7rem] uppercase tracking-[0.2em] text-foreground hover:text-gold"
+              className="hidden items-center gap-2 text-[0.7rem] uppercase tracking-[0.2em] text-foreground hover:text-gold sm:flex"
             >
               <LogOut className="size-4" /> Sign out
             </button>
@@ -231,9 +252,9 @@ export function DashboardView() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 md:px-8 lg:grid-cols-[280px_1fr]">
-        {/* profile sidebar */}
-        <aside className="space-y-8">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-6 md:px-8 md:py-10 lg:grid-cols-[280px_1fr] lg:py-12">
+        {/* profile sidebar — desktop only */}
+        <aside className="hidden space-y-8 lg:block">
           <div className="border border-border bg-card p-8 text-center">
             <div className="mx-auto grid size-20 place-items-center rounded-full border border-gold/50 font-serif text-3xl text-gold-gradient">
               {user.name.charAt(0).toUpperCase()}
@@ -530,6 +551,165 @@ export function DashboardView() {
           {tab === 'settings' && <SettingsPanel user={user} />}
         </div>
       </div>
+
+      {/* ── Mobile bottom navigation bar ─────────────────────────────────── */}
+      <nav
+        aria-label="Main navigation"
+        className="fixed bottom-0 left-0 right-0 z-50 lg:hidden"
+      >
+        {/* More drawer — slides up from behind the bar */}
+        {moreOpen && (
+          <>
+            {/* backdrop */}
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={() => setMoreOpen(false)}
+              className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm"
+            />
+            {/* drawer sheet */}
+            <div
+              className="absolute bottom-[72px] left-0 right-0 z-50 mx-auto max-w-lg"
+              style={{ animation: 'slideUpDrawer 0.25s cubic-bezier(0.32,0.72,0,1)' }}
+            >
+              <div className="mx-3 overflow-hidden rounded-2xl border border-border/70 bg-card/95 shadow-2xl backdrop-blur-xl">
+                {/* handle */}
+                <div className="flex justify-center pt-3">
+                  <div className="h-1 w-10 rounded-full bg-border" />
+                </div>
+                <div className="p-2">
+                  {MORE_NAV.map((item) => {
+                    const active = tab === item.key
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => { setTab(item.key); setMoreOpen(false) }}
+                        className={`flex w-full items-center gap-4 rounded-xl px-4 py-3.5 text-left transition-colors ${
+                          active
+                            ? 'bg-gold/10 text-gold'
+                            : 'text-foreground/80 hover:bg-accent'
+                        }`}
+                      >
+                        <span className={`grid size-9 shrink-0 place-items-center rounded-xl border ${
+                          active ? 'border-gold/40 bg-gold/10' : 'border-border bg-secondary'
+                        }`}>
+                          <item.icon className="size-4" />
+                        </span>
+                        <span className="text-sm font-medium">{item.label}</span>
+                        {active && <span className="ml-auto h-2 w-2 rounded-full bg-gold" />}
+                      </button>
+                    )
+                  })}
+                  {/* sign out row */}
+                  <button
+                    type="button"
+                    onClick={() => { signOut(); router.push('/') }}
+                    className="flex w-full items-center gap-4 rounded-xl px-4 py-3.5 text-left text-foreground/70 transition-colors hover:bg-accent"
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-border bg-secondary">
+                      <LogOut className="size-4" />
+                    </span>
+                    <span className="text-sm font-medium">Sign out</span>
+                  </button>
+                </div>
+                <div className="pb-3" />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* the bar itself */}
+        <div className="border-t border-border/50 bg-background/80 px-2 pb-safe backdrop-blur-xl" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}>
+          <div className="mx-auto flex max-w-lg items-end justify-around pt-2">
+            {BOTTOM_NAV.map((item) => {
+              const active = tab === item.key
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => { setTab(item.key); setMoreOpen(false) }}
+                  aria-current={active ? 'page' : undefined}
+                  className="group flex min-w-0 flex-1 flex-col items-center gap-1 pb-2 pt-1"
+                >
+                  <span
+                    className={`relative flex h-9 w-14 items-center justify-center rounded-2xl transition-all duration-200 ${
+                      active
+                        ? 'bg-gold/15 shadow-[0_0_12px_rgba(var(--gold-rgb,180,140,60),0.25)]'
+                        : 'group-hover:bg-accent'
+                    }`}
+                  >
+                    {active && (
+                      <span
+                        className="absolute inset-0 rounded-2xl ring-1 ring-gold/30"
+                        aria-hidden
+                      />
+                    )}
+                    <item.icon
+                      className={`size-5 transition-all duration-200 ${
+                        active
+                          ? 'scale-[1.12] text-gold drop-shadow-[0_0_6px_rgba(180,140,60,0.6)]'
+                          : 'text-muted-foreground group-hover:text-foreground'
+                      }`}
+                    />
+                  </span>
+                  <span
+                    className={`text-[0.6rem] font-medium tracking-wide transition-colors duration-200 ${
+                      active ? 'text-gold' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                </button>
+              )
+            })}
+
+            {/* More button */}
+            <button
+              type="button"
+              onClick={() => setMoreOpen((o) => !o)}
+              className="group flex min-w-0 flex-1 flex-col items-center gap-1 pb-2 pt-1"
+            >
+              <span
+                className={`relative flex h-9 w-14 items-center justify-center rounded-2xl transition-all duration-200 ${
+                  isMoreTab || moreOpen
+                    ? 'bg-gold/15 shadow-[0_0_12px_rgba(var(--gold-rgb,180,140,60),0.25)]'
+                    : 'group-hover:bg-accent'
+                }`}
+              >
+                {(isMoreTab || moreOpen) && (
+                  <span className="absolute inset-0 rounded-2xl ring-1 ring-gold/30" aria-hidden />
+                )}
+                {moreOpen ? (
+                  <ChevronUp
+                    className={`size-5 transition-all duration-200 ${
+                      isMoreTab || moreOpen
+                        ? 'scale-[1.12] text-gold drop-shadow-[0_0_6px_rgba(180,140,60,0.6)]'
+                        : 'text-muted-foreground'
+                    }`}
+                  />
+                ) : (
+                  <MoreHorizontal
+                    className={`size-5 transition-all duration-200 ${
+                      isMoreTab
+                        ? 'scale-[1.12] text-gold drop-shadow-[0_0_6px_rgba(180,140,60,0.6)]'
+                        : 'text-muted-foreground group-hover:text-foreground'
+                    }`}
+                  />
+                )}
+              </span>
+              <span
+                className={`text-[0.6rem] font-medium tracking-wide transition-colors duration-200 ${
+                  isMoreTab || moreOpen ? 'text-gold' : 'text-muted-foreground'
+                }`}
+              >
+                More
+              </span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
       {discussionTradeIn && (
         <TradeInConversation
           tradeIn={discussionTradeIn}

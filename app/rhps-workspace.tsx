@@ -33,12 +33,16 @@ export type Customer = {
   name: string;
   contactNumber: string;
   completeAddress: string;
-  customerType: "New" | "Repeat";
+  customerType: "New" | "Old" | "Repeat";
   linkedPianoIds: string[];
   createdDate: string;
   lastUpdatedDate: string;
   email?: string;
   facebookName?: string;
+  facebookLink?: string;
+  gmapsLink?: string;
+  reminderDate?: string;
+  reminderNotes?: string;
   alternateContactNumber?: string;
   cityArea?: string;
   landmark?: string;
@@ -70,6 +74,7 @@ export type Lead = {
   accessParkingTravelNotes?: string;
   notes?: string;
   followUpDate?: string;
+  gmapsLink?: string;
 };
 
 export type EstimateStatus =
@@ -545,8 +550,8 @@ const demoCustomers: Customer[] = [
 ];
 
 const demoLeads: Lead[] = [
-  { id: "LEAD-001", createdDate: "2026-08-01", source: "Website", customerName: "Maria Santos", contactNumber: "0918-123-4567", locationCity: "Bajada, Davao City", inquiryType: "Tuning", pianoType: "Grand (Steinway Model M)", mainConcern: "Full tuning and pitch raise A440", preferredSchedule: "Mornings", status: "Converted to Estimate", nextAction: "Send formal Estimate", assignedOwner: "Robert Herrero", recordMode: "ACTUAL", email: "maria@example.com", budgetRange: "₱15,000 – ₱20,000", followUpDate: "2026-08-05" },
-  { id: "LEAD-002", createdDate: "2026-08-03", source: "Referral", customerName: "Davao Concert Hall", contactNumber: "0920-987-6543", locationCity: "Davao City", inquiryType: "Assessment", pianoType: "Concert Grand", mainConcern: "Concert grand tuning & hammer voicing", preferredSchedule: "Weekends", status: "New Lead", nextAction: "Schedule On-Site Visit", assignedOwner: "Robert Herrero", recordMode: "ACTUAL", pianoBrand: "Steinway", accessParkingTravelNotes: "Security clearance required at front gate" },
+  { id: "LEAD-001", createdDate: "2026-08-01", source: "Website", customerName: "Maria Santos", contactNumber: "0918-123-4567", locationCity: "Bajada, Davao City", gmapsLink: "https://maps.google.com/?q=7.0731,125.6128", inquiryType: "Tuning", pianoType: "Grand (Steinway Model M)", mainConcern: "Full tuning and pitch raise A440", preferredSchedule: "Mornings", status: "Converted to Estimate", nextAction: "Send formal Estimate", assignedOwner: "Robert Herrero", recordMode: "ACTUAL", email: "maria@example.com", budgetRange: "₱15,000 – ₱20,000", followUpDate: "2026-08-05" },
+  { id: "LEAD-002", createdDate: "2026-08-03", source: "Referral", customerName: "Davao Concert Hall", contactNumber: "0920-987-6543", locationCity: "Davao City", gmapsLink: "https://maps.google.com/?q=7.0800,125.6100", inquiryType: "Assessment", pianoType: "Concert Grand", mainConcern: "Concert grand tuning & hammer voicing", preferredSchedule: "Weekends", status: "New Lead", nextAction: "Schedule On-Site Visit", assignedOwner: "Robert Herrero", recordMode: "ACTUAL", pianoBrand: "Steinway", accessParkingTravelNotes: "Security clearance required at front gate" },
   { id: "LEAD-003", createdDate: "2026-08-03", source: "Walk-In", customerName: "Dr. Gabriel Cruz", contactNumber: "0917-888-1234", locationCity: "Matina, Davao City", inquiryType: "Repair", pianoType: "Kawai Upright", mainConcern: "Sticky key regulation & pedal alignment", preferredSchedule: "Afternoons", status: "Qualified", nextAction: "Send Estimate", assignedOwner: "Robert Herrero", recordMode: "ACTUAL", facebookName: "Gabriel Cruz Music", existingCustomerId: "CUST-001", photosVideos: ["photo-reference-1.jpg"], notes: "Walk-in lead from existing customer referral." },
 ];
 
@@ -1336,7 +1341,7 @@ const demoBackups: BackupRecord[] = [
 ];
 
 // --- RHPS AI MARKDOWN & TABLE RENDERER ---
-function renderRhpsAiMarkdown(content: string) {
+function renderRhpsAiMarkdown(content: string, isDark: boolean = false) {
   const lines = content.split("\n");
   const blocks: React.ReactNode[] = [];
   let i = 0;
@@ -1345,13 +1350,13 @@ function renderRhpsAiMarkdown(content: string) {
     const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
     return parts.map((part, idx) => {
       if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
-        return <strong key={idx} style={{ fontWeight: 700, color: "#0f172a" }}>{part.slice(2, -2)}</strong>;
+        return <strong key={idx} style={{ fontWeight: 700, color: isDark ? "#ffffff" : "#0f172a" }}>{part.slice(2, -2)}</strong>;
       }
       if (part.startsWith("*") && part.endsWith("*") && part.length >= 2) {
-        return <em key={idx} style={{ fontStyle: "italic", color: "#475569" }}>{part.slice(1, -1)}</em>;
+        return <em key={idx} style={{ fontStyle: "italic", color: isDark ? "#cbd5e1" : "#475569" }}>{part.slice(1, -1)}</em>;
       }
       if (part.startsWith("`") && part.endsWith("`") && part.length >= 2) {
-        return <code key={idx} style={{ background: "#f1f5f9", color: "#0f172a", padding: "2px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>{part.slice(1, -1)}</code>;
+        return <code key={idx} style={{ background: isDark ? "rgba(255,255,255,0.12)" : "#f1f5f9", color: isDark ? "#38bdf8" : "#0f172a", padding: "2px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>{part.slice(1, -1)}</code>;
       }
       return part;
     });
@@ -1386,20 +1391,70 @@ function renderRhpsAiMarkdown(content: string) {
           );
 
         blocks.push(
-          <div key={`table-${i}`} className="ai-table-container">
-            <table className="ai-markdown-table">
+          <div key={`table-${i}`} className="ai-table-container" style={{ margin: "10px 0", overflowX: "auto" }}>
+            <table
+              className="ai-markdown-table"
+              style={
+                isDark
+                  ? {
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      fontSize: "12.5px",
+                      color: "#f8fafc",
+                      background: "#0f172a",
+                      borderRadius: "10px",
+                      overflow: "hidden",
+                      border: "1px solid rgba(56, 189, 248, 0.3)",
+                    }
+                  : undefined
+              }
+            >
               <thead>
-                <tr>
+                <tr style={isDark ? { background: "#1e293b" } : undefined}>
                   {headerCells.map((h, hIdx) => (
-                    <th key={hIdx}>{formatInline(h)}</th>
+                    <th
+                      key={hIdx}
+                      style={
+                        isDark
+                          ? {
+                              background: "#1e293b",
+                              color: "#38bdf8",
+                              fontWeight: 800,
+                              padding: "10px 14px",
+                              borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                              textAlign: "left",
+                            }
+                          : undefined
+                      }
+                    >
+                      {formatInline(h)}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {dataRows.map((row, rIdx) => (
-                  <tr key={rIdx}>
+                  <tr
+                    key={rIdx}
+                    style={
+                      isDark
+                        ? { background: rIdx % 2 === 0 ? "#0f172a" : "#182238" }
+                        : undefined
+                    }
+                  >
                     {row.map((cell, cIdx) => (
-                      <td key={cIdx}>
+                      <td
+                        key={cIdx}
+                        style={
+                          isDark
+                            ? {
+                                padding: "10px 14px",
+                                borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+                                color: "#e2e8f0",
+                              }
+                            : undefined
+                        }
+                      >
                         {formatInline(cell)}
                       </td>
                     ))}
@@ -1415,17 +1470,29 @@ function renderRhpsAiMarkdown(content: string) {
 
     // Headings
     if (trimmed.startsWith("### ")) {
-      blocks.push(<h3 key={`h3-${i}`} style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", margin: "14px 0 8px" }}>{formatInline(trimmed.replace(/^###\s+/, ""))}</h3>);
+      blocks.push(
+        <h3 key={`h3-${i}`} style={{ fontSize: 15, fontWeight: 800, color: isDark ? "#38bdf8" : "#0f172a", margin: "14px 0 8px" }}>
+          {formatInline(trimmed.replace(/^###\s+/, ""))}
+        </h3>
+      );
       i++;
       continue;
     }
     if (trimmed.startsWith("## ")) {
-      blocks.push(<h2 key={`h2-${i}`} style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", margin: "16px 0 10px", borderBottom: "2px solid #e2e8f0", paddingBottom: 6 }}>{formatInline(trimmed.replace(/^##\s+/, ""))}</h2>);
+      blocks.push(
+        <h2 key={`h2-${i}`} style={{ fontSize: 17, fontWeight: 800, color: isDark ? "#38bdf8" : "#0f172a", margin: "16px 0 10px", borderBottom: isDark ? "1px solid rgba(56, 189, 248, 0.3)" : "2px solid #e2e8f0", paddingBottom: 6 }}>
+          {formatInline(trimmed.replace(/^##\s+/, ""))}
+        </h2>
+      );
       i++;
       continue;
     }
     if (trimmed.startsWith("# ")) {
-      blocks.push(<h1 key={`h1-${i}`} style={{ fontSize: 19, fontWeight: 900, color: "#0f172a", margin: "18px 0 12px", borderBottom: "2px solid #cbd5e1", paddingBottom: 8 }}>{formatInline(trimmed.replace(/^#\s+/, ""))}</h1>);
+      blocks.push(
+        <h1 key={`h1-${i}`} style={{ fontSize: 19, fontWeight: 900, color: isDark ? "#38bdf8" : "#0f172a", margin: "18px 0 12px", borderBottom: isDark ? "1px solid rgba(56, 189, 248, 0.4)" : "2px solid #cbd5e1", paddingBottom: 8 }}>
+          {formatInline(trimmed.replace(/^#\s+/, ""))}
+        </h1>
+      );
       i++;
       continue;
     }
@@ -1433,7 +1500,7 @@ function renderRhpsAiMarkdown(content: string) {
     // Blockquote
     if (trimmed.startsWith("> ")) {
       blocks.push(
-        <blockquote key={`bq-${i}`} style={{ borderLeft: "3px solid #0f172a", paddingLeft: 14, margin: "10px 0", color: "#475569", fontStyle: "italic", background: "#ffffff", padding: "10px 14px", borderRadius: "0 8px 8px 0", border: "1px solid #e2e8f0", borderLeftWidth: 4, borderLeftColor: "#0f172a" }}>
+        <blockquote key={`bq-${i}`} style={{ borderLeft: "4px solid #38bdf8", paddingLeft: 14, margin: "10px 0", color: isDark ? "#e2e8f0" : "#475569", fontStyle: "italic", background: isDark ? "rgba(15, 23, 42, 0.6)" : "#ffffff", padding: "10px 14px", borderRadius: "0 8px 8px 0", border: isDark ? "1px solid rgba(56, 189, 248, 0.25)" : "1px solid #e2e8f0", borderLeftWidth: 4, borderLeftColor: isDark ? "#38bdf8" : "#0f172a" }}>
           {formatInline(trimmed.replace(/^>\s+/, ""))}
         </blockquote>
       );
@@ -1454,9 +1521,9 @@ function renderRhpsAiMarkdown(content: string) {
         i++;
       }
       blocks.push(
-        <ul key={`ul-${i}`} style={{ paddingLeft: 20, margin: "8px 0 12px", listStyleType: "disc" }}>
+        <ul key={`ul-${i}`} style={{ paddingLeft: 20, margin: "8px 0 12px", listStyleType: "disc", color: isDark ? "#38bdf8" : "inherit" }}>
           {listItems.map((item, itemIdx) => (
-            <li key={itemIdx} style={{ marginBottom: 4, color: "#334155", lineHeight: 1.65 }}>
+            <li key={itemIdx} style={{ marginBottom: 4, color: isDark ? "#f1f5f9" : "#334155", lineHeight: 1.65 }}>
               {formatInline(item)}
             </li>
           ))}
@@ -1473,9 +1540,9 @@ function renderRhpsAiMarkdown(content: string) {
         i++;
       }
       blocks.push(
-        <ol key={`ol-${i}`} style={{ paddingLeft: 20, margin: "8px 0 12px" }}>
+        <ol key={`ol-${i}`} style={{ paddingLeft: 20, margin: "8px 0 12px", color: isDark ? "#38bdf8" : "inherit" }}>
           {listItems.map((item, itemIdx) => (
-            <li key={itemIdx} style={{ marginBottom: 4, color: "#334155", lineHeight: 1.65 }}>
+            <li key={itemIdx} style={{ marginBottom: 4, color: isDark ? "#f1f5f9" : "#334155", lineHeight: 1.65 }}>
               {formatInline(item)}
             </li>
           ))}
@@ -1487,7 +1554,7 @@ function renderRhpsAiMarkdown(content: string) {
     // Paragraph
     if (trimmed.length > 0) {
       blocks.push(
-        <p key={`p-${i}`} style={{ margin: "0 0 8px", lineHeight: 1.75, color: "#334155" }}>
+        <p key={`p-${i}`} style={{ margin: "0 0 8px", lineHeight: 1.75, color: isDark ? "#e2e8f0" : "#334155" }}>
           {formatInline(trimmed)}
         </p>
       );
@@ -1502,11 +1569,22 @@ function renderRhpsAiMarkdown(content: string) {
 export default function RhpsWorkspace({
   activeUser = "Robert Herrero",
   onLockWorkspace,
+  openAiTrigger = 0,
 }: {
   activeUser?: string;
   onLockWorkspace?: () => void;
+  openAiTrigger?: number;
 }) {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [isAiBubbleModalOpen, setIsAiBubbleModalOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (openAiTrigger && openAiTrigger > 0) {
+      setIsAiBubbleModalOpen(true);
+      showToast("🤖 RHPS Master AI Chatbot opened!");
+    }
+  }, [openAiTrigger]);
+
   const mainContentRef = useRef<HTMLElement | null>(null);
   const [isRegistered, setIsRegistered] = useState<boolean>(true);
   const [fontSize, setFontSize] = useState<"Medium" | "Large" | "Extra Large">("Medium");
@@ -1854,11 +1932,17 @@ export default function RhpsWorkspace({
   const [newUserActions, setNewUserActions] = useState<string>("");
 
   // --- CUSTOMER DIRECTORY STATE & HANDLERS ---
-  const [customerFilter, setCustomerFilter] = useState<"All" | "New" | "Repeat">("All");
+  const [customerFilter, setCustomerFilter] = useState<"All" | "New" | "Old">("All");
   const [customerSearch, setCustomerSearch] = useState<string>("");
   const [showCustomerModal, setShowCustomerModal] = useState<boolean>(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<Customer | null>(null);
+  // --- SEARCHABLE LINKED DROPDOWNS STATE ---
+  const [qtEstimateSearch, setQtEstimateSearch] = useState<string>("");
+  const [estLeadSearch, setEstLeadSearch] = useState<string>("");
+  const [schCaseSearch, setSchCaseSearch] = useState<string>("");
+  const [estConvertTarget, setEstConvertTarget] = useState<string>("none");
+  const [qtConvertTarget, setQtConvertTarget] = useState<string>("none");
 
   // --- CRM LEADS MODULE STATE & HANDLERS ---
   const [showLeadModal, setShowLeadModal] = useState<boolean>(false);
@@ -1873,7 +1957,8 @@ export default function RhpsWorkspace({
   const [leadMainConcern, setLeadMainConcern] = useState<string>("");
   const [leadPreferredSchedule, setLeadPreferredSchedule] = useState<string>("");
   const [leadStatus, setLeadStatus] = useState<Lead["status"]>("New Lead");
-  const [leadNextAction, setLeadNextAction] = useState<string>("");
+  const [leadNextAction, setLeadNextAction] = useState<string>("Callback");
+  const [leadNextActionNote, setLeadNextActionNote] = useState<string>("");
   const [leadAssignedOwner, setLeadAssignedOwner] = useState<string>("Robert Herrero");
   const [leadFacebookName, setLeadFacebookName] = useState<string>("");
   const [leadEmail, setLeadEmail] = useState<string>("");
@@ -1883,6 +1968,7 @@ export default function RhpsWorkspace({
   const [leadAccessNotes, setLeadAccessNotes] = useState<string>("");
   const [leadNotes, setLeadNotes] = useState<string>("");
   const [leadFollowUpDate, setLeadFollowUpDate] = useState<string>("");
+  const [leadGmapsLink, setLeadGmapsLink] = useState<string>("");
   const [leadMediaInput, setLeadMediaInput] = useState<string>("");
   const [leadMediaItems, setLeadMediaItems] = useState<string[]>([]);
 
@@ -1898,7 +1984,8 @@ export default function RhpsWorkspace({
     setLeadMainConcern("");
     setLeadPreferredSchedule("");
     setLeadStatus("New Lead");
-    setLeadNextAction("");
+    setLeadNextAction("Callback");
+    setLeadNextActionNote("");
     setLeadAssignedOwner("Robert Herrero");
     setLeadFacebookName("");
     setLeadEmail("");
@@ -1908,6 +1995,7 @@ export default function RhpsWorkspace({
     setLeadAccessNotes("");
     setLeadNotes("");
     setLeadFollowUpDate("");
+    setLeadGmapsLink("");
     setLeadMediaInput("");
     setLeadMediaItems([]);
     setShowLeadModal(true);
@@ -1926,6 +2014,7 @@ export default function RhpsWorkspace({
     setLeadPreferredSchedule(lead.preferredSchedule);
     setLeadStatus(lead.status);
     setLeadNextAction(lead.nextAction);
+    setLeadNextActionNote(["Callback", "Schedule Visit", "Send Estimate"].includes(lead.nextAction) ? "" : lead.nextAction);
     setLeadAssignedOwner(lead.assignedOwner);
     setLeadFacebookName(lead.facebookName || "");
     setLeadEmail(lead.email || "");
@@ -1935,6 +2024,7 @@ export default function RhpsWorkspace({
     setLeadAccessNotes(lead.accessParkingTravelNotes || "");
     setLeadNotes(lead.notes || "");
     setLeadFollowUpDate(lead.followUpDate || "");
+    setLeadGmapsLink(lead.gmapsLink || "");
     setLeadMediaItems(lead.photosVideos || []);
     setLeadMediaInput("");
     setShowLeadModal(true);
@@ -1985,6 +2075,8 @@ export default function RhpsWorkspace({
       return;
     }
 
+    const activeLeadId = editingLead ? editingLead.id : `LEAD-${String(leads.length + 1).padStart(3, "0")}`;
+
     if (editingLead) {
       setLeads(
         leads.map((item) =>
@@ -2012,15 +2104,14 @@ export default function RhpsWorkspace({
                 accessParkingTravelNotes: leadAccessNotes.trim() || undefined,
                 notes: leadNotes.trim() || undefined,
                 followUpDate: leadFollowUpDate || undefined,
+                gmapsLink: leadGmapsLink.trim() || undefined,
               }
             : item
         )
       );
-      showToast(`💾 Lead ${editingLead.id} updated.`);
     } else {
-      const newLeadId = `LEAD-${String(leads.length + 1).padStart(3, "0")}`;
       const newLead: Lead = {
-        id: newLeadId,
+        id: activeLeadId,
         createdDate: leadCreatedDate,
         source: leadSource,
         customerName: leadCustomerName.trim(),
@@ -2043,9 +2134,31 @@ export default function RhpsWorkspace({
         accessParkingTravelNotes: leadAccessNotes.trim() || undefined,
         notes: leadNotes.trim() || undefined,
         followUpDate: leadFollowUpDate || undefined,
+        gmapsLink: leadGmapsLink.trim() || undefined,
       };
       setLeads([newLead, ...leads]);
-      showToast(`✨ Lead ${newLeadId} created.`);
+    }
+
+    // Auto-create reminder in Follow-Ups if "Schedule Visit" or Follow-Up Date is set
+    if (leadNextAction.toLowerCase().includes("schedule visit") || leadNextAction === "Schedule Visit" || leadFollowUpDate) {
+      const newFuId = `FU-2026-${String(followUps.length + 1).padStart(3, "0")}`;
+      const autoFollowUp: FollowUp = {
+        id: newFuId,
+        caseId: `CASE-${activeLeadId}`,
+        customerName: leadCustomerName.trim(),
+        pianoDetails: `${leadPianoBrand || ""} ${leadPianoType}`.trim() || "Piano",
+        followUpType: "Next Service Reminder",
+        targetDate: leadFollowUpDate || leadCreatedDate || new Date().toISOString().split("T")[0],
+        assignedTo: leadAssignedOwner.trim() || "Robert Herrero",
+        status: "Pending",
+        recordMode: "ACTUAL",
+        createdDate: new Date().toISOString().split("T")[0],
+        notes: `[Auto-Reminder from Lead ${activeLeadId}] Action: ${leadNextAction.trim()}. Schedule pref: ${leadPreferredSchedule.trim()}`,
+      };
+      setFollowUps((prev) => [autoFollowUp, ...prev]);
+      showToast(`✨ Lead ${activeLeadId} saved & Auto-Reminder ${newFuId} added to Follow-Ups!`);
+    } else {
+      showToast(editingLead ? `💾 Lead ${editingLead.id} updated.` : `✨ Lead ${activeLeadId} created.`);
     }
 
     setShowLeadModal(false);
@@ -2187,6 +2300,8 @@ export default function RhpsWorkspace({
       };
       setEstimates([newEstObj, ...estimates]);
       showToast(`✨ New Estimate ${newEstId} created successfully!`);
+      if (estConvertTarget === "QUOTATION") handleConvertToQuotation(newEstObj);
+      if (estConvertTarget === "JOB ORDER") handleConvertEstimateDirectToJobOrder(newEstObj);
     }
     setShowEstimateModal(false);
   };
@@ -2214,6 +2329,98 @@ export default function RhpsWorkspace({
     setQuotations([newQuotationObj, ...quotations]);
     setEstimates(estimates.map((e) => e.id === est.id ? { ...e, status: "Converted to Quotation" } : e));
     showToast(`🎉 Approved Estimate ${est.id} converted to formal Quotation ${newQtNo}!`);
+  };
+
+  const handleConvertEstimateDirectToJobOrder = (est: Estimate) => {
+    const newJoNo = `JO-2026-${String(jobOrders.length + 1).padStart(3, "0")}`;
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    const newJoObj: JobOrder = {
+      id: newJoNo,
+      date: todayStr,
+      linkedQuotationNo: `QT-${est.id}`,
+      appointmentNo: `SCH-${est.id}`,
+      linkedCaseId: `CASE-${est.leadId || est.id}`,
+      customerName: `${est.customerName} (${est.contactNumber})`,
+      location: est.serviceLocation,
+      pianoDetails: est.pianoBrandTypeModelSerial,
+      approvedScope: est.recommendedScope,
+      serviceDate: todayStr,
+      arrivalWindow: "09:00 AM - 11:00 AM",
+      leadTechnician: est.preparedBy || "Robert Herrero",
+      associates: "Jun (Tech Asst)",
+      preServiceChecklist: {
+        pinsCheck: true,
+        soundboardIntegrity: true,
+        keybedLevel: true,
+        pedalMovement: true,
+        benchStability: true,
+      },
+      finalTestingChecklist: {
+        pitchA440Check: true,
+        keyRepetitionTest: true,
+        voicingUniformity: true,
+        pedalTrapworkTest: true,
+        cabinetCleanUp: true,
+      },
+      status: "In Progress",
+      recordMode: "ACTUAL",
+      createdDate: todayStr,
+    };
+
+    setJobOrders([newJoObj, ...jobOrders]);
+    setEstimates(estimates.map((e) => (e.id === est.id ? { ...e, status: "Approved" } : e)));
+    showToast(`⚡ Late-Encoding Shortcut: Estimate ${est.id} converted DIRECTLY to Job Order ${newJoNo}!`);
+  };
+
+  const handleConvertEstimateDirectToSchedule = (est: Estimate) => {
+    openCreateScheduleModal();
+    setSchCustomerName(est.customerName);
+    setSchServiceLocation(est.serviceLocation);
+    setSchPianoDetails(est.pianoBrandTypeModelSerial);
+    showToast(`⚡ Late-Encoding Shortcut: Populated Schedule form for ${est.customerName}!`);
+  };
+
+  const handleConvertQuotationDirectToJobOrder = (qt: Quotation) => {
+    const newJoNo = `JO-2026-${String(jobOrders.length + 1).padStart(3, "0")}`;
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    const newJoObj: JobOrder = {
+      id: newJoNo,
+      date: todayStr,
+      linkedQuotationNo: qt.id,
+      appointmentNo: `SCH-${qt.id}`,
+      linkedCaseId: `CASE-${qt.estimateId || qt.id}`,
+      customerName: `${qt.customerName} (${qt.contactNumber})`,
+      location: qt.serviceLocation,
+      pianoDetails: qt.pianoBrandTypeModelSerial,
+      approvedScope: qt.proposedScope,
+      serviceDate: todayStr,
+      arrivalWindow: "09:00 AM - 11:00 AM",
+      leadTechnician: qt.preparedBy || "Robert Herrero",
+      associates: "Jun (Tech Asst)",
+      preServiceChecklist: {
+        pinsCheck: true,
+        soundboardIntegrity: true,
+        keybedLevel: true,
+        pedalMovement: true,
+        benchStability: true,
+      },
+      finalTestingChecklist: {
+        pitchA440Check: true,
+        keyRepetitionTest: true,
+        voicingUniformity: true,
+        pedalTrapworkTest: true,
+        cabinetCleanUp: true,
+      },
+      status: "In Progress",
+      recordMode: "ACTUAL",
+      createdDate: todayStr,
+    };
+
+    setJobOrders([newJoObj, ...jobOrders]);
+    setQuotations(quotations.map((q) => (q.id === qt.id ? { ...q, status: "Approved" } : q)));
+    showToast(`⚡ Late-Encoding Shortcut: Quotation ${qt.id} converted DIRECTLY to Job Order ${newJoNo}!`);
   };
 
   // --- QUOTATIONS MODULE STATE & HANDLERS ---
@@ -4337,9 +4544,13 @@ export default function RhpsWorkspace({
   const [custContact, setCustContact] = useState<string>("");
   const [custAltContact, setCustAltContact] = useState<string>("");
   const [custAddress, setCustAddress] = useState<string>("");
-  const [custType, setCustType] = useState<"New" | "Repeat">("New");
+  const [custType, setCustType] = useState<"New" | "Old" | "Repeat">("New");
   const [custEmail, setCustEmail] = useState<string>("");
   const [custFbName, setCustFbName] = useState<string>("");
+  const [custFbLink, setCustFbLink] = useState<string>("");
+  const [custGmapsLink, setCustGmapsLink] = useState<string>("");
+  const [custReminderDate, setCustReminderDate] = useState<string>("");
+  const [custReminderNotes, setCustReminderNotes] = useState<string>("");
   const [custCityArea, setCustCityArea] = useState<string>("");
   const [custLandmark, setCustLandmark] = useState<string>("");
   const [custNotes, setCustNotes] = useState<string>("");
@@ -4357,6 +4568,7 @@ export default function RhpsWorkspace({
 
   const AI_STORAGE_KEY = "rhps_ai_chat_history";
   const chatBoxRef = useRef<HTMLDivElement | null>(null);
+  const modalChatBoxRef = useRef<HTMLDivElement | null>(null);
   const [isListening, setIsListening] = useState<boolean>(false);
   const [aiInput, setAiInput] = useState<string>("");
   const [aiLoading, setAiLoading] = useState<boolean>(false);
@@ -4415,6 +4627,10 @@ I am your dedicated AI assistant for **R. Herrero Pianos & Services** — privat
     setCustType("New");
     setCustEmail("");
     setCustFbName("");
+    setCustFbLink("");
+    setCustGmapsLink("");
+    setCustReminderDate("");
+    setCustReminderNotes("");
     setCustCityArea("Davao City");
     setCustLandmark("");
     setCustNotes("");
@@ -4430,6 +4646,10 @@ I am your dedicated AI assistant for **R. Herrero Pianos & Services** — privat
     setCustType(c.customerType);
     setCustEmail(c.email || "");
     setCustFbName(c.facebookName || "");
+    setCustFbLink(c.facebookLink || "");
+    setCustGmapsLink(c.gmapsLink || "");
+    setCustReminderDate(c.reminderDate || "");
+    setCustReminderNotes(c.reminderNotes || "");
     setCustCityArea(c.cityArea || "Davao City");
     setCustLandmark(c.landmark || "");
     setCustNotes(c.notes || "");
@@ -4445,52 +4665,80 @@ I am your dedicated AI assistant for **R. Herrero Pianos & Services** — privat
 
     const now = new Date();
     const formattedDate = now.toISOString().slice(0, 10);
+    const targetId = editingCustomer ? editingCustomer.id : `CUST-${String(customers.length + 1).padStart(3, "0")}`;
 
     if (editingCustomer) {
       const updated = customers.map((c) => {
         if (c.id === editingCustomer.id) {
           return {
             ...c,
-            name: custName,
-            contactNumber: custContact,
-            alternateContactNumber: custAltContact,
-            completeAddress: custAddress,
+            name: custName.trim(),
+            contactNumber: custContact.trim(),
+            alternateContactNumber: custAltContact.trim() || undefined,
+            completeAddress: custAddress.trim(),
             customerType: custType,
-            email: custEmail,
-            facebookName: custFbName,
-            cityArea: custCityArea,
-            landmark: custLandmark,
-            notes: custNotes,
+            email: custEmail.trim() || undefined,
+            facebookName: custFbName.trim() || undefined,
+            facebookLink: custFbLink.trim() || undefined,
+            gmapsLink: custGmapsLink.trim() || undefined,
+            reminderDate: custReminderDate || undefined,
+            reminderNotes: custReminderNotes.trim() || undefined,
+            cityArea: custCityArea.trim() || undefined,
+            landmark: custLandmark.trim() || undefined,
+            notes: custNotes.trim() || undefined,
             lastUpdatedDate: formattedDate,
           };
         }
         return c;
       });
       setCustomers(updated);
-      showToast(`👤 Customer ${editingCustomer.id} (${custName}) updated successfully!`);
     } else {
-      const nextNum = customers.length + 1;
-      const newId = `CUST-${String(nextNum).padStart(3, "0")}`;
       const newRecord: Customer = {
-        id: newId,
-        name: custName,
-        contactNumber: custContact,
-        alternateContactNumber: custAltContact,
-        completeAddress: custAddress,
+        id: targetId,
+        name: custName.trim(),
+        contactNumber: custContact.trim(),
+        alternateContactNumber: custAltContact.trim() || undefined,
+        completeAddress: custAddress.trim(),
         customerType: custType,
         linkedPianoIds: [],
         createdDate: formattedDate,
         lastUpdatedDate: formattedDate,
-        email: custEmail,
-        facebookName: custFbName,
-        cityArea: custCityArea,
-        landmark: custLandmark,
-        notes: custNotes,
+        email: custEmail.trim() || undefined,
+        facebookName: custFbName.trim() || undefined,
+        facebookLink: custFbLink.trim() || undefined,
+        gmapsLink: custGmapsLink.trim() || undefined,
+        reminderDate: custReminderDate || undefined,
+        reminderNotes: custReminderNotes.trim() || undefined,
+        cityArea: custCityArea.trim() || undefined,
+        landmark: custLandmark.trim() || undefined,
+        notes: custNotes.trim() || undefined,
         pianos: [],
       };
       setCustomers([newRecord, ...customers]);
-      showToast(`🎉 New Customer ${newId} (${custName}) registered successfully!`);
     }
+
+    // Auto-create Follow-Up reminder if set
+    if (custReminderDate) {
+      const newFuId = `FU-2026-${String(followUps.length + 1).padStart(3, "0")}`;
+      const autoFollowUp: FollowUp = {
+        id: newFuId,
+        caseId: `CASE-${targetId}`,
+        customerName: custName.trim(),
+        pianoDetails: "Customer Piano",
+        followUpType: "Routine Check-In",
+        targetDate: custReminderDate,
+        assignedTo: activeUser || "Robert Herrero",
+        status: "Pending",
+        recordMode: "ACTUAL",
+        createdDate: formattedDate,
+        notes: custReminderNotes.trim() ? `[Customer Reminder] ${custReminderNotes.trim()}` : `Follow-up reminder for ${custName.trim()}`,
+      };
+      setFollowUps((prev) => [autoFollowUp, ...prev]);
+      showToast(`✨ Customer ${targetId} saved & Follow-Up Reminder ${newFuId} added!`);
+    } else {
+      showToast(editingCustomer ? `👤 Customer ${editingCustomer.id} updated successfully!` : `🎉 New Customer ${targetId} registered successfully!`);
+    }
+
     setShowCustomerModal(false);
   };
 
@@ -4868,26 +5116,45 @@ Total Invoices: ${invoices.length}
           {activeTab === "dashboard" && (
             <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {/* TOP HEADER */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
                 <div>
                   <h1 style={{ fontSize: "1.8rem", fontWeight: 900, color: "#0f172a", margin: 0 }}>RHPS Owner Dashboard</h1>
                   <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "4px 0 0 0" }}>
                     2026-08-02 · Pag-open nimo, kabalo dayon ka asa ka padulong.
                   </p>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => setActiveTab("crm_leads")}
-                    style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: "18px", padding: "0.45rem 1.1rem", fontSize: "0.82rem", fontWeight: 700, cursor: "pointer" }}
-                  >
-                    CRM Leads
-                  </button>
-                  <button
-                    onClick={() => onLockWorkspace && onLockWorkspace()}
-                    style={{ background: "#f59e0b", color: "#ffffff", border: "none", borderRadius: "18px", padding: "0.45rem 1.1rem", fontSize: "0.82rem", fontWeight: 700, cursor: "pointer" }}
-                  >
-                    Public Website
-                  </button>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  {/* ⚡ QUICK ACTIONS BOX WITH BLACK BORDER LINES */}
+                  <div style={{ backgroundColor: "#ffffff", border: "2px solid #000000", borderRadius: "10px", padding: "0.6rem 0.9rem", boxShadow: "0 2px 4px rgba(0,0,0,0.04)" }}>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 900, color: "#0f172a", marginBottom: 6, display: "flex", alignItems: "center", gap: 4, letterSpacing: "0.5px" }}>
+                      <span>⚡</span> QUICK ACTIONS
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      <button onClick={openCreateLeadModal} style={{ background: "#0f172a", color: "#ffffff", border: "1px solid #000000", borderRadius: 6, padding: "0.45rem 0.85rem", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>+ New Customer</button>
+                      <button onClick={() => setActiveTab("schedule")} style={{ background: "#0f172a", color: "#ffffff", border: "1px solid #000000", borderRadius: 6, padding: "0.45rem 0.85rem", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>+ New Schedule</button>
+                      <button onClick={openCreateRepairModal} style={{ background: "#0f172a", color: "#ffffff", border: "1px solid #000000", borderRadius: 6, padding: "0.45rem 0.85rem", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>+ General Repair</button>
+                      <button onClick={() => setActiveTab("trade_in")} style={{ background: "#0f172a", color: "#ffffff", border: "1px solid #000000", borderRadius: 6, padding: "0.45rem 0.85rem", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>+ Trade-In / Sale</button>
+                      <button onClick={() => setActiveTab("quotations")} style={{ background: "#0f172a", color: "#ffffff", border: "1px solid #000000", borderRadius: 6, padding: "0.45rem 0.85rem", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>+ Quotation</button>
+                      <button onClick={() => setActiveTab("payments")} style={{ background: "#0f172a", color: "#ffffff", border: "1px solid #000000", borderRadius: 6, padding: "0.45rem 0.85rem", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>+ Payment</button>
+                      <button onClick={() => setActiveTab("inventory")} style={{ background: "#0f172a", color: "#ffffff", border: "1px solid #000000", borderRadius: 6, padding: "0.45rem 0.85rem", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>+ Inventory</button>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <button
+                      onClick={() => setActiveTab("crm_leads")}
+                      style={{ background: "#0f172a", color: "#ffffff", border: "2px solid #000000", borderRadius: "18px", padding: "0.45rem 1.1rem", fontSize: "0.82rem", fontWeight: 700, cursor: "pointer" }}
+                    >
+                      CRM Leads
+                    </button>
+                    <button
+                      onClick={() => onLockWorkspace && onLockWorkspace()}
+                      style={{ background: "#f59e0b", color: "#ffffff", border: "2px solid #000000", borderRadius: "18px", padding: "0.45rem 1.1rem", fontSize: "0.82rem", fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Public Website
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -4897,11 +5164,19 @@ Total Invoices: ${invoices.length}
                   <strong style={{ color: "#dc2626", fontSize: "0.95rem", fontWeight: 900, display: "flex", alignItems: "center", gap: "0.4rem" }}>
                     <span>⚠️</span> ALERTS (Action Required)
                   </strong>
-                  <span style={{ fontSize: "0.8rem", color: "#dc2626", fontWeight: 800, cursor: "pointer" }}>View All Alerts &gt;</span>
+                  <span
+                    onClick={() => { setActiveTab("follow_ups"); showToast("🔔 Navigating to Follow-Ups & Alerts"); }}
+                    style={{ fontSize: "0.8rem", color: "#dc2626", fontWeight: 800, cursor: "pointer", textDecoration: "underline" }}
+                  >
+                    View All Alerts &gt;
+                  </span>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
-                  <div style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    onClick={() => { setActiveTab("schedule"); showToast("📅 Navigating to Schedule for Juan Dela Cruz"); }}
+                    style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+                  >
                     <span style={{ fontSize: "1.4rem" }}>📅</span>
                     <div>
                       <strong style={{ fontSize: "0.82rem", display: "block", color: "#0f172a" }}>Juan rescheduled to Aug 12</strong>
@@ -4910,7 +5185,10 @@ Total Invoices: ${invoices.length}
                     </div>
                   </div>
 
-                  <div style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    onClick={() => { setActiveTab("schedule"); showToast("📅 Navigating to Schedule for Maria Santos"); }}
+                    style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+                  >
                     <span style={{ fontSize: "1.4rem" }}>❌</span>
                     <div>
                       <strong style={{ fontSize: "0.82rem", display: "block", color: "#0f172a" }}>Maria cancelled today's booking</strong>
@@ -4919,7 +5197,10 @@ Total Invoices: ${invoices.length}
                     </div>
                   </div>
 
-                  <div style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    onClick={() => { setActiveTab("repairs"); showToast("🔧 Navigating to Repairs for Pedro Reyes"); }}
+                    style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+                  >
                     <span style={{ fontSize: "1.4rem" }}>❓</span>
                     <div>
                       <strong style={{ fontSize: "0.82rem", display: "block", color: "#0f172a" }}>Pedro waiting for approval</strong>
@@ -4928,7 +5209,10 @@ Total Invoices: ${invoices.length}
                     </div>
                   </div>
 
-                  <div style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    onClick={() => { setActiveTab("trips"); showToast("🚐 Navigating to Upcoming Trips"); }}
+                    style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+                  >
                     <span style={{ fontSize: "1.4rem" }}>🚐</span>
                     <div>
                       <strong style={{ fontSize: "0.82rem", display: "block", color: "#0f172a" }}>Butuan trip incomplete</strong>
@@ -4937,7 +5221,10 @@ Total Invoices: ${invoices.length}
                     </div>
                   </div>
 
-                  <div style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    onClick={() => { setActiveTab("inventory"); showToast("🎹 Navigating to Inventory for Yamaha U3"); }}
+                    style={{ backgroundColor: "#ffffff", border: "1px solid #ffe4e6", borderRadius: "10px", padding: "0.75rem", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+                  >
                     <span style={{ fontSize: "1.4rem" }}>🎹</span>
                     <div>
                       <strong style={{ fontSize: "0.82rem", display: "block", color: "#0f172a" }}>Yamaha U3 reserved</strong>
@@ -4950,7 +5237,7 @@ Total Invoices: ${invoices.length}
 
               {/* TOP 4 KPI METRICS GRID */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
-                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div onClick={() => { setActiveTab("crm_leads"); showToast("👥 Navigating to CRM Leads"); }} style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                   <div>
                     <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>New Website Leads</span>
                     <div style={{ fontSize: "2rem", fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>3</div>
@@ -4959,7 +5246,7 @@ Total Invoices: ${invoices.length}
                   <div style={{ width: "42px", height: "42px", borderRadius: "12px", backgroundColor: "#eff6ff", color: "#2563eb", fontSize: "1.3rem", display: "flex", alignItems: "center", justifyContent: "center" }}>👥</div>
                 </div>
 
-                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div onClick={() => { setActiveTab("schedule"); showToast("📅 Navigating to Schedule"); }} style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                   <div>
                     <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Today's Appointments</span>
                     <div style={{ fontSize: "2rem", fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>3</div>
@@ -4968,7 +5255,7 @@ Total Invoices: ${invoices.length}
                   <div style={{ width: "42px", height: "42px", borderRadius: "12px", backgroundColor: "#f0fdf4", color: "#16a34a", fontSize: "1.3rem", display: "flex", alignItems: "center", justifyContent: "center" }}>📅</div>
                 </div>
 
-                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div onClick={() => { setActiveTab("schedule"); showToast("🕒 Navigating to Pending Schedules"); }} style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                   <div>
                     <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Pending Confirmation</span>
                     <div style={{ fontSize: "2rem", fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>1</div>
@@ -4977,7 +5264,7 @@ Total Invoices: ${invoices.length}
                   <div style={{ width: "42px", height: "42px", borderRadius: "12px", backgroundColor: "#fffbeb", color: "#d97706", fontSize: "1.3rem", display: "flex", alignItems: "center", justifyContent: "center" }}>🕒</div>
                 </div>
 
-                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div onClick={() => { setActiveTab("inventory"); showToast("🎹 Navigating to Piano Inventory"); }} style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                   <div>
                     <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Available Pianos</span>
                     <div style={{ fontSize: "2rem", fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>7</div>
@@ -5232,39 +5519,26 @@ Total Invoices: ${invoices.length}
                 </div>
               </div>
 
-              {/* BOTTOM ACTIONS ROW (FOLLOW UPS & QUICK ACTIONS) */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 16 }}>
-                {/* FOLLOW UPS */}
-                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.8rem" }}>
-                    <strong style={{ fontSize: "0.92rem", color: "#0f172a" }}>🔔 FOLLOW UPS</strong>
-                    <span onClick={() => setActiveTab("follow_ups")} style={{ fontSize: "0.78rem", color: "#2563eb", fontWeight: 700, cursor: "pointer" }}>View All</span>
-                  </div>
-                  <div style={{ fontSize: "0.78rem", display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ padding: "0.5rem", background: "#fff1f2", borderRadius: 8, border: "1px solid #fecdd3" }}>
+              {/* BOTTOM ACTIONS ROW (FOLLOW UPS) */}
+              <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.8rem" }}>
+                  <strong style={{ fontSize: "0.92rem", color: "#0f172a" }}>🔔 FOLLOW UPS</strong>
+                  <span onClick={() => setActiveTab("follow_ups")} style={{ fontSize: "0.78rem", color: "#2563eb", fontWeight: 700, cursor: "pointer" }}>View All</span>
+                </div>
+                <div style={{ fontSize: "0.78rem", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 10 }}>
+                  <div style={{ padding: "0.6rem 0.8rem", background: "#fff1f2", borderRadius: 8, border: "1px solid #fecdd3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
                       <strong style={{ color: "#991b1b", display: "block" }}>Due Today</strong>
                       <span style={{ color: "#334155" }}>● Follow up: Juan Dela Cruz (Reschedule confirmation)</span>
-                      <span style={{ background: "#fee2e2", color: "#991b1b", fontSize: "0.62rem", padding: "1px 6px", borderRadius: 4, fontWeight: 800, marginLeft: 6 }}>High</span>
                     </div>
-                    <div style={{ padding: "0.5rem", background: "#fffbeb", borderRadius: 8, border: "1px solid #fef3c7" }}>
+                    <span style={{ background: "#fee2e2", color: "#991b1b", fontSize: "0.62rem", padding: "2px 8px", borderRadius: 4, fontWeight: 800 }}>High</span>
+                  </div>
+                  <div style={{ padding: "0.6rem 0.8rem", background: "#fffbeb", borderRadius: 8, border: "1px solid #fef3c7", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
                       <strong style={{ color: "#92400e", display: "block" }}>Due This Week</strong>
                       <span style={{ color: "#334155" }}>● Follow up: Pedro Reyes (Quotation approval)</span>
-                      <span style={{ background: "#fef3c7", color: "#92400e", fontSize: "0.62rem", padding: "1px 6px", borderRadius: 4, fontWeight: 800, marginLeft: 6 }}>Medium</span>
                     </div>
-                  </div>
-                </div>
-
-                {/* QUICK ACTIONS */}
-                <div style={{ backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "1.2rem" }}>
-                  <strong style={{ fontSize: "0.92rem", color: "#0f172a", display: "block", marginBottom: "0.8rem" }}>⚡ QUICK ACTIONS</strong>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button onClick={openCreateLeadModal} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ New Customer</button>
-                    <button onClick={() => setActiveTab("schedule")} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ New Schedule</button>
-                    <button onClick={openCreateRepairModal} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ General Repair</button>
-                    <button onClick={() => setActiveTab("trade_in")} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ Trade-In / Sale</button>
-                    <button onClick={() => setActiveTab("quotations")} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ Quotation</button>
-                    <button onClick={() => setActiveTab("payments")} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ Payment</button>
-                    <button onClick={() => setActiveTab("inventory")} style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 6, padding: "0.55rem 1rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>+ Inventory</button>
+                    <span style={{ background: "#fef3c7", color: "#92400e", fontSize: "0.62rem", padding: "2px 8px", borderRadius: 4, fontWeight: 800 }}>Medium</span>
                   </div>
                 </div>
               </div>
@@ -5317,7 +5591,19 @@ Total Invoices: ${invoices.length}
                       <td>{lead.source}</td>
                       <td>{lead.customerName}</td>
                       <td>{lead.contactNumber}</td>
-                      <td>{lead.locationCity}</td>
+                      <td>
+                        <div>{lead.locationCity}</div>
+                        {lead.gmapsLink && (
+                          <a
+                            href={lead.gmapsLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 2, color: "#2563eb", fontWeight: 700, fontSize: "0.72rem", textDecoration: "underline" }}
+                          >
+                            <span>📍</span> GMaps Pin
+                          </a>
+                        )}
+                      </td>
                       <td>{lead.inquiryType}</td>
                       <td>{lead.pianoType}</td>
                       <td>{lead.mainConcern}</td>
@@ -5402,7 +5688,7 @@ Total Invoices: ${invoices.length}
               {/* SEARCH & FILTERS */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
                 <div style={{ display: "flex", gap: 6, background: "#e1e2e4", padding: 4, borderRadius: 10 }}>
-                  {(["All", "New", "Repeat"] as const).map((tab) => (
+                  {(["All", "New", "Old"] as const).map((tab) => (
                     <button
                       key={tab}
                       style={{
@@ -5451,7 +5737,7 @@ Total Invoices: ${invoices.length}
                     {customers
                       .filter((c) => {
                         if (customerFilter === "New" && c.customerType !== "New") return false;
-                        if (customerFilter === "Repeat" && c.customerType !== "Repeat") return false;
+                        if (customerFilter === "Old" && (c.customerType !== "Old" && c.customerType !== "Repeat")) return false;
                         if (customerSearch) {
                           const q = customerSearch.toLowerCase();
                           return (
@@ -5476,9 +5762,15 @@ Total Invoices: ${invoices.length}
                           <td>
                             <strong style={{ fontSize: 13.5, color: "#0f172a", display: "block" }}>{c.name}</strong>
                             {c.facebookName && (
-                              <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 600 }}>
-                                👤 FB: {c.facebookName}
-                              </span>
+                              <div style={{ fontSize: 11, color: "#2563eb", fontWeight: 600 }}>
+                                {c.facebookLink ? (
+                                  <a href={c.facebookLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", textDecoration: "underline" }}>
+                                    🌐 FB: {c.facebookName}
+                                  </a>
+                                ) : (
+                                  <span>👤 FB: {c.facebookName}</span>
+                                )}
+                              </div>
                             )}
                           </td>
                           <td>
@@ -5493,22 +5785,28 @@ Total Invoices: ${invoices.length}
                           <td>
                             <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0f172a" }}>{c.cityArea || "Davao City"}</div>
                             <div style={{ fontSize: 11.5, color: "#64748b" }}>{c.completeAddress}</div>
-                            {c.landmark && (
+                            {c.gmapsLink ? (
+                              <div style={{ marginTop: 2 }}>
+                                <a href={c.gmapsLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontSize: "0.72rem", fontWeight: 700, textDecoration: "underline" }}>
+                                  📍 GMaps Pin
+                                </a>
+                              </div>
+                            ) : c.landmark ? (
                               <div style={{ fontSize: 10.5, color: "#d97706", fontStyle: "italic" }}>📍 {c.landmark}</div>
-                            )}
+                            ) : null}
                           </td>
                           <td>
                             <span
                               style={{
-                                background: c.customerType === "Repeat" ? "#dbeafe" : "#dcfce7",
-                                color: c.customerType === "Repeat" ? "#1e40af" : "#15803d",
+                                background: c.customerType === "Old" || c.customerType === "Repeat" ? "#dbeafe" : "#dcfce7",
+                                color: c.customerType === "Old" || c.customerType === "Repeat" ? "#1e40af" : "#15803d",
                                 padding: "3px 10px",
                                 borderRadius: 99,
                                 fontSize: 11,
                                 fontWeight: 800,
                               }}
                             >
-                              {c.customerType}
+                              {c.customerType === "Old" || c.customerType === "Repeat" ? "Old Customer" : "New Customer"}
                             </span>
                           </td>
                           <td>
@@ -5823,17 +6121,29 @@ Total Invoices: ${invoices.length}
                                   🔄 Revision
                                 </button>
                               )}
-
-                              {/* ACTION 5: CONVERT TO QUOTATION */}
-                              {est.status === "Approved" && (
-                                <button
-                                  className="secondary-sm"
-                                  style={{ fontSize: 10.5, padding: "4px 10px", background: "#0f172a", color: "#ffffff", border: "none", fontWeight: 800 }}
-                                  onClick={() => handleConvertToQuotation(est)}
-                                >
-                                  ⚡ Convert to Quotation
-                                </button>
-                              )}
+                               {est.status !== "Converted to Quotation" && (
+                                  <select
+                                    className="secondary-sm"
+                                    style={{ fontSize: 10.5, padding: "3px 8px", background: "#0f172a", color: "#ffffff", border: "none", fontWeight: 800, borderRadius: 6, cursor: "pointer" }}
+                                    value=""
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      if (val === "ESTIMATES") {
+                                        setEstimates(estimates.map((eItem) => (eItem.id === est.id ? { ...eItem, status: "Draft" } : eItem)));
+                                        showToast(`📐 ${est.id} kept in ESTIMATES status.`);
+                                      } else if (val === "QUOTATION") {
+                                        handleConvertToQuotation(est);
+                                      } else if (val === "JOB ORDER") {
+                                        handleConvertEstimateDirectToJobOrder(est);
+                                      }
+                                    }}
+                                  >
+                                    <option value="" disabled>⚡ CATEGORY...</option>
+                                    <option value="ESTIMATES" style={{ background: "#ffffff", color: "#0f172a" }}>📐 ESTIMATES</option>
+                                    <option value="QUOTATION" style={{ background: "#ffffff", color: "#0f172a" }}>📄 QUOTATION</option>
+                                    <option value="JOB ORDER" style={{ background: "#ffffff", color: "#0f172a" }}>🛠️ JOB ORDER</option>
+                                  </select>
+                                )}
 
                               {/* INSPECT & EDIT */}
                               <button
@@ -6118,18 +6428,36 @@ Total Invoices: ${invoices.length}
                                 </button>
                               )}
 
-                              {/* ACTION 5: CONVERT TO CUSTOMER CASE (SAFEGUARD RULE) */}
-                              {qt.status === "Approved" && (
-                                <button
-                                  className="secondary-sm"
-                                  style={{ fontSize: 10.5, padding: "4px 10px", background: "#0f172a", color: "#ffffff", border: "none", fontWeight: 800 }}
-                                  onClick={() => handleConvertToCustomerCase(qt)}
-                                >
-                                  ⚡ Convert to Customer Case
-                                </button>
-                              )}
+{/* ACTION 5: CONVERT DROPDOWN SELECTION */}
+                               {qt.status !== "Converted to Customer Case" && (
+                                  <select
+                                    className="secondary-sm"
+                                    style={{ fontSize: 10.5, padding: "3px 8px", background: "#0f172a", color: "#ffffff", border: "none", fontWeight: 800, borderRadius: 6, cursor: "pointer" }}
+                                    value=""
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      if (val === "ESTIMATES") {
+                                        setQuotations(quotations.map((qItem) => (qItem.id === qt.id ? { ...qItem, status: "Draft" } : qItem)));
+                                        showToast(`📐 ${qt.id} moved to ESTIMATES category.`);
+                                      } else if (val === "QUOTATION") {
+                                        setQuotations(quotations.map((qItem) => (qItem.id === qt.id ? { ...qItem, status: "Sent for Approval" } : qItem)));
+                                        showToast(`📄 ${qt.id} kept in QUOTATION category.`);
+                                      } else if (val === "JOB ORDER") {
+                                        handleConvertQuotationDirectToJobOrder(qt);
+                                      } else if (val === "CASE") {
+                                        handleConvertToCustomerCase(qt);
+                                      }
+                                    }}
+                                  >
+                                    <option value="" disabled>⚡ CATEGORY...</option>
+                                    <option value="ESTIMATES" style={{ background: "#ffffff", color: "#0f172a" }}>📐 ESTIMATES</option>
+                                    <option value="QUOTATION" style={{ background: "#ffffff", color: "#0f172a" }}>📄 QUOTATION</option>
+                                    <option value="JOB ORDER" style={{ background: "#ffffff", color: "#0f172a" }}>🛠️ JOB ORDER</option>
+                                    <option value="CASE" style={{ background: "#ffffff", color: "#0f172a" }}>📂 CUSTOMER CASE</option>
+                                  </select>
+                               )}
 
-                              {/* INSPECT & EDIT */}
+                                                             {/* INSPECT & EDIT */}
                               <button
                                 className="secondary-sm"
                                 style={{ fontSize: 10.5, padding: "3px 8px" }}
@@ -6387,15 +6715,45 @@ Total Invoices: ${invoices.length}
                               )}
 
                               {/* ACTION 4: CONVERT TO JOB ORDER */}
-                              {sch.status === "Confirmed" && (
-                                <button
-                                  className="secondary-sm"
-                                  style={{ fontSize: 10.5, padding: "4px 10px", background: "#0f172a", color: "#ffffff", border: "none", fontWeight: 800 }}
-                                  onClick={() => handleConvertToJobOrder(sch)}
-                                >
-                                  ⚡ Convert to Job Order
-                                </button>
-                              )}
+                              {sch.status !== "Cancelled" && (
+                                 <select
+                                   className="secondary-sm"
+                                   style={{
+                                     fontSize: 10.5,
+                                     padding: "3px 8px",
+                                     background: "#0f172a",
+                                     color: "#ffffff",
+                                     border: "none",
+                                     fontWeight: 800,
+                                     borderRadius: 6,
+                                     cursor: "pointer",
+                                   }}
+                                   value=""
+                                   onChange={(e) => {
+                                     const val = e.target.value;
+                                     if (val === "ESTIMATES") {
+                                       openCreateEstimateModal();
+                                       setEstCustomerName(sch.customerName);
+                                       setEstServiceLocation(sch.serviceLocation);
+                                       setEstPianoDetails(sch.pianoDetails);
+                                       showToast(`📐 Populated Estimate form for ${sch.customerName}`);
+                                     } else if (val === "QUOTATION") {
+                                       openCreateQuotationModal();
+                                       setQtCustomerName(sch.customerName);
+                                       setQtServiceLocation(sch.serviceLocation);
+                                       setQtPianoDetails(sch.pianoDetails);
+                                       showToast(`📄 Populated Quotation form for ${sch.customerName}`);
+                                     } else if (val === "JOB ORDER") {
+                                       handleConvertToJobOrder(sch);
+                                     }
+                                   }}
+                                 >
+                                   <option value="" disabled>⚡ CATEGORY...</option>
+                                   <option value="ESTIMATES" style={{ background: "#ffffff", color: "#0f172a" }}>📐 ESTIMATES</option>
+                                   <option value="QUOTATION" style={{ background: "#ffffff", color: "#0f172a" }}>📄 QUOTATION</option>
+                                   <option value="JOB ORDER" style={{ background: "#ffffff", color: "#0f172a" }}>🛠️ JOB ORDER</option>
+                                 </select>
+                               )}
 
                               {/* INSPECT & EDIT */}
                               <button
@@ -9377,7 +9735,24 @@ Total Invoices: ${invoices.length}
                     />
                   </div>
 
-                  <div className="form-group" style={{ gridColumn: "span 2" }}>
+                  <div style={{ gridColumn: "span 2", background: "#0f172a", color: "#ffffff", padding: 12, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                        <div>
+                          <strong style={{ fontSize: 13, display: "block" }}>⚡ Convert Target (Late-Encoding Shortcut)</strong>
+                          <span style={{ fontSize: 11, color: "#94a3b8" }}>Already approved or in-progress? Convert immediately upon saving!</span>
+                        </div>
+                        <select
+                          className="input-field"
+                          style={{ width: "auto", background: "#1e293b", color: "#ffffff", borderColor: "#334155", fontWeight: 700, fontSize: 12 }}
+                          value={estConvertTarget}
+                          onChange={(e) => setEstConvertTarget(e.target.value)}
+                        >
+                          <option value="ESTIMATES">📐 ESTIMATES (Draft)</option>
+                          <option value="QUOTATION">📄 QUOTATION</option>
+                          <option value="JOB ORDER">🛠️ JOB ORDER</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group" style={{ gridColumn: "span 2" }}>
                     <label>System Administration Notes</label>
                     <textarea
                       className="input-field"
@@ -10065,7 +10440,14 @@ Total Invoices: ${invoices.length}
                       </div>
                       <div className="form-group">
                         <label>Date Created <span className="required-star">*</span></label>
-                        <input type="date" className="input-field" required value={leadCreatedDate} onChange={(e) => setLeadCreatedDate(e.target.value)} />
+                        <input
+                          type="date"
+                          className="input-field"
+                          required
+                          value={leadCreatedDate}
+                          onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
+                          onChange={(e) => setLeadCreatedDate(e.target.value)}
+                        />
                       </div>
                       <div className="form-group">
                         <label>Lead Source <span className="required-star">*</span></label>
@@ -10092,10 +10474,14 @@ Total Invoices: ${invoices.length}
                       </div>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
                       <div className="form-group">
                         <label>Location / City <span className="required-star">*</span></label>
                         <input className="input-field" required value={leadLocationCity} onChange={(e) => setLeadLocationCity(e.target.value)} placeholder="Davao City / district" />
+                      </div>
+                      <div className="form-group">
+                        <label>Google Maps Link / Pin 📍</label>
+                        <input className="input-field" value={leadGmapsLink} onChange={(e) => setLeadGmapsLink(e.target.value)} placeholder="Paste Google Maps URL / Pin" />
                       </div>
                       <div className="form-group">
                         <label>Inquiry Type <span className="required-star">*</span></label>
@@ -10145,7 +10531,40 @@ Total Invoices: ${invoices.length}
 
                     <div className="form-group">
                       <label>Next Action <span className="required-star">*</span></label>
-                      <input className="input-field" required value={leadNextAction} onChange={(e) => setLeadNextAction(e.target.value)} placeholder="Call back, schedule visit, send estimate, etc." />
+                      <select
+                        className="input-field"
+                        required
+                        value={
+                          ["Callback", "Schedule Visit", "Send Estimate"].includes(leadNextAction)
+                            ? leadNextAction
+                            : "Action Note"
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "Action Note") {
+                            setLeadNextAction(leadNextActionNote || "Action Note");
+                          } else {
+                            setLeadNextAction(val);
+                          }
+                        }}
+                      >
+                        <option value="Callback">📞 Callback</option>
+                        <option value="Schedule Visit">📅 Schedule Visit (Auto-adds to Reminders)</option>
+                        <option value="Send Estimate">📋 Send Estimate</option>
+                        <option value="Action Note">📝 Action Note (Custom)</option>
+                      </select>
+                      {(!["Callback", "Schedule Visit", "Send Estimate"].includes(leadNextAction) || leadNextAction === "Action Note") && (
+                        <input
+                          className="input-field"
+                          style={{ marginTop: 6 }}
+                          value={leadNextActionNote}
+                          onChange={(e) => {
+                            setLeadNextActionNote(e.target.value);
+                            setLeadNextAction(e.target.value || "Action Note");
+                          }}
+                          placeholder="Type custom action note..."
+                        />
+                      )}
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -10208,7 +10627,13 @@ Total Invoices: ${invoices.length}
 
                     <div className="form-group">
                       <label>Follow-Up Date</label>
-                      <input type="date" className="input-field" value={leadFollowUpDate} onChange={(e) => setLeadFollowUpDate(e.target.value)} />
+                      <input
+                        type="date"
+                        className="input-field"
+                        value={leadFollowUpDate}
+                        onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
+                        onChange={(e) => setLeadFollowUpDate(e.target.value)}
+                      />
                     </div>
                   </div>
                   <div className="rhps-modal-footer">
@@ -10526,10 +10951,10 @@ Total Invoices: ${invoices.length}
                         <select
                           className="input-field"
                           value={custType}
-                          onChange={(e) => setCustType(e.target.value as "New" | "Repeat")}
+                          onChange={(e) => setCustType(e.target.value as "New" | "Old")}
                         >
                           <option value="New">New Customer</option>
-                          <option value="Repeat">Repeat Customer (Loyal)</option>
+                          <option value="Old">Old Customer</option>
                         </select>
                       </div>
 
@@ -10555,12 +10980,32 @@ Total Invoices: ${invoices.length}
                       </div>
 
                       <div className="form-group">
+                        <label>Facebook Profile / Page Link 🌐</label>
+                        <input
+                          className="input-field"
+                          value={custFbLink}
+                          onChange={(e) => setCustFbLink(e.target.value)}
+                          placeholder="https://facebook.com/..."
+                        />
+                      </div>
+
+                      <div className="form-group">
                         <label>City / Service Area</label>
                         <input
                           className="input-field"
                           value={custCityArea}
                           onChange={(e) => setCustCityArea(e.target.value)}
                           placeholder="e.g. Davao City Central / Matina"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Google Maps Link / Pin Location 📍</label>
+                        <input
+                          className="input-field"
+                          value={custGmapsLink}
+                          onChange={(e) => setCustGmapsLink(e.target.value)}
+                          placeholder="https://maps.google.com/?q=..."
                         />
                       </div>
 
@@ -10583,6 +11028,28 @@ Total Invoices: ${invoices.length}
                           onChange={(e) => setCustLandmark(e.target.value)}
                           placeholder="e.g. Beside St. Jude Parish, Near Shell Gas Station"
                         />
+                      </div>
+
+                      <div style={{ gridColumn: "span 2", background: "#f0f9ff", padding: 12, borderRadius: 10, border: "1px solid #bae6fd", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <div className="form-group">
+                          <label style={{ color: "#0369a1" }}>Set Follow-Up Reminder Date ⏰ (Auto-adds to Reminders)</label>
+                          <input
+                            type="date"
+                            className="input-field"
+                            value={custReminderDate}
+                            onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
+                            onChange={(e) => setCustReminderDate(e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ color: "#0369a1" }}>Reminder Details / Notes</label>
+                          <input
+                            className="input-field"
+                            value={custReminderNotes}
+                            onChange={(e) => setCustReminderNotes(e.target.value)}
+                            placeholder="e.g. Annual tuning follow-up"
+                          />
+                        </div>
                       </div>
 
                       <div className="form-group" style={{ gridColumn: "span 2" }}>
@@ -10623,10 +11090,33 @@ Total Invoices: ${invoices.length}
                     <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Primary Contact</span><strong>{selectedCustomerDetail.contactNumber}</strong></div>
                     <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Alt Contact</span><strong>{selectedCustomerDetail.alternateContactNumber || "N/A"}</strong></div>
                     <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Email</span><strong>{selectedCustomerDetail.email || "N/A"}</strong></div>
-                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Facebook Account</span><strong>{selectedCustomerDetail.facebookName || "N/A"}</strong></div>
+                    <div>
+                      <span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Facebook Account</span>
+                      {selectedCustomerDetail.facebookLink ? (
+                        <a href={selectedCustomerDetail.facebookLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline" }}>
+                          🌐 {selectedCustomerDetail.facebookName || "View Profile"}
+                        </a>
+                      ) : (
+                        <strong>{selectedCustomerDetail.facebookName || "N/A"}</strong>
+                      )}
+                    </div>
                     <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>City / Area</span><strong>{selectedCustomerDetail.cityArea || "Davao City"}</strong></div>
-                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Landmark</span><strong>{selectedCustomerDetail.landmark || "N/A"}</strong></div>
+                    <div>
+                      <span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Location Pin</span>
+                      {selectedCustomerDetail.gmapsLink ? (
+                        <a href={selectedCustomerDetail.gmapsLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline" }}>
+                          📍 View Google Maps Pin
+                        </a>
+                      ) : (
+                        <strong>{selectedCustomerDetail.landmark || "N/A"}</strong>
+                      )}
+                    </div>
                     <div style={{ gridColumn: "span 2" }}><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Complete Address</span><strong>{selectedCustomerDetail.completeAddress}</strong></div>
+                    {selectedCustomerDetail.reminderDate && (
+                      <div style={{ gridColumn: "span 2", background: "#f0f9ff", padding: 8, borderRadius: 8, border: "1px solid #bae6fd", fontSize: 12, color: "#0369a1" }}>
+                        ⏰ <strong>Scheduled Reminder: {selectedCustomerDetail.reminderDate}</strong> {selectedCustomerDetail.reminderNotes ? `(${selectedCustomerDetail.reminderNotes})` : ""}
+                      </div>
+                    )}
                   </div>
 
                   {/* LINKED PIANOS SECTION */}
@@ -10702,6 +11192,14 @@ Total Invoices: ${invoices.length}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                       <div className="form-group">
                         <label>Linked Lead ID <span className="required-star">*</span></label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          style={{ marginBottom: 4, padding: "4px 8px", fontSize: 12, background: "#f8fafc" }}
+                          placeholder="🔍 Type to search lead / customer..."
+                          value={estLeadSearch}
+                          onChange={(e) => setEstLeadSearch(e.target.value)}
+                        />
                         <select
                           className="input-field"
                           required
@@ -10718,11 +11216,17 @@ Total Invoices: ${invoices.length}
                             }
                           }}
                         >
-                          {leads.map((l) => (
-                            <option key={l.id} value={l.id}>
-                              {l.id} — {l.customerName} ({l.inquiryType})
-                            </option>
-                          ))}
+                          {leads
+                            .filter((l) => {
+                              if (!estLeadSearch.trim()) return true;
+                              const q = estLeadSearch.toLowerCase();
+                              return l.id.toLowerCase().includes(q) || l.customerName.toLowerCase().includes(q) || l.inquiryType.toLowerCase().includes(q);
+                            })
+                            .map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {l.id} — {l.customerName} ({l.inquiryType})
+                              </option>
+                            ))}
                         </select>
                       </div>
 
@@ -11010,6 +11514,14 @@ Total Invoices: ${invoices.length}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                       <div className="form-group">
                         <label>Linked Estimate No. <span className="required-star">*</span></label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          style={{ marginBottom: 4, padding: "4px 8px", fontSize: 12, background: "#f8fafc" }}
+                          placeholder="🔍 Type to search estimate / customer..."
+                          value={qtEstimateSearch}
+                          onChange={(e) => setQtEstimateSearch(e.target.value)}
+                        />
                         <select
                           className="input-field"
                           required
@@ -11029,11 +11541,17 @@ Total Invoices: ${invoices.length}
                             }
                           }}
                         >
-                          {estimates.map((est) => (
-                            <option key={est.id} value={est.id}>
-                              {est.id} — {est.customerName} (₱{est.estimatedAmount.toLocaleString()})
-                            </option>
-                          ))}
+                          {estimates
+                            .filter((est) => {
+                              if (!qtEstimateSearch.trim()) return true;
+                              const q = qtEstimateSearch.toLowerCase();
+                              return est.id.toLowerCase().includes(q) || est.customerName.toLowerCase().includes(q) || String(est.estimatedAmount).includes(q);
+                            })
+                            .map((est) => (
+                              <option key={est.id} value={est.id}>
+                                {est.id} — {est.customerName} (₱{est.estimatedAmount.toLocaleString()})
+                              </option>
+                            ))}
                         </select>
                       </div>
 
@@ -11297,6 +11815,14 @@ Total Invoices: ${invoices.length}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                       <div className="form-group">
                         <label>Linked Customer Case ID <span className="required-star">*</span></label>
+                        <input
+                          type="text"
+                          className="input-field"
+                          style={{ marginBottom: 4, padding: "4px 8px", fontSize: 12, background: "#f8fafc" }}
+                          placeholder="🔍 Type to search case / customer..."
+                          value={schCaseSearch}
+                          onChange={(e) => setSchCaseSearch(e.target.value)}
+                        />
                         <select
                           className="input-field"
                           required
@@ -11310,11 +11836,17 @@ Total Invoices: ${invoices.length}
                             }
                           }}
                         >
-                          {cases.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.id} — {c.customerName} ({c.status})
-                            </option>
-                          ))}
+                          {cases
+                            .filter((c) => {
+                              if (!schCaseSearch.trim()) return true;
+                              const q = schCaseSearch.toLowerCase();
+                              return c.id.toLowerCase().includes(q) || c.customerName.toLowerCase().includes(q) || c.status.toLowerCase().includes(q);
+                            })
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.id} — {c.customerName} ({c.status})
+                              </option>
+                            ))}
                         </select>
                       </div>
 
@@ -14277,6 +14809,430 @@ Total Invoices: ${invoices.length}
             </div>
           )}
         </main>
+
+        {/* ── RHPS MASTER AI FLOATING CENTER BUBBLE MODAL ─────────────────── */}
+        {isAiBubbleModalOpen && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              zIndex: 99999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(15, 23, 42, 0.75)",
+              backdropFilter: "blur(10px)",
+              WebkitBackdropFilter: "blur(10px)",
+              padding: "16px",
+              boxSizing: "border-box",
+            }}
+            onClick={() => setIsAiBubbleModalOpen(false)}
+          >
+            <style>{`
+              @keyframes popInBubble {
+                0% {
+                  opacity: 0;
+                  transform: scale(0.85) translateY(20px);
+                }
+                100% {
+                  opacity: 1;
+                  transform: scale(1) translateY(0);
+                }
+              }
+              .rhps-ai-bubble-modal input::placeholder {
+                color: #94a3b8 !important;
+              }
+            `}</style>
+            <div
+              className="rhps-ai-bubble-modal"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "min(92vw, 760px)",
+                height: "min(88vh, 680px)",
+                background: "linear-gradient(145deg, #0f172a 0%, #1e293b 100%)",
+                borderRadius: "24px",
+                border: "1.5px solid rgba(56, 189, 248, 0.4)",
+                boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.85), 0 0 40px rgba(56, 189, 248, 0.25)",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                position: "relative",
+                animation: "popInBubble 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
+              }}
+            >
+              {/* HEADER BAR */}
+              <div
+                style={{
+                  padding: "16px 22px",
+                  background: "rgba(15, 23, 42, 0.9)",
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "50%",
+                      background: "linear-gradient(135deg, #38bdf8, #0284c7)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 22,
+                      boxShadow: "0 0 16px rgba(56, 189, 248, 0.6)",
+                    }}
+                  >
+                    🤖
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#f8fafc", display: "flex", alignItems: "center", gap: 8 }}>
+                      RHPS Master AI
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          background: "#166534",
+                          color: "#4ade80",
+                          padding: "2px 8px",
+                          borderRadius: 99,
+                          border: "1px solid #22c55e",
+                        }}
+                      >
+                        ● Active
+                      </span>
+                    </h3>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94a3b8" }}>
+                      Private AI Assistant for Davao & Mindanao Piano Operations
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAiBubbleModalOpen(false);
+                      setActiveTab("ai_assistant");
+                      showToast("↗ Expanded RHPS Master AI to Full Tab!");
+                    }}
+                    title="Expand to Full Tab View"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.08)",
+                      color: "#38bdf8",
+                      border: "1px solid rgba(56, 189, 248, 0.35)",
+                      padding: "6px 12px",
+                      borderRadius: "10px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    ↗ Full Page
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAiBubbleModalOpen(false)}
+                    title="Close Chatbot Bubble"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.08)",
+                      color: "#94a3b8",
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
+                      width: 32,
+                      height: 32,
+                      borderRadius: "10px",
+                      fontSize: 16,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* QUICK PRESETS ROW */}
+              <div
+                style={{
+                  padding: "10px 18px",
+                  background: "rgba(30, 41, 59, 0.5)",
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+                  display: "flex",
+                  gap: 8,
+                  overflowX: "auto",
+                }}
+              >
+                <button
+                  onClick={() => sendAiMessage("Draft a professional repair quotation scope for a Yamaha U3 upright piano needing A440 tuning and action regulation in Davao.")}
+                  style={{
+                    background: "rgba(15, 23, 42, 0.8)",
+                    color: "#e2e8f0",
+                    border: "1px solid rgba(56, 189, 248, 0.25)",
+                    padding: "6px 12px",
+                    borderRadius: "99px",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                  }}
+                >
+                  📋 Service Quotation
+                </button>
+                <button
+                  onClick={() => sendAiMessage("Draft a friendly 6-month piano tuning SMS reminder for client Atty. Fernando Alonso.")}
+                  style={{
+                    background: "rgba(15, 23, 42, 0.8)",
+                    color: "#e2e8f0",
+                    border: "1px solid rgba(56, 189, 248, 0.25)",
+                    padding: "6px 12px",
+                    borderRadius: "99px",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                  }}
+                >
+                  📲 6-Month Tuning SMS
+                </button>
+                <button
+                  onClick={() => sendAiMessage("How do I fix sticky piano keys and sluggish hammer return caused by Davao's high humidity?")}
+                  style={{
+                    background: "rgba(15, 23, 42, 0.8)",
+                    color: "#e2e8f0",
+                    border: "1px solid rgba(56, 189, 248, 0.25)",
+                    padding: "6px 12px",
+                    borderRadius: "99px",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                  }}
+                >
+                  🔧 Technical Fault Guide
+                </button>
+                <button
+                  onClick={() => sendAiMessage("Summarize my current active piano service job orders, verified revenue, and pending reminders.")}
+                  style={{
+                    background: "rgba(15, 23, 42, 0.8)",
+                    color: "#e2e8f0",
+                    border: "1px solid rgba(56, 189, 248, 0.25)",
+                    padding: "6px 12px",
+                    borderRadius: "99px",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                  }}
+                >
+                  📊 Business Summary
+                </button>
+              </div>
+
+              {/* MESSAGES FEED */}
+              <div
+                ref={modalChatBoxRef}
+                style={{
+                  flex: 1,
+                  overflowY: "auto",
+                  padding: "18px 22px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 14,
+                  scrollBehavior: "smooth",
+                  background: "#0b1329",
+                }}
+              >
+                {aiMessages.map((msg, index) => {
+                  const isLastAssistant = msg.role === "assistant" && index === aiMessages.length - 1;
+                  const chips = isLastAssistant ? getSmartChips(msg.content) : [];
+                  return (
+                    <div
+                      key={index}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: msg.role === "user" ? "flex-end" : "flex-start",
+                      }}
+                    >
+                      <span style={{ fontSize: 10, fontWeight: 800, color: msg.role === "user" ? "#38bdf8" : "#38bdf8", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                        {msg.role === "user" ? "🙋 You" : "🤖 RHPS Master AI"}
+                      </span>
+                      <div
+                        style={{
+                          maxWidth: "88%",
+                          background: msg.role === "user" ? "linear-gradient(135deg, #0284c7, #0369a1)" : "#1e293b",
+                          color: "#ffffff",
+                          border: msg.role === "user" ? "none" : "1.5px solid rgba(56, 189, 248, 0.25)",
+                          borderRadius: msg.role === "user" ? "18px 18px 2px 18px" : "18px 18px 18px 2px",
+                          padding: "14px 20px",
+                          fontSize: 13.5,
+                          lineHeight: 1.65,
+                          boxShadow: "0 4px 15px rgba(0, 0, 0, 0.3)",
+                        }}
+                      >
+                        {msg.role === "user" ? (
+                          <span style={{ whiteSpace: "pre-wrap", color: "#ffffff", fontWeight: 500 }}>{msg.content}</span>
+                        ) : (
+                          renderRhpsAiMarkdown(msg.content, true)
+                        )}
+                      </div>
+
+                      {/* Actions under assistant messages */}
+                      {msg.role === "assistant" && index > 0 && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                          <button
+                            style={{ fontSize: 10.5, padding: "3px 8px", borderRadius: 6, background: "rgba(255,255,255,0.08)", color: "#cbd5e1", border: "1px solid rgba(255,255,255,0.15)", cursor: "pointer" }}
+                            onClick={() => {
+                              navigator.clipboard.writeText(msg.content);
+                              showToast("📋 Copied to clipboard!");
+                            }}
+                          >
+                            📋 Copy
+                          </button>
+                          <button
+                            style={{ fontSize: 10.5, padding: "3px 8px", borderRadius: 6, background: "#1e3a8a", color: "#93c5fd", border: "1px solid #3b82f6", cursor: "pointer" }}
+                            onClick={() => {
+                              setIsAiBubbleModalOpen(false);
+                              setActiveTab("quotations");
+                              showToast("📋 Switched to Quotations tab!");
+                            }}
+                          >
+                            📋 → Quotation
+                          </button>
+                          <button
+                            style={{ fontSize: 10.5, padding: "3px 8px", borderRadius: 6, background: "#14532d", color: "#86efac", border: "1px solid #22c55e", cursor: "pointer" }}
+                            onClick={() => {
+                              setIsAiBubbleModalOpen(false);
+                              setActiveTab("follow_ups");
+                              showToast("📲 Switched to Follow-Ups tab!");
+                            }}
+                          >
+                            📲 → Follow-Up
+                          </button>
+                        </div>
+                      )}
+
+                      {isLastAssistant && chips.length > 0 && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                          {chips.map((chip) => (
+                            <button
+                              key={chip}
+                              onClick={() => sendAiMessage(chip)}
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                padding: "5px 12px",
+                                borderRadius: 99,
+                                border: "1px solid rgba(56, 189, 248, 0.35)",
+                                background: "rgba(15, 23, 42, 0.9)",
+                                color: "#38bdf8",
+                                cursor: "pointer",
+                              }}
+                            >
+                              ✨ {chip}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {aiLoading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#38bdf8", fontSize: 13, fontStyle: "italic", padding: 12 }}>
+                    <span style={{ fontSize: 18, animation: "spin 1s linear infinite", display: "inline-block" }}>⚙️</span>
+                    RHPS Master AI is thinking...
+                  </div>
+                )}
+              </div>
+
+              {/* INPUT FORM */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  sendAiMessage();
+                }}
+                style={{
+                  padding: "14px 20px",
+                  background: "rgba(15, 23, 42, 0.95)",
+                  borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "center",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={startVoiceInput}
+                  title="Voice Input"
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 12,
+                    border: isListening ? "2px solid #ef4444" : "1px solid rgba(255, 255, 255, 0.15)",
+                    background: isListening ? "#7f1d1d" : "rgba(255, 255, 255, 0.06)",
+                    color: "#ffffff",
+                    fontSize: 18,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {isListening ? "🔴" : "🎤"}
+                </button>
+
+                <input
+                  type="text"
+                  value={aiInput}
+                  onChange={(e) => setAiInput(e.target.value)}
+                  placeholder={isListening ? "Listening... speak now 🎤" : "Ask RHPS Master AI anything..."}
+                  style={{
+                    flex: 1,
+                    padding: "12px 16px",
+                    borderRadius: 12,
+                    border: "1.5px solid rgba(56, 189, 248, 0.3)",
+                    background: "rgba(30, 41, 59, 0.8)",
+                    color: "#f8fafc",
+                    fontSize: 13.5,
+                    outline: "none",
+                  }}
+                />
+
+                <button
+                  type="submit"
+                  disabled={aiLoading || !aiInput.trim()}
+                  style={{
+                    padding: "12px 22px",
+                    borderRadius: 12,
+                    background: "linear-gradient(135deg, #0284c7, #0369a1)",
+                    color: "#ffffff",
+                    border: "none",
+                    fontWeight: 800,
+                    fontSize: 13.5,
+                    cursor: aiLoading ? "wait" : "pointer",
+                    flexShrink: 0,
+                    boxShadow: "0 4px 12px rgba(2, 132, 199, 0.4)",
+                  }}
+                >
+                  {aiLoading ? "⚙️" : "Send ➔"}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
