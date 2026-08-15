@@ -629,36 +629,36 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
     return (
       <div className="workspace-wrapper" style={{ position: "relative" }}>
         {/* Floating Quick Action for Workspace Switcher & User Management */}
-        <div style={{ position: "fixed", bottom: "1.5rem", right: "1.5rem", zIndex: 900, display: "flex", gap: "0.75rem", alignItems: "center" }}>
+        <div style={{ position: "fixed", bottom: "1rem", right: "1rem", zIndex: 900, display: "flex", gap: "0.4rem", alignItems: "center" }}>
           <button
             type="button"
             onClick={() => setOpenAiTrigger((prev) => prev + 1)}
             style={{
               background: "linear-gradient(135deg, #0f172a, #1e293b)",
               color: "#38bdf8",
-              border: "1.5px solid #38bdf8",
-              padding: "0.75rem 1.25rem",
+              border: "1px solid #38bdf8",
+              padding: "0.4rem 0.8rem",
               borderRadius: "99px",
-              fontWeight: 800,
-              fontSize: "0.9rem",
+              fontWeight: 750,
+              fontSize: "0.75rem",
               cursor: "pointer",
-              boxShadow: "0 10px 25px rgba(56, 189, 248, 0.4)",
+              boxShadow: "0 4px 14px rgba(56, 189, 248, 0.3)",
               display: "flex",
               alignItems: "center",
-              gap: "0.5rem",
+              gap: "0.35rem",
               transition: "all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "scale(1.06) translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 15px 30px rgba(56, 189, 248, 0.55)";
+              e.currentTarget.style.transform = "scale(1.04) translateY(-1px)";
+              e.currentTarget.style.boxShadow = "0 8px 18px rgba(56, 189, 248, 0.45)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "scale(1) translateY(0)";
-              e.currentTarget.style.boxShadow = "0 10px 25px rgba(56, 189, 248, 0.4)";
+              e.currentTarget.style.boxShadow = "0 4px 14px rgba(56, 189, 248, 0.3)";
             }}
           >
-            <span style={{ fontSize: "1.1rem" }}>🤖</span> RHPS Master AI
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 8px #4ade80" }} />
+            <span style={{ fontSize: "0.9rem" }}>🤖</span> RHPS Master AI
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
           </button>
           <button
             type="button"
@@ -667,12 +667,19 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
               background: "#18181b",
               color: "#f59e0b",
               border: "1px solid #f59e0b",
-              padding: "0.75rem 1.25rem",
-              borderRadius: "14px",
-              fontWeight: 800,
-              fontSize: "0.9rem",
+              padding: "0.4rem 0.8rem",
+              borderRadius: "8px",
+              fontWeight: 750,
+              fontSize: "0.75rem",
               cursor: "pointer",
-              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.4)",
+              boxShadow: "0 4px 14px rgba(0, 0, 0, 0.3)",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.04) translateY(-1px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1) translateY(0)";
             }}
           >
             ⇄ Switch to CV Sales OS (Ara)
@@ -684,15 +691,22 @@ export default function WorkspaceApp({ authenticatedName }: { authenticatedName:
               background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
               color: "#ffffff",
               border: "1px solid rgba(255, 255, 255, 0.2)",
-              padding: "0.75rem 1.25rem",
-              borderRadius: "14px",
-              fontWeight: 800,
-              fontSize: "0.9rem",
+              padding: "0.4rem 0.8rem",
+              borderRadius: "8px",
+              fontWeight: 750,
+              fontSize: "0.75rem",
               cursor: "pointer",
-              boxShadow: "0 10px 25px rgba(37, 99, 235, 0.4)",
+              boxShadow: "0 4px 14px rgba(37, 99, 235, 0.3)",
               display: "flex",
               alignItems: "center",
-              gap: "0.5rem",
+              gap: "0.35rem",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.04) translateY(-1px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1) translateY(0)";
             }}
           >
             <span>👥</span> Registered User Management

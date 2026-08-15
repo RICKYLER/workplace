@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useState } from 'react'
@@ -27,6 +27,7 @@ const DESKTOP_NAV = [
   { label: 'Grands', href: '/#collection' },
   { label: 'Uprights', href: '/#collection' },
   { label: 'Digital', href: '/#collection' },
+  { label: 'Airtable Store', href: '/inventory-store' },
   { label: 'Atelier', href: '/#atelier' },
   { label: 'Trade-In', href: '/trade-in' },
   { label: 'Customer Service', href: '/customer-service' },
@@ -36,13 +37,14 @@ const DESKTOP_NAV = [
 // Primary tabs in the bottom bar (mobile)
 const BOTTOM_NAV = [
   { label: 'Home', href: '/', icon: Home, match: (p: string) => p === '/' },
-  { label: 'Collection', href: '/#collection', icon: Piano, match: (_p: string) => false },
+  { label: 'Store', href: '/inventory-store', icon: Piano, match: (p: string) => p.startsWith('/inventory-store') },
   { label: 'Atelier', href: '/#atelier', icon: Building2, match: (_p: string) => false },
   { label: 'Trade-In', href: '/trade-in', icon: ArrowLeftRight, match: (p: string) => p.startsWith('/trade-in') },
 ]
 
 // "More" drawer additional items
 const MORE_NAV = [
+  { label: 'Airtable Inventory Store', href: '/inventory-store', icon: Music },
   { label: 'Grands', href: '/#collection', icon: Music },
   { label: 'Uprights', href: '/#collection', icon: Music },
   { label: 'Digital', href: '/#collection', icon: Music },

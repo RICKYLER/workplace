@@ -3017,15 +3017,16 @@ td>span:not(.status):not(.agent-dot) {
   min-height: 100vh;
   background: #f8f9fa;
   color: #34383b;
+  zoom: 0.80; /* Scaled down to 80% zoom for comfortable workspace layout */
 }
 
 .rhps-sub-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #f8f9fa;
+  background: #ffffff !important;
   padding: 16px 28px;
-  border-bottom: 1px solid #d2d5d8;
+  border-bottom: 1px solid #e2e8f0 !important;
 }
 
 .rhps-container .purely-card-white {
@@ -3165,10 +3166,11 @@ td>span:not(.status):not(.agent-dot) {
 }
 
 .rhps-sidebar {
-  width: 240px;
-  background: #f8f9fa;
-  border-right: 1px solid #d2d5d8;
-  padding: 18px 12px;
+  width: 250px;
+  background: #ffffff !important;
+  border-right: 1px solid #e2e8f0 !important;
+  padding: 20px 14px;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.015);
 }
 
 .rhps-sidebar nav {
@@ -3184,11 +3186,11 @@ td>span:not(.status):not(.agent-dot) {
 }
 
 .rhps-group-title {
-  margin: 10px 10px 6px;
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.12em;
-  color: #696e71;
+  margin: 14px 10px 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #64748b;
   text-transform: uppercase;
 }
 
@@ -3197,28 +3199,33 @@ td>span:not(.status):not(.agent-dot) {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 9px 12px;
+  padding: 9px 14px;
   border-radius: 10px;
   border: 1px solid transparent;
   background: transparent;
-  color: #34383b;
-  font-size: 12.5px;
-  font-weight: 550;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.15s ease-in-out;
 }
 
 .rhps-sidebar nav button:hover {
-  background: #e1e2e4;
-  color: #1e293b;
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
 }
 
 .rhps-sidebar nav button.active {
-  background: #e1e2e4;
-  color: #0f172a;
-  font-weight: 750;
-  border-color: #d2d5d8;
+  background: #0f172a !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  border-color: #0f172a !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.rhps-sidebar nav button.active span {
+  color: #ffffff !important;
 }
 
 .rhps-sidebar nav button .icon {
@@ -3508,16 +3515,18 @@ td>span:not(.status):not(.agent-dot) {
 
 .rhps-toast {
   position: fixed;
-  bottom: 24px;
+  top: 24px;
   right: 24px;
-  background: var(--ink);
+  background: #0f172a;
   color: #ffffff;
-  padding: 12px 20px;
+  padding: 12px 22px;
   border-radius: 12px;
   font-size: 13px;
   font-weight: 700;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
-  z-index: 999;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  z-index: 100000;
+  animation: toast-in 0.25s ease-out;
 }
 
 /* ACCOUNT SELECTOR CARDS ON LOGIN SCREEN */
@@ -4408,6 +4417,81 @@ td>span:not(.status):not(.agent-dot) {
 .ai-markdown-table tr:hover {
   background: #f1f5f9;
 }
+
+/* --- PROFESSIONAL BADGE SELECT & TABLE UX ENHANCEMENTS --- */
+.badge-select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23475569' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 8px center !important;
+  background-size: 8px 5px !important;
+  padding-right: 22px !important;
+  font-family: inherit;
+  transition: all 0.15s ease-in-out;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.badge-select:hover {
+  filter: brightness(0.96);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.badge-select:focus {
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: 1px !important;
+}
+
+.rhps-table-pro th {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  color: #475569 !important;
+  background: #f8fafc !important;
+  padding: 12px 14px !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+.rhps-table-pro td {
+  padding: 12px 14px !important;
+  vertical-align: middle !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.rhps-table-pro tr:hover td {
+  background-color: #f8fafc !important;
+}
+
+/* --- SLEEK MODERN SCROLLBARS (REMOVES UGLY DARK NATIVE WINDOWS SCROLLBARS) --- */
+::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 9999px !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
+}
+
+.clean-scroll {
+  scrollbar-width: thin !important;
+  scrollbar-color: #cbd5e1 transparent !important;
+}
+
+
 
 
 

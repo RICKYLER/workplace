@@ -261,6 +261,10 @@ CREATE TABLE IF NOT EXISTS public.rhps_customers (
   facebook_name TEXT,
   alternate_contact TEXT,
   notes TEXT,
+  client_status TEXT DEFAULT 'Ready for Assessment',
+  product_service TEXT DEFAULT 'Piano Tuning & Service',
+  priority TEXT DEFAULT 'Normal',
+  source TEXT DEFAULT 'Facebook Direct',
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );

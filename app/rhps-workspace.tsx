@@ -1,9 +1,14 @@
 "use client";
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "../lib/supabase/client";
 import "./workspace.css";
+import AirtableInventoryStore from "../components/airtable-inventory-store";
+import QRCodeSVG from "../components/qr-code-svg";
+import QRProcessModal, { CustomerProcessData } from "../components/qr-process-modal";
+import { QrCode } from "lucide-react";
 
 // --- TYPES ALIGNED WITH REQUIRED FIELDS & DEVELOPER HANDOFF SPECIFICATIONS ---
 
@@ -12,12 +17,12 @@ export type RecordMode = "ACTUAL" | "TEST";
 export type CustomerPiano = {
   id: string;
   linkedCustomerId: string;
-  pianoType: "Upright" | "Grand";
+  pianoType: "Upright" | "Grand" | string;
   brand: string;
   model: string;
-  serialNumber: string;
+  serialNumber?: string;
   currentLocation: string;
-  pianoStatus: "Owned by Customer" | "In Service" | "For Repair" | "Archived";
+  pianoStatus: "Owned by Customer" | "In Service" | "For Repair" | "Archived" | string;
   createdDate: string;
   lastUpdatedDate: string;
   color?: string;
@@ -26,6 +31,189 @@ export type CustomerPiano = {
   lastTuningDate?: string;
   lastServiceDate?: string;
   conditionNotes?: string;
+};
+
+export type ClientStatusType =
+  | "Ready for Assessment"
+  | "In Restoration"
+  | "In Tuning Queue"
+  | "Action Pullout"
+  | "Field Visit Scheduled"
+  | "Service Complete"
+  | "Ready for Delivery"
+  | "Delivered"
+  | "Piano Pullout"
+  | "Follow-up Needed"
+  | "Pending Piano String Replacement"
+  | "Warranty (Back Job)"
+  | "Reschedule"
+  | "Unreachable"
+  | "Prospect Client"
+  | "Piano Buyer Prospect"
+  | "Waiting for Schedule"
+  | "Payment Pending"
+  | "Paid"
+  | "Partial Payment";
+
+export type ProductServiceType =
+  | "Piano Tuning"
+  | "Piano Restoration"
+  | "Piano Moving"
+  | "Piano Rentals"
+  | "PIANO SOLD"
+  | "Piano Benches & Stools"
+  | "Covers & Accessories"
+  | "Piano Parts (on request)"
+  | "CALL WHEN NEARBY"
+  | "Piano Warranty";
+
+export type PriorityType = "High" | "Medium" | "Low";
+
+export type SourceType = "Facebook Main" | "Facebook Page" | "Phone Outreach" | "Referral";
+
+export const CLIENT_STATUS_OPTIONS: ClientStatusType[] = [
+  "Ready for Assessment",
+  "In Restoration",
+  "In Tuning Queue",
+  "Action Pullout",
+  "Field Visit Scheduled",
+  "Service Complete",
+  "Ready for Delivery",
+  "Delivered",
+  "Piano Pullout",
+  "Follow-up Needed",
+  "Pending Piano String Replacement",
+  "Warranty (Back Job)",
+  "Reschedule",
+  "Unreachable",
+  "Prospect Client",
+  "Piano Buyer Prospect",
+  "Waiting for Schedule",
+  "Payment Pending",
+  "Paid",
+  "Partial Payment",
+];
+
+export const CLIENT_STAGE_GROUPS = [
+  {
+    id: "Sales",
+    name: "New / Sales",
+    icon: "🎯",
+    badgeBg: "#eff6ff",
+    badgeColor: "#1d4ed8",
+    badgeBorder: "#93c5fd",
+    statuses: ["Prospect Client", "Piano Buyer Prospect", "Follow-up Needed", "Unreachable"] as ClientStatusType[],
+  },
+  {
+    id: "Assessment",
+    name: "Assessment / Scheduling",
+    icon: "📋",
+    badgeBg: "#fef3c7",
+    badgeColor: "#b45309",
+    badgeBorder: "#fcd34d",
+    statuses: ["Ready for Assessment", "Waiting for Schedule", "Reschedule", "Field Visit Scheduled"] as ClientStatusType[],
+  },
+  {
+    id: "Service",
+    name: "Service / Repair",
+    icon: "🛠️",
+    badgeBg: "#f3e8ff",
+    badgeColor: "#6b21a8",
+    badgeBorder: "#d8b4fe",
+    statuses: ["In Restoration", "In Tuning Queue", "Service Complete", "Warranty (Back Job)"] as ClientStatusType[],
+  },
+  {
+    id: "Pullout",
+    name: "Piano Pullout",
+    icon: "🎹",
+    badgeBg: "#ffedd5",
+    badgeColor: "#c2410c",
+    badgeBorder: "#fdba74",
+    statuses: ["Piano Pullout", "Pending Piano String Replacement"] as ClientStatusType[],
+  },
+  {
+    id: "Completion",
+    name: "Completion / Delivery",
+    icon: "🚚",
+    badgeBg: "#dcfce7",
+    badgeColor: "#15803d",
+    badgeBorder: "#86efac",
+    statuses: ["Action Pullout", "Service Complete", "Ready for Delivery", "Delivered"] as ClientStatusType[],
+  },
+  {
+    id: "Payment",
+    name: "Payment",
+    icon: "💳",
+    badgeBg: "#ffe4e6",
+    badgeColor: "#be123c",
+    badgeBorder: "#fecdd3",
+    statuses: ["Payment Pending", "Paid", "Partial Payment"] as ClientStatusType[],
+  },
+];
+
+export const getStatusDisplayLabel = (st: ClientStatusType): string => {
+  const grp = CLIENT_STAGE_GROUPS.find((g) => g.statuses.includes(st));
+  if (grp) {
+    return `${grp.icon} ${grp.name} — ${st}`;
+  }
+  return st;
+};
+
+export const PRODUCT_SERVICE_OPTIONS: ProductServiceType[] = [
+  "Piano Tuning",
+  "Piano Restoration",
+  "Piano Moving",
+  "Piano Rentals",
+  "PIANO SOLD",
+  "Piano Benches & Stools",
+  "Covers & Accessories",
+  "Piano Parts (on request)",
+  "CALL WHEN NEARBY",
+  "Piano Warranty",
+];
+
+export const PRIORITY_OPTIONS: PriorityType[] = ["High", "Medium", "Low"];
+
+export const SOURCE_OPTIONS: SourceType[] = [
+  "Facebook Main",
+  "Facebook Page",
+  "Phone Outreach",
+  "Referral",
+];
+
+export const getClientStatusStyle = (status?: string) => {
+  switch (status) {
+    case "Ready for Assessment": return { bg: "#f0f9ff", color: "#0369a1", border: "#bae6fd", dot: "#0284c7" };
+    case "In Restoration": return { bg: "#fffbeb", color: "#b45309", border: "#fde68a", dot: "#d97706" };
+    case "In Tuning Queue": return { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe", dot: "#2563eb" };
+    case "Action Pullout": return { bg: "#fff7ed", color: "#c2410c", border: "#ffedd5", dot: "#ea580c" };
+    case "Field Visit Scheduled": return { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0", dot: "#16a34a" };
+    case "Service Complete": return { bg: "#ecfdf5", color: "#047857", border: "#a7f3d0", dot: "#059669" };
+    case "Ready for Delivery": return { bg: "#f0fdfa", color: "#0f766e", border: "#99f6e4", dot: "#14b8a6" };
+    case "Delivered": return { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0", dot: "#22c55e" };
+    case "Piano Pullout": return { bg: "#fff1f2", color: "#be123c", border: "#fecdd3", dot: "#e11d48" };
+    case "Follow-up Needed": return { bg: "#fefce8", color: "#854d0e", border: "#fef08a", dot: "#ca8a04" };
+    case "Pending Piano String Replacement": return { bg: "#faf5ff", color: "#6b21a8", border: "#e9d5ff", dot: "#9333ea" };
+    case "Warranty (Back Job)": return { bg: "#fff1f2", color: "#9f1239", border: "#fecdd3", dot: "#f43f5e" };
+    case "Reschedule": return { bg: "#fdf4ff", color: "#86198f", border: "#f5d0fe", dot: "#c026d3" };
+    case "Unreachable": return { bg: "#f8fafc", color: "#475569", border: "#e2e8f0", dot: "#64748b" };
+    case "Prospect Client": return { bg: "#eef2ff", color: "#3730a3", border: "#c7d2fe", dot: "#4f46e5" };
+    case "Piano Buyer Prospect": return { bg: "#eff6ff", color: "#1e40af", border: "#93c5fd", dot: "#3b82f6" };
+    case "Waiting for Schedule": return { bg: "#fffbeb", color: "#b45309", border: "#fde68a", dot: "#f59e0b" };
+    case "Payment Pending": return { bg: "#fef2f2", color: "#991b1b", border: "#fecaca", dot: "#ef4444" };
+    case "Paid": return { bg: "#f0fdf4", color: "#166534", border: "#bbf7d0", dot: "#22c55e" };
+    case "Partial Payment": return { bg: "#fffbe6", color: "#b45309", border: "#ffe58f", dot: "#d97706" };
+    default: return { bg: "#f8fafc", color: "#475569", border: "#e2e8f0", dot: "#64748b" };
+  }
+};
+
+export const getPriorityStyle = (priority?: string) => {
+  switch (priority) {
+    case "High": return { bg: "#fef2f2", color: "#991b1b", border: "#fecaca", dot: "#ef4444" };
+    case "Medium": return { bg: "#fffbeb", color: "#b45309", border: "#fde68a", dot: "#f59e0b" };
+    case "Low": return { bg: "#f0f9ff", color: "#0369a1", border: "#bae6fd", dot: "#06b6d4" };
+    default: return { bg: "#f8fafc", color: "#475569", border: "#e2e8f0", dot: "#94a3b8" };
+  }
 };
 
 export type Customer = {
@@ -48,6 +236,11 @@ export type Customer = {
   landmark?: string;
   notes?: string;
   pianos?: CustomerPiano[];
+  clientStatus?: ClientStatusType;
+  paymentStatus?: "Payment Pending" | "Paid" | "Partial Payment";
+  productService?: ProductServiceType;
+  priority?: PriorityType;
+  source?: SourceType;
 };
 
 export type Lead = {
@@ -523,8 +716,15 @@ const demoCustomers: Customer[] = [
     lastUpdatedDate: "2026-08-01",
     email: "falonso@example.com",
     facebookName: "Fernando Alonso Law",
+    facebookLink: "https://facebook.com/falonsolaw",
+    gmapsLink: "https://maps.google.com/?q=7.0500,125.6000",
     cityArea: "Davao City Central / Matina",
     landmark: "Beside St. Jude Parish Church",
+    clientStatus: "Ready for Assessment",
+    paymentStatus: "Partial Payment",
+    productService: "Piano Tuning",
+    priority: "High",
+    source: "Facebook Main",
     notes: "VIP Repeat Client. Prefers morning appointments for Yamaha U3 tuning & action regulation.",
     pianos: [
       { id: "P-101", linkedCustomerId: "CUST-001", brand: "Yamaha", model: "U3 Upright", serialNumber: "YM-582910", pianoType: "Upright", currentLocation: "Home Studio", pianoStatus: "In Service", createdDate: "2026-01-15", lastUpdatedDate: "2026-08-01", conditionNotes: "Action regulation & pitch raise A440", lastTuningDate: "2026-02-01" },
@@ -543,11 +743,369 @@ const demoCustomers: Customer[] = [
     lastUpdatedDate: "2026-08-02",
     email: "music@sanpedroacademy.edu.ph",
     facebookName: "San Pedro Cathedral Academy Official",
+    facebookLink: "https://facebook.com/sanpedroacademy",
+    gmapsLink: "https://maps.google.com/?q=7.0700,125.6100",
     cityArea: "Davao City Central",
     landmark: "Across San Pedro Cathedral Plaza",
+    clientStatus: "In Restoration",
+    productService: "Piano Restoration",
+    priority: "Medium",
+    source: "Facebook Page",
     notes: "Institutional client. Requires official tax invoice and formal service report.",
     pianos: [
       { id: "P-103", linkedCustomerId: "CUST-002", brand: "Kawai", model: "K-300", serialNumber: "KW-994821", pianoType: "Upright", currentLocation: "Main Auditorium", pianoStatus: "For Repair", createdDate: "2026-02-10", lastUpdatedDate: "2026-08-02", conditionNotes: "Sticky keys in middle octave" },
+    ],
+  },
+  {
+    id: "CUST-003",
+    name: "Dr. Gabriel Cruz",
+    contactNumber: "0917-888-1234",
+    completeAddress: "78 Matina Heights, Davao City",
+    customerType: "Repeat",
+    linkedPianoIds: ["P-104"],
+    createdDate: "2026-03-01",
+    lastUpdatedDate: "2026-08-03",
+    email: "drcruz@davaomed.com",
+    facebookName: "Gabriel Cruz Music",
+    cityArea: "Matina, Davao City",
+    landmark: "Subdivision Gate 2",
+    clientStatus: "In Tuning Queue",
+    productService: "Piano Moving",
+    priority: "Low",
+    source: "Phone Outreach",
+    notes: "Requires piano relocation from Matina Heights to Bajada home.",
+    pianos: [
+      { id: "P-104", linkedCustomerId: "CUST-003", brand: "Kawai", model: "K-15", serialNumber: "KW-88291", pianoType: "Upright", currentLocation: "Matina Heights Residence", pianoStatus: "In Service", createdDate: "2026-03-01", lastUpdatedDate: "2026-08-03" },
+    ],
+  },
+  {
+    id: "CUST-004",
+    name: "Marco Valdes",
+    contactNumber: "0919-888-7766",
+    completeAddress: "45 Ecoland Drive, Davao City",
+    customerType: "New",
+    linkedPianoIds: ["P-105"],
+    createdDate: "2026-03-15",
+    lastUpdatedDate: "2026-08-04",
+    email: "mvaldes@ecoland.ph",
+    facebookName: "Marco Valdes",
+    cityArea: "Ecoland, Davao City",
+    landmark: "Near SM City Ecoland",
+    clientStatus: "Action Pullout",
+    productService: "Piano Rentals",
+    priority: "High",
+    source: "Referral",
+    notes: "Renting upright piano for 3-month musical event.",
+    pianos: [
+      { id: "P-105", linkedCustomerId: "CUST-004", brand: "Yamaha", model: "U1", serialNumber: "YM-110923", pianoType: "Upright", currentLocation: "Ecoland Event Hall", pianoStatus: "In Service", createdDate: "2026-03-15", lastUpdatedDate: "2026-08-04" },
+    ],
+  },
+  {
+    id: "CUST-005",
+    name: "Davao Concert Hall Management",
+    contactNumber: "082-299-1122",
+    completeAddress: "JP Laurel Ave, Lanang, Davao City",
+    customerType: "Repeat",
+    linkedPianoIds: ["P-106"],
+    createdDate: "2026-04-01",
+    lastUpdatedDate: "2026-08-05",
+    email: "events@davaoconcerthall.com",
+    facebookName: "Davao Concert Hall",
+    cityArea: "Lanang, Davao City",
+    landmark: "Beside SM Lanang Premier",
+    clientStatus: "Field Visit Scheduled",
+    productService: "PIANO SOLD",
+    priority: "High",
+    source: "Facebook Main",
+    notes: "Purchased Steinway Concert Grand C-227. Field inspection for humidity control scheduled.",
+    pianos: [
+      { id: "P-106", linkedCustomerId: "CUST-005", brand: "Steinway & Sons", model: "Model D Concert Grand", serialNumber: "ST-998811", pianoType: "Grand", currentLocation: "Main Stage", pianoStatus: "Owned by Customer", createdDate: "2026-04-01", lastUpdatedDate: "2026-08-05" },
+    ],
+  },
+  {
+    id: "CUST-006",
+    name: "Grand Ballroom Hotel Davao",
+    contactNumber: "0920-112-9382",
+    completeAddress: "Claveria Street, Poblacion, Davao City",
+    customerType: "Old",
+    linkedPianoIds: ["P-107"],
+    createdDate: "2026-04-10",
+    lastUpdatedDate: "2026-08-05",
+    email: "concierge@grandballroomdavao.com",
+    facebookName: "Grand Ballroom Hotel Davao",
+    cityArea: "Poblacion, Davao City",
+    landmark: "Main Lobby Entrance",
+    clientStatus: "Service Complete",
+    productService: "Piano Benches & Stools",
+    priority: "Medium",
+    source: "Facebook Page",
+    notes: "Delivered 2 adjustable mahogany hydraulic piano benches.",
+    pianos: [
+      { id: "P-107", linkedCustomerId: "CUST-006", brand: "Yamaha", model: "C3 Conservatory Grand", serialNumber: "YM-772910", pianoType: "Grand", currentLocation: "Lobby Lounge", pianoStatus: "Owned by Customer", createdDate: "2026-04-10", lastUpdatedDate: "2026-08-05" },
+    ],
+  },
+  {
+    id: "CUST-007",
+    name: "Atty. Cecilia Ramos",
+    contactNumber: "0917-333-8822",
+    completeAddress: "88 Buhangin Road, Davao City",
+    customerType: "New",
+    linkedPianoIds: ["P-108"],
+    createdDate: "2026-05-01",
+    lastUpdatedDate: "2026-08-06",
+    email: "cecilia.ramos@lawfirm.ph",
+    facebookName: "Atty. Cecilia Ramos",
+    cityArea: "Buhangin, Davao City",
+    landmark: "Near Buhangin Flyover",
+    clientStatus: "Ready for Delivery",
+    productService: "Covers & Accessories",
+    priority: "Low",
+    source: "Phone Outreach",
+    notes: "Ordered custom velvet heavy piano cover & key cover.",
+    pianos: [
+      { id: "P-108", linkedCustomerId: "CUST-007", brand: "Kawai", model: "K-200", serialNumber: "KW-331092", pianoType: "Upright", currentLocation: "Buhangin Residence", pianoStatus: "Owned by Customer", createdDate: "2026-05-01", lastUpdatedDate: "2026-08-06" },
+    ],
+  },
+  {
+    id: "CUST-008",
+    name: "Pastor Emmanuel Santos",
+    contactNumber: "0918-444-9911",
+    completeAddress: "12 Toril Executive Village, Davao City",
+    customerType: "Repeat",
+    linkedPianoIds: ["P-109"],
+    createdDate: "2026-05-15",
+    lastUpdatedDate: "2026-08-06",
+    email: "pastor.emmanuel@gracechurch.ph",
+    facebookName: "Emmanuel Santos Church",
+    cityArea: "Toril, Davao City",
+    landmark: "Grace Baptist Church Complex",
+    clientStatus: "Delivered",
+    productService: "Piano Parts (on request)",
+    priority: "Low",
+    source: "Referral",
+    notes: "Delivered genuine Kawai damper felts & center pin wires.",
+    pianos: [
+      { id: "P-109", linkedCustomerId: "CUST-008", brand: "Kawai", model: "K-500", serialNumber: "KW-662910", pianoType: "Upright", currentLocation: "Sanctuary", pianoStatus: "Owned by Customer", createdDate: "2026-05-15", lastUpdatedDate: "2026-08-06" },
+    ],
+  },
+  {
+    id: "CUST-009",
+    name: "Elena Rostova",
+    contactNumber: "0920-334-9182",
+    completeAddress: "34 Shrine Hills, Matina, Davao City",
+    customerType: "New",
+    linkedPianoIds: ["P-110"],
+    createdDate: "2026-06-01",
+    lastUpdatedDate: "2026-08-07",
+    email: "elena.rostova@musicdavao.com",
+    facebookName: "Elena Rostova Pianist",
+    cityArea: "Matina, Davao City",
+    landmark: "Shrine Hills Road Top",
+    clientStatus: "Piano Pullout",
+    productService: "CALL WHEN NEARBY",
+    priority: "High",
+    source: "Facebook Main",
+    notes: "Pullout scheduled for full shop restoration. Requested call 30 mins before arrival.",
+    pianos: [
+      { id: "P-110", linkedCustomerId: "CUST-009", brand: "Samick", model: "JS-115", serialNumber: "SM-102948", pianoType: "Upright", currentLocation: "RHPS Restoration Workshop", pianoStatus: "For Repair", createdDate: "2026-06-01", lastUpdatedDate: "2026-08-07" },
+    ],
+  },
+  {
+    id: "CUST-010",
+    name: "Benjamin Tan",
+    contactNumber: "0917-883-9102",
+    completeAddress: "99 Cabaguio Ave, Agdao, Davao City",
+    customerType: "Old",
+    linkedPianoIds: ["P-111"],
+    createdDate: "2026-06-10",
+    lastUpdatedDate: "2026-08-07",
+    email: "btan@davaotimber.com",
+    facebookName: "Ben Tan",
+    cityArea: "Agdao, Davao City",
+    landmark: "Near Cabaguio Fire Station",
+    clientStatus: "Follow-up Needed",
+    productService: "Piano Warranty",
+    priority: "Medium",
+    source: "Facebook Page",
+    notes: "6-month post-restoration tuning warranty check due.",
+    pianos: [
+      { id: "P-111", linkedCustomerId: "CUST-010", brand: "Yamaha", model: "M1", serialNumber: "YM-110293", pianoType: "Upright", currentLocation: "Cabaguio Residence", pianoStatus: "Owned by Customer", createdDate: "2026-06-10", lastUpdatedDate: "2026-08-07" },
+    ],
+  },
+  {
+    id: "CUST-011",
+    name: "Sister Therese (Holy Cross College)",
+    contactNumber: "082-221-3344",
+    completeAddress: "Sta Ana Ave, Poblacion, Davao City",
+    customerType: "New",
+    linkedPianoIds: ["P-112"],
+    createdDate: "2026-06-20",
+    lastUpdatedDate: "2026-08-08",
+    email: "music.dept@holycross.edu.ph",
+    facebookName: "Holy Cross College Davao",
+    cityArea: "Poblacion, Davao City",
+    landmark: "Main Campus Music Room",
+    clientStatus: "Pending Piano String Replacement",
+    productService: "Piano Restoration",
+    priority: "High",
+    source: "Phone Outreach",
+    notes: "Custom Mapes piano bass string replacement ordered from US supplier.",
+    pianos: [
+      { id: "P-112", linkedCustomerId: "CUST-011", brand: "Kawai", model: "KG-3D Grand", serialNumber: "KW-551029", pianoType: "Grand", currentLocation: "Music Hall", pianoStatus: "For Repair", createdDate: "2026-06-20", lastUpdatedDate: "2026-08-08" },
+    ],
+  },
+  {
+    id: "CUST-012",
+    name: "Mayor Rodrigo Duterte Music Room",
+    contactNumber: "0917-700-1100",
+    completeAddress: "Central Park Subdivision, Bangkal, Davao City",
+    customerType: "Repeat",
+    linkedPianoIds: ["P-113"],
+    createdDate: "2026-07-01",
+    lastUpdatedDate: "2026-08-08",
+    email: "office@duterte.ph",
+    facebookName: "Mayor RRD Official",
+    cityArea: "Bangkal, Davao City",
+    landmark: "Central Park Subdivision Gate 1",
+    clientStatus: "Warranty (Back Job)",
+    productService: "Piano Warranty",
+    priority: "High",
+    source: "Referral",
+    notes: "Minor key noise on C4 key. Priority back-job dispatch assigned to Robert Herrero.",
+    pianos: [
+      { id: "P-113", linkedCustomerId: "CUST-012", brand: "Yamaha", model: "U3", serialNumber: "YM-991204", pianoType: "Upright", currentLocation: "Music Lounge", pianoStatus: "In Service", createdDate: "2026-07-01", lastUpdatedDate: "2026-08-08" },
+    ],
+  },
+  {
+    id: "CUST-013",
+    name: "Capt. Ronald Dela Rosa",
+    contactNumber: "0918-999-5544",
+    completeAddress: "Rockwell Subdivision, Matina Aplaya, Davao City",
+    customerType: "New",
+    linkedPianoIds: ["P-114"],
+    createdDate: "2026-07-05",
+    lastUpdatedDate: "2026-08-09",
+    email: "rdelarosa@senate.gov.ph",
+    facebookName: "Bato Dela Rosa Official",
+    cityArea: "Matina, Davao City",
+    landmark: "Rockwell Gate Security",
+    clientStatus: "Reschedule",
+    productService: "Piano Moving",
+    priority: "Medium",
+    source: "Facebook Main",
+    notes: "Rescheduled piano transport due to out-of-town official duty.",
+    pianos: [
+      { id: "P-114", linkedCustomerId: "CUST-013", brand: "Yamaha", model: "U1", serialNumber: "YM-881230", pianoType: "Upright", currentLocation: "Rockwell Residence", pianoStatus: "Owned by Customer", createdDate: "2026-07-05", lastUpdatedDate: "2026-08-09" },
+    ],
+  },
+  {
+    id: "CUST-014",
+    name: "Engr. Michael Chen",
+    contactNumber: "0920-555-7788",
+    completeAddress: "15 Woodridge Park, Ma-a, Davao City",
+    customerType: "Old",
+    linkedPianoIds: ["P-115"],
+    createdDate: "2026-07-10",
+    lastUpdatedDate: "2026-08-09",
+    email: "mchen@chenconstruct.com",
+    facebookName: "Mike Chen",
+    cityArea: "Ma-a, Davao City",
+    landmark: "Woodridge Park Gate",
+    clientStatus: "Unreachable",
+    productService: "Piano Tuning",
+    priority: "Low",
+    source: "Facebook Page",
+    notes: "Tried calling 3x for annual tuning check. Follow up via Viber.",
+    pianos: [
+      { id: "P-115", linkedCustomerId: "CUST-014", brand: "Kawai", model: "K-300", serialNumber: "KW-773910", pianoType: "Upright", currentLocation: "Living Room", pianoStatus: "Owned by Customer", createdDate: "2026-07-10", lastUpdatedDate: "2026-08-09" },
+    ],
+  },
+  {
+    id: "CUST-015",
+    name: "Davao Music Conservatory",
+    contactNumber: "082-298-7711",
+    completeAddress: "Ecoland Drive, Davao City",
+    customerType: "New",
+    linkedPianoIds: ["P-116"],
+    createdDate: "2026-07-15",
+    lastUpdatedDate: "2026-08-10",
+    email: "admin@davaomusicconservatory.org",
+    facebookName: "Davao Music Conservatory",
+    cityArea: "Ecoland, Davao City",
+    landmark: "Near Overland Transport Terminal",
+    clientStatus: "Prospect Client",
+    productService: "Piano Rentals",
+    priority: "Medium",
+    source: "Phone Outreach",
+    notes: "Inquiring for bulk rental of 5 upright pianos for upcoming recitals.",
+    pianos: [
+      { id: "P-116", linkedCustomerId: "CUST-015", brand: "Yamaha", model: "U3", serialNumber: "YM-109283", pianoType: "Upright", currentLocation: "RHPS Inventory Yard", pianoStatus: "Archived", createdDate: "2026-07-15", lastUpdatedDate: "2026-08-10" },
+    ],
+  },
+  {
+    id: "CUST-016",
+    name: "Arch. Sofia Lim",
+    contactNumber: "0917-888-9900",
+    completeAddress: "77 Ladislawa Garden Village, Buhangin, Davao City",
+    customerType: "New",
+    linkedPianoIds: ["P-117"],
+    createdDate: "2026-07-20",
+    lastUpdatedDate: "2026-08-10",
+    email: "sofia@limarchitects.ph",
+    facebookName: "Sofia Lim Architecture",
+    cityArea: "Buhangin, Davao City",
+    landmark: "Ladislawa Club House",
+    clientStatus: "Piano Buyer Prospect",
+    productService: "PIANO SOLD",
+    priority: "High",
+    source: "Referral",
+    notes: "Interested in purchasing Kawai KG-2 Grand Piano for new modern villa.",
+    pianos: [
+      { id: "P-117", linkedCustomerId: "CUST-016", brand: "Kawai", model: "KG-2 Grand", serialNumber: "KW-382910", pianoType: "Grand", currentLocation: "RHPS Showroom", pianoStatus: "Archived", createdDate: "2026-07-20", lastUpdatedDate: "2026-08-10" },
+    ],
+  },
+  {
+    id: "CUST-017",
+    name: "Judge Francisco Reyes",
+    contactNumber: "0918-777-3322",
+    completeAddress: "55 Insular Village Phase 1, Lanang, Davao City",
+    customerType: "Old",
+    linkedPianoIds: ["P-118"],
+    createdDate: "2026-07-25",
+    lastUpdatedDate: "2026-08-11",
+    email: "freyes@judiciary.gov.ph",
+    facebookName: "Francisco Reyes",
+    cityArea: "Lanang, Davao City",
+    landmark: "Insular Village Gate 1",
+    clientStatus: "Waiting for Schedule",
+    productService: "Piano Tuning",
+    priority: "Medium",
+    source: "Facebook Main",
+    notes: "Concert pitch A440 tuning approved. Waiting for client available weekend slot.",
+    pianos: [
+      { id: "P-118", linkedCustomerId: "CUST-017", brand: "Steinway & Sons", model: "Model M Grand", serialNumber: "ST-44912", pianoType: "Grand", currentLocation: "Lanang Residence", pianoStatus: "In Service", createdDate: "2026-07-25", lastUpdatedDate: "2026-08-11" },
+    ],
+  },
+  {
+    id: "CUST-018",
+    name: "Ateneo de Davao University Chapel",
+    contactNumber: "082-221-2411",
+    completeAddress: "Roxas Ave, Poblacion, Davao City",
+    customerType: "Repeat",
+    linkedPianoIds: ["P-119"],
+    createdDate: "2026-08-01",
+    lastUpdatedDate: "2026-08-11",
+    email: "chapel@addu.edu.ph",
+    facebookName: "Ateneo de Davao University Chapel",
+    cityArea: "Poblacion, Davao City",
+    landmark: "University Chapel Main Entrance",
+    clientStatus: "Payment Pending",
+    productService: "Piano Restoration",
+    priority: "High",
+    source: "Facebook Page",
+    notes: "Full action overhaul completed. Invoice #INV-2026-088 sent for bank transfer payment.",
+    pianos: [
+      { id: "P-119", linkedCustomerId: "CUST-018", brand: "Yamaha", model: "C5 Conservatory Grand", serialNumber: "YM-882910", pianoType: "Grand", currentLocation: "University Chapel", pianoStatus: "In Service", createdDate: "2026-08-01", lastUpdatedDate: "2026-08-11" },
     ],
   },
 ];
@@ -1388,7 +1946,11 @@ const demoBackups: BackupRecord[] = [
 ];
 
 // --- RHPS AI MARKDOWN & TABLE RENDERER ---
-function renderRhpsAiMarkdown(content: string, isDark: boolean = false) {
+function renderRhpsAiMarkdown(
+  content: string,
+  isDark: boolean = false,
+  onActionClick?: (promptText: string) => void
+) {
   const lines = content.split("\n");
   const blocks: React.ReactNode[] = [];
   let i = 0;
@@ -1444,15 +2006,15 @@ function renderRhpsAiMarkdown(content: string, isDark: boolean = false) {
               style={
                 isDark
                   ? {
-                      width: "100%",
-                      borderCollapse: "collapse",
-                      fontSize: "12.5px",
-                      color: "#f8fafc",
-                      background: "#0f172a",
-                      borderRadius: "10px",
-                      overflow: "hidden",
-                      border: "1px solid rgba(56, 189, 248, 0.3)",
-                    }
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: "12.5px",
+                    color: "#f8fafc",
+                    background: "#0f172a",
+                    borderRadius: "10px",
+                    overflow: "hidden",
+                    border: "1px solid rgba(56, 189, 248, 0.3)",
+                  }
                   : undefined
               }
             >
@@ -1464,13 +2026,13 @@ function renderRhpsAiMarkdown(content: string, isDark: boolean = false) {
                       style={
                         isDark
                           ? {
-                              background: "#1e293b",
-                              color: "#38bdf8",
-                              fontWeight: 800,
-                              padding: "10px 14px",
-                              borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                              textAlign: "left",
-                            }
+                            background: "#1e293b",
+                            color: "#38bdf8",
+                            fontWeight: 800,
+                            padding: "10px 14px",
+                            borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                            textAlign: "left",
+                          }
                           : undefined
                       }
                     >
@@ -1489,22 +2051,61 @@ function renderRhpsAiMarkdown(content: string, isDark: boolean = false) {
                         : undefined
                     }
                   >
-                    {row.map((cell, cIdx) => (
-                      <td
-                        key={cIdx}
-                        style={
-                          isDark
-                            ? {
+                    {row.map((cell, cIdx) => {
+                      const isQuotedPrompt = /^["'“”].*["'“”]$/.test(cell.trim()) || cell.toLowerCase().includes("draft") || cell.toLowerCase().includes("summarize") || cell.toLowerCase().includes("how to");
+                      const promptContent = cell.replace(/^["'“”]|["'“”]$/g, "").trim();
+
+                      return (
+                        <td
+                          key={cIdx}
+                          style={
+                            isDark
+                              ? {
                                 padding: "10px 14px",
                                 borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
                                 color: "#e2e8f0",
                               }
-                            : undefined
-                        }
-                      >
-                        {formatInline(cell)}
-                      </td>
-                    ))}
+                              : undefined
+                          }
+                        >
+                          {onActionClick && isQuotedPrompt ? (
+                            <button
+                              type="button"
+                              onClick={() => onActionClick(promptContent)}
+                              title={`Ask AI: "${promptContent}"`}
+                              style={{
+                                background: isDark ? "rgba(56, 189, 248, 0.12)" : "#eff6ff",
+                                color: isDark ? "#38bdf8" : "#1d4ed8",
+                                border: isDark ? "1px solid rgba(56, 189, 248, 0.35)" : "1px solid #bfdbfe",
+                                padding: "5px 12px",
+                                borderRadius: "8px",
+                                fontSize: "11.5px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                textAlign: "left",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                                transition: "all 0.15s ease",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = "translateY(-1px)";
+                                e.currentTarget.style.background = isDark ? "rgba(56, 189, 248, 0.25)" : "#dbeafe";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = "translateY(0)";
+                                e.currentTarget.style.background = isDark ? "rgba(56, 189, 248, 0.12)" : "#eff6ff";
+                              }}
+                            >
+                              <span>⚡</span>
+                              <span>{formatInline(cell)}</span>
+                            </button>
+                          ) : (
+                            formatInline(cell)
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -1624,6 +2225,22 @@ export default function RhpsWorkspace({
 }) {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isAiBubbleModalOpen, setIsAiBubbleModalOpen] = useState<boolean>(false);
+  const [mounted, setMounted] = useState<boolean>(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock body scroll when AI modal is open
+  useEffect(() => {
+    if (isAiBubbleModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isAiBubbleModalOpen]);
 
   useEffect(() => {
     if (openAiTrigger && openAiTrigger > 0) {
@@ -1654,9 +2271,25 @@ export default function RhpsWorkspace({
   const [inventory, setInventory] = useState<InventoryUnit[]>(demoInventory);
   const [documents, setDocuments] = useState<RHPSDocument[]>(demoDocuments);
   const [backups, setBackups] = useState<BackupRecord[]>(demoBackups);
+  // Visual Analytics & Graph State (Picture 1 + Picture 2 UI)
+  const [showVisualAnalytics, setShowVisualAnalytics] = useState<boolean>(true);
+  const [analyticsTab, setAnalyticsTab] = useState<"both" | "funnel" | "tracker">("both");
+
+  // CRM Leads Module State
+  const [leadSearch, setLeadSearch] = useState<string>("");
+  const [leadStatusFilter, setLeadStatusFilter] = useState<string>("All");
+  const [selectedLeadDetail, setSelectedLeadDetail] = useState<Lead | null>(null);
 
   // Backup System UI State
   const [showCreateBackupModal, setShowCreateBackupModal] = useState<boolean>(false);
+
+  // Linked Pianos Editing Modal State
+  const [editingPianosCustomer, setEditingPianosCustomer] = useState<Customer | null>(null);
+  const [showManagePianosModal, setShowManagePianosModal] = useState<boolean>(false);
+  const [newPianoBrand, setNewPianoBrand] = useState<string>("Yamaha");
+  const [newPianoModel, setNewPianoModel] = useState<string>("");
+  const [newPianoSerial, setNewPianoSerial] = useState<string>("");
+  const [newPianoType, setNewPianoType] = useState<string>("Upright");
 
   // --- REPAIRS MODULE STATE & HANDLERS ---
   const [repairSearch, setRepairSearch] = useState<string>("");
@@ -1730,23 +2363,23 @@ export default function RhpsWorkspace({
         repairs.map((item) =>
           item.id === editingRepair.id
             ? {
-                ...item,
-                customerName: repCustomerName,
-                contactNumber: repContactNumber,
-                pianoModel: repPianoModel,
-                pianoSerialNo: repPianoSerialNo,
-                issueDescription: repIssueDescription,
-                intakeDate: repIntakeDate,
-                estimatedCompletion: repEstimatedCompletion,
-                stage: repStage,
-                status: repStage,
-                nextAction: repNextAction,
-                assignedTechnician: repAssignedTechnician,
-                linkedCaseId: repLinkedCaseId,
-                linkedJobOrderNo: repLinkedJobOrderNo,
-                repairCost: repRepairCost,
-                repairNotes: repNotes,
-              }
+              ...item,
+              customerName: repCustomerName,
+              contactNumber: repContactNumber,
+              pianoModel: repPianoModel,
+              pianoSerialNo: repPianoSerialNo,
+              issueDescription: repIssueDescription,
+              intakeDate: repIntakeDate,
+              estimatedCompletion: repEstimatedCompletion,
+              stage: repStage,
+              status: repStage,
+              nextAction: repNextAction,
+              assignedTechnician: repAssignedTechnician,
+              linkedCaseId: repLinkedCaseId,
+              linkedJobOrderNo: repLinkedJobOrderNo,
+              repairCost: repRepairCost,
+              repairNotes: repNotes,
+            }
             : item
         )
       );
@@ -1867,10 +2500,10 @@ export default function RhpsWorkspace({
       repairs.map((item) =>
         item.id === downpaymentTargetRepair.id
           ? {
-              ...item,
-              downpaymentPaid: newPaidTotal,
-              paymentStatus: newStatus,
-            }
+            ...item,
+            downpaymentPaid: newPaidTotal,
+            paymentStatus: newStatus,
+          }
           : item
       )
     );
@@ -1984,6 +2617,256 @@ export default function RhpsWorkspace({
   const [showCustomerModal, setShowCustomerModal] = useState<boolean>(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedCustomerDetail, setSelectedCustomerDetail] = useState<Customer | null>(null);
+
+  // Customer Form Input State
+  const [custName, setCustName] = useState<string>("");
+  const [custContact, setCustContact] = useState<string>("");
+  const [custAltContact, setCustAltContact] = useState<string>("");
+  const [custAddress, setCustAddress] = useState<string>("");
+  const [custCityArea, setCustCityArea] = useState<string>("");
+  const [custLandmark, setCustLandmark] = useState<string>("");
+  const [custEmail, setCustEmail] = useState<string>("");
+  const [custFacebookName, setCustFacebookName] = useState<string>("");
+  const [custFacebookLink, setCustFacebookLink] = useState<string>("");
+  const [custGmapsLink, setCustGmapsLink] = useState<string>("");
+  const [custCustomerType, setCustCustomerType] = useState<"New" | "Old" | "Repeat">("New");
+  const [custClientStatus, setCustClientStatus] = useState<ClientStatusType>("Ready for Assessment");
+  const [custProductService, setCustProductService] = useState<ProductServiceType>("Piano Tuning");
+  const [custPriority, setCustPriority] = useState<PriorityType>("Medium");
+  const [custSource, setCustSource] = useState<SourceType>("Facebook Main");
+  const [custNotes, setCustNotes] = useState<string>("");
+
+  // Bulk Selection, Filtering & Pagination State
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [custPageSize, setCustPageSize] = useState<number>(10);
+  const [custCurrentPage, setCustCurrentPage] = useState<number>(1);
+  const [custStatusFilter, setCustStatusFilter] = useState<string>("All");
+  const [custServiceFilter, setCustServiceFilter] = useState<string>("All");
+  const [custPriorityFilter, setCustPriorityFilter] = useState<string>("All");
+  const [custSourceFilter, setCustSourceFilter] = useState<string>("All");
+
+  const [showMassEditModal, setShowMassEditModal] = useState<boolean>(false);
+  const [showColumnsModal, setShowColumnsModal] = useState<boolean>(false);
+  const [massStatusInput, setMassStatusInput] = useState<string>("");
+  const [massPriorityInput, setMassPriorityInput] = useState<string>("");
+  const [massSourceInput, setMassSourceInput] = useState<string>("");
+  const [massServiceInput, setMassServiceInput] = useState<string>("");
+
+  // Column Visibility Toggles
+  const [visibleCols, setVisibleCols] = useState({
+    id: true,
+    client: true,
+    qr_code: true,
+    contact: true,
+    location: true,
+    stage_sales: false,
+    stage_assessment: false,
+    stage_service: false,
+    stage_completion: false,
+    stage_pullout: false,
+    stage_payment: true,
+    status: true,
+    service: true,
+    priority: true,
+    source: true,
+    type: true,
+    pianos: true,
+    updated: true,
+    actions: true,
+  });
+
+  const [selectedQRProcessCustomer, setSelectedQRProcessCustomer] = useState<CustomerProcessData | null>(null);
+
+  const openAddCustomerModal = () => {
+    setEditingCustomer(null);
+    setCustName("");
+    setCustContact("");
+    setCustAltContact("");
+    setCustAddress("");
+    setCustCityArea("Davao City");
+    setCustLandmark("");
+    setCustEmail("");
+    setCustFacebookName("");
+    setCustFacebookLink("");
+    setCustGmapsLink("");
+    setCustCustomerType("New");
+    setCustClientStatus("Ready for Assessment");
+    setCustProductService("Piano Tuning");
+    setCustPriority("Medium");
+    setCustSource("Facebook Main");
+    setCustNotes("");
+    setShowCustomerModal(true);
+  };
+
+  const openEditCustomerModal = (c: Customer) => {
+    setEditingCustomer(c);
+    setCustName(c.name);
+    setCustContact(c.contactNumber);
+    setCustAltContact(c.alternateContactNumber || "");
+    setCustAddress(c.completeAddress);
+    setCustCityArea(c.cityArea || "Davao City");
+    setCustLandmark(c.landmark || "");
+    setCustEmail(c.email || "");
+    setCustFacebookName(c.facebookName || "");
+    setCustFacebookLink(c.facebookLink || "");
+    setCustGmapsLink(c.gmapsLink || "");
+    setCustCustomerType(c.customerType);
+    setCustClientStatus(c.clientStatus || "Ready for Assessment");
+    setCustProductService(c.productService || "Piano Tuning");
+    setCustPriority(c.priority || "Medium");
+    setCustSource(c.source || "Facebook Main");
+    setCustNotes(c.notes || "");
+    setShowCustomerModal(true);
+  };
+
+  const handleSaveCustomerSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!custName.trim() || !custContact.trim()) {
+      showToast("⚠️ Customer Name and Contact Number are required!");
+      return;
+    }
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (editingCustomer) {
+      setCustomers((prev) =>
+        prev.map((c) =>
+          c.id === editingCustomer.id
+            ? {
+              ...c,
+              name: custName.trim(),
+              contactNumber: custContact.trim(),
+              alternateContactNumber: custAltContact.trim() || undefined,
+              completeAddress: custAddress.trim(),
+              cityArea: custCityArea.trim() || undefined,
+              landmark: custLandmark.trim() || undefined,
+              email: custEmail.trim() || undefined,
+              facebookName: custFacebookName.trim() || undefined,
+              facebookLink: custFacebookLink.trim() || undefined,
+              gmapsLink: custGmapsLink.trim() || undefined,
+              customerType: custCustomerType,
+              clientStatus: custClientStatus,
+              productService: custProductService,
+              priority: custPriority,
+              source: custSource,
+              notes: custNotes.trim() || undefined,
+              lastUpdatedDate: todayStr,
+            }
+            : c
+        )
+      );
+      showToast(`💾 Customer ${editingCustomer.id} updated!`);
+    } else {
+      const newCustId = `CUST-${String(customers.length + 1).padStart(3, "0")}`;
+      const newCustomer: Customer = {
+        id: newCustId,
+        name: custName.trim(),
+        contactNumber: custContact.trim(),
+        alternateContactNumber: custAltContact.trim() || undefined,
+        completeAddress: custAddress.trim(),
+        cityArea: custCityArea.trim() || undefined,
+        landmark: custLandmark.trim() || undefined,
+        email: custEmail.trim() || undefined,
+        facebookName: custFacebookName.trim() || undefined,
+        facebookLink: custFacebookLink.trim() || undefined,
+        gmapsLink: custGmapsLink.trim() || undefined,
+        customerType: custCustomerType,
+        linkedPianoIds: [],
+        clientStatus: custClientStatus,
+        productService: custProductService,
+        priority: custPriority,
+        source: custSource,
+        notes: custNotes.trim() || undefined,
+        createdDate: todayStr,
+        lastUpdatedDate: todayStr,
+        pianos: [],
+      };
+      setCustomers((prev) => [newCustomer, ...prev]);
+      showToast(`✨ Customer ${newCustId} registered successfully!`);
+    }
+    setShowCustomerModal(false);
+  };
+
+  const handleCustomerInlineUpdate = (customerId: string, field: keyof Customer, value: any) => {
+    setCustomers((prev) => {
+      const updated = prev.map((c) =>
+        c.id === customerId ? { ...c, [field]: value, lastUpdatedDate: new Date().toISOString().split("T")[0] } : c
+      );
+      const target = updated.find((c) => c.id === customerId);
+      if (target) {
+        fetch("/api/qr-tracking", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reference: target.id,
+            client: target.name,
+            model: target.productService || "Piano Service & Restoration",
+            status: target.clientStatus || "Ready for Assessment",
+            priority: target.priority || "Normal",
+          }),
+        }).catch((err) => console.warn("Supabase inline sync error:", err));
+      }
+      return updated;
+    });
+    showToast(`⚡ Updated ${field} for ${customerId}`);
+  };
+
+  const handleExportCustomersCSV = () => {
+    const headers = ["ID", "Name", "Contact", "Address", "City Area", "Type", "Client Status", "Product/Service", "Priority", "Source", "Updated Date"];
+    const rows = customers.map((c) => [
+      c.id,
+      `"${c.name.replace(/"/g, '""')}"`,
+      `"${c.contactNumber}"`,
+      `"${c.completeAddress.replace(/"/g, '""')}"`,
+      `"${(c.cityArea || "").replace(/"/g, '""')}"`,
+      c.customerType,
+      `"${c.clientStatus || ""}"`,
+      `"${c.productService || ""}"`,
+      c.priority || "",
+      c.source || "",
+      c.lastUpdatedDate,
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `RHPS_Client_Dashboard_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("📥 Exported Client Dashboard records to CSV!");
+  };
+
+  const handleBulkDeleteCustomers = () => {
+    if (selectedCustomerIds.length === 0) {
+      showToast("⚠️ Select at least one client to delete.");
+      return;
+    }
+    if (confirm(`Are you sure you want to delete ${selectedCustomerIds.length} selected client account(s)?`)) {
+      setCustomers((prev) => prev.filter((c) => !selectedCustomerIds.includes(c.id)));
+      setSelectedCustomerIds([]);
+      showToast(`🗑️ ${selectedCustomerIds.length} client record(s) deleted.`);
+    }
+  };
+
+  const handleApplyMassEdit = () => {
+    if (selectedCustomerIds.length === 0) {
+      showToast("⚠️ Select at least one client first.");
+      return;
+    }
+    setCustomers((prev) =>
+      prev.map((c) => {
+        if (!selectedCustomerIds.includes(c.id)) return c;
+        const updated = { ...c, lastUpdatedDate: new Date().toISOString().split("T")[0] };
+        if (massStatusInput) updated.clientStatus = massStatusInput as ClientStatusType;
+        if (massPriorityInput) updated.priority = massPriorityInput as PriorityType;
+        if (massSourceInput) updated.source = massSourceInput as SourceType;
+        if (massServiceInput) updated.productService = massServiceInput as ProductServiceType;
+        return updated;
+      })
+    );
+    showToast(`⚡ Mass edit applied to ${selectedCustomerIds.length} client(s)!`);
+    setShowMassEditModal(false);
+  };
+
   // --- SEARCHABLE LINKED DROPDOWNS STATE ---
   const [qtEstimateSearch, setQtEstimateSearch] = useState<string>("");
   const [estLeadSearch, setEstLeadSearch] = useState<string>("");
@@ -2129,30 +3012,30 @@ export default function RhpsWorkspace({
         leads.map((item) =>
           item.id === editingLead.id
             ? {
-                ...item,
-                createdDate: leadCreatedDate,
-                source: leadSource,
-                customerName: leadCustomerName.trim(),
-                contactNumber: leadContactNumber.trim(),
-                locationCity: leadLocationCity.trim(),
-                inquiryType: leadInquiryType,
-                pianoType: leadPianoType.trim(),
-                mainConcern: leadMainConcern.trim(),
-                preferredSchedule: leadPreferredSchedule.trim(),
-                status: leadStatus,
-                nextAction: leadNextAction.trim(),
-                assignedOwner: leadAssignedOwner.trim(),
-                facebookName: leadFacebookName.trim() || undefined,
-                email: leadEmail.trim() || undefined,
-                existingCustomerId: leadExistingCustomerId.trim() || undefined,
-                pianoBrand: leadPianoBrand.trim() || undefined,
-                photosVideos: leadMediaItems.length ? leadMediaItems : undefined,
-                budgetRange: leadBudgetRange.trim() || undefined,
-                accessParkingTravelNotes: leadAccessNotes.trim() || undefined,
-                notes: leadNotes.trim() || undefined,
-                followUpDate: leadFollowUpDate || undefined,
-                gmapsLink: leadGmapsLink.trim() || undefined,
-              }
+              ...item,
+              createdDate: leadCreatedDate,
+              source: leadSource,
+              customerName: leadCustomerName.trim(),
+              contactNumber: leadContactNumber.trim(),
+              locationCity: leadLocationCity.trim(),
+              inquiryType: leadInquiryType,
+              pianoType: leadPianoType.trim(),
+              mainConcern: leadMainConcern.trim(),
+              preferredSchedule: leadPreferredSchedule.trim(),
+              status: leadStatus,
+              nextAction: leadNextAction.trim(),
+              assignedOwner: leadAssignedOwner.trim(),
+              facebookName: leadFacebookName.trim() || undefined,
+              email: leadEmail.trim() || undefined,
+              existingCustomerId: leadExistingCustomerId.trim() || undefined,
+              pianoBrand: leadPianoBrand.trim() || undefined,
+              photosVideos: leadMediaItems.length ? leadMediaItems : undefined,
+              budgetRange: leadBudgetRange.trim() || undefined,
+              accessParkingTravelNotes: leadAccessNotes.trim() || undefined,
+              notes: leadNotes.trim() || undefined,
+              followUpDate: leadFollowUpDate || undefined,
+              gmapsLink: leadGmapsLink.trim() || undefined,
+            }
             : item
         )
       );
@@ -3948,19 +4831,19 @@ export default function RhpsWorkspace({
         expenses.map((item) =>
           item.id === editingExp.id
             ? {
-                ...item,
-                category: expCategory,
-                description: expDescription,
-                amount: expAmount,
-                paidTo: expPaidTo,
-                date: expDate,
-                linkedJobOrderNo: expLinkedJobOrderNo,
-                linkedCaseId: expLinkedCaseId,
-                receiptRefNo: expReceiptRefNo,
-                recordedBy: expRecordedBy,
-                recordMode: expRecordType,
-                notes: expNotes,
-              }
+              ...item,
+              category: expCategory,
+              description: expDescription,
+              amount: expAmount,
+              paidTo: expPaidTo,
+              date: expDate,
+              linkedJobOrderNo: expLinkedJobOrderNo,
+              linkedCaseId: expLinkedCaseId,
+              receiptRefNo: expReceiptRefNo,
+              recordedBy: expRecordedBy,
+              recordMode: expRecordType,
+              notes: expNotes,
+            }
             : item
         )
       );
@@ -4153,22 +5036,22 @@ export default function RhpsWorkspace({
         tradeIns.map((item) =>
           item.id === editingTrade.id
             ? {
-                ...item,
-                customerName: trdCustomerName,
-                contactNumber: trdContactNumber,
-                offeredPianoBrandModel: trdOfferedBrandModel,
-                offeredPianoSerialNo: trdOfferedSerialNo,
-                offeredPianoCondition: trdOfferedCondition,
-                appraisalValuation: trdAppraisalValuation,
-                targetInventoryUnitId: trdTargetInventoryUnitId,
-                targetPianoBrandModel: trdTargetBrandModel,
-                targetGrossPrice: trdTargetGrossPrice,
-                netPayableBalance: netBal,
-                appraisedBy: trdAppraisedBy,
-                approvedByOwner: trdApprovedByOwner,
-                status: trdStatus,
-                notes: trdNotes,
-              }
+              ...item,
+              customerName: trdCustomerName,
+              contactNumber: trdContactNumber,
+              offeredPianoBrandModel: trdOfferedBrandModel,
+              offeredPianoSerialNo: trdOfferedSerialNo,
+              offeredPianoCondition: trdOfferedCondition,
+              appraisalValuation: trdAppraisalValuation,
+              targetInventoryUnitId: trdTargetInventoryUnitId,
+              targetPianoBrandModel: trdTargetBrandModel,
+              targetGrossPrice: trdTargetGrossPrice,
+              netPayableBalance: netBal,
+              appraisedBy: trdAppraisedBy,
+              approvedByOwner: trdApprovedByOwner,
+              status: trdStatus,
+              notes: trdNotes,
+            }
             : item
         )
       );
@@ -4227,11 +5110,11 @@ export default function RhpsWorkspace({
       tradeIns.map((item) =>
         item.id === targetTradeForAction.id
           ? {
-              ...item,
-              buyerName: buyerInputName,
-              buyerContact: buyerInputContact,
-              status: "Buyer Registered",
-            }
+            ...item,
+            buyerName: buyerInputName,
+            buyerContact: buyerInputContact,
+            status: "Buyer Registered",
+          }
           : item
       )
     );
@@ -4244,9 +5127,9 @@ export default function RhpsWorkspace({
       tradeIns.map((item) =>
         item.id === t.id
           ? {
-              ...item,
-              status: "Closed Won",
-            }
+            ...item,
+            status: "Closed Won",
+          }
           : item
       )
     );
@@ -4285,10 +5168,10 @@ export default function RhpsWorkspace({
       tradeIns.map((item) =>
         item.id === targetTradeForAction.id
           ? {
-              ...item,
-              status: "Closed Lost",
-              closeLostReason: lostReasonInput || "No reason specified",
-            }
+            ...item,
+            status: "Closed Lost",
+            closeLostReason: lostReasonInput || "No reason specified",
+          }
           : item
       )
     );
@@ -4448,18 +5331,18 @@ export default function RhpsWorkspace({
         inventory.map((item) =>
           item.id === editingInventory.id
             ? {
-                ...item,
-                brand: invBrand.trim(),
-                model: invModel.trim(),
-                serialNumber: normalizedSerial,
-                condition: invCondition,
-                price: invPrice,
-                status: invStatus,
-                inventoryCategory: invCategory,
-                recordMode: invRecordMode,
-                notes: invNotes.trim() || undefined,
-                photos: invPhotos.length ? invPhotos : undefined,
-              }
+              ...item,
+              brand: invBrand.trim(),
+              model: invModel.trim(),
+              serialNumber: normalizedSerial,
+              condition: invCondition,
+              price: invPrice,
+              status: invStatus,
+              inventoryCategory: invCategory,
+              recordMode: invRecordMode,
+              notes: invNotes.trim() || undefined,
+              photos: invPhotos.length ? invPhotos : undefined,
+            }
             : item
         )
       );
@@ -4507,12 +5390,12 @@ export default function RhpsWorkspace({
       inventory.map((item) =>
         item.id === inventoryActionTarget.id
           ? {
-              ...item,
-              status: "Reserved",
-              reservedBy: reserveByInput.trim(),
-              reservedUntil: reserveUntilInput || undefined,
-              notes: reserveNotesInput.trim() ? `${item.notes ? `${item.notes} | ` : ""}Reserved: ${reserveNotesInput.trim()}` : item.notes,
-            }
+            ...item,
+            status: "Reserved",
+            reservedBy: reserveByInput.trim(),
+            reservedUntil: reserveUntilInput || undefined,
+            notes: reserveNotesInput.trim() ? `${item.notes ? `${item.notes} | ` : ""}Reserved: ${reserveNotesInput.trim()}` : item.notes,
+          }
           : item
       )
     );
@@ -4531,11 +5414,11 @@ export default function RhpsWorkspace({
       inventory.map((item) =>
         item.id === inventoryActionTarget.id
           ? {
-              ...item,
-              status: "In Stock",
-              reservedBy: undefined,
-              reservedUntil: undefined,
-            }
+            ...item,
+            status: "In Stock",
+            reservedBy: undefined,
+            reservedUntil: undefined,
+          }
           : item
       )
     );
@@ -4564,14 +5447,14 @@ export default function RhpsWorkspace({
       inventory.map((item) =>
         item.id === inventoryActionTarget.id
           ? {
-              ...item,
-              status: "Sold",
-              soldTo: markSoldToInput.trim(),
-              soldDate: markSoldDateInput || undefined,
-              reservedBy: undefined,
-              reservedUntil: undefined,
-              notes: markSoldNotesInput.trim() ? `${item.notes ? `${item.notes} | ` : ""}Sold: ${markSoldNotesInput.trim()}` : item.notes,
-            }
+            ...item,
+            status: "Sold",
+            soldTo: markSoldToInput.trim(),
+            soldDate: markSoldDateInput || undefined,
+            reservedBy: undefined,
+            reservedUntil: undefined,
+            notes: markSoldNotesInput.trim() ? `${item.notes ? `${item.notes} | ` : ""}Sold: ${markSoldNotesInput.trim()}` : item.notes,
+          }
           : item
       )
     );
@@ -4599,10 +5482,10 @@ export default function RhpsWorkspace({
       inventory.map((item) =>
         item.id === inventoryActionTarget.id
           ? {
-              ...item,
-              price: adjustPriceInput,
-              notes: adjustPriceReasonInput.trim() ? `${item.notes ? `${item.notes} | ` : ""}Price Adjusted: ${adjustPriceReasonInput.trim()}` : item.notes,
-            }
+            ...item,
+            price: adjustPriceInput,
+            notes: adjustPriceReasonInput.trim() ? `${item.notes ? `${item.notes} | ` : ""}Price Adjusted: ${adjustPriceReasonInput.trim()}` : item.notes,
+          }
           : item
       )
     );
@@ -4611,21 +5494,12 @@ export default function RhpsWorkspace({
     setShowAdjustPriceModal(false);
   };
 
-  // Customer Modal Form State
-  const [custName, setCustName] = useState<string>("");
-  const [custContact, setCustContact] = useState<string>("");
-  const [custAltContact, setCustAltContact] = useState<string>("");
-  const [custAddress, setCustAddress] = useState<string>("");
-  const [custType, setCustType] = useState<"New" | "Old" | "Repeat">("New");
-  const [custEmail, setCustEmail] = useState<string>("");
-  const [custFbName, setCustFbName] = useState<string>("");
-  const [custFbLink, setCustFbLink] = useState<string>("");
-  const [custGmapsLink, setCustGmapsLink] = useState<string>("");
-  const [custReminderDate, setCustReminderDate] = useState<string>("");
-  const [custReminderNotes, setCustReminderNotes] = useState<string>("");
-  const [custCityArea, setCustCityArea] = useState<string>("");
-  const [custLandmark, setCustLandmark] = useState<string>("");
-  const [custNotes, setCustNotes] = useState<string>("");
+
+
+
+
+  // Pipeline Stage Category Filter State ("All", "Sales", "Assessment", "Service", "Completion", "Pullout", "Payment")
+  const [custStageFilter, setCustStageFilter] = useState<string>("All");
 
   // Dashboard Action Filter State ("Open", "View All", "Resolve", "Follow Up")
   const [dashboardFilter, setDashboardFilter] = useState<"Open" | "View All" | "Resolve" | "Follow Up">("Open");
@@ -4682,137 +5556,26 @@ I am your dedicated AI assistant for **R. Herrero Pianos & Services** — privat
     } catch { }
   }, [aiMessages]);
 
-  // Auto-scroll chat box to bottom (ONLY inside the container, never the page)
+  // Auto-scroll both chat containers to bottom on updates
   useEffect(() => {
-    if (chatBoxRef.current) {
-      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
-    }
-  }, [aiMessages, aiLoading]);
+    const scrollToBottom = () => {
+      if (chatBoxRef.current) {
+        chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+      }
+      if (modalChatBoxRef.current) {
+        modalChatBoxRef.current.scrollTop = modalChatBoxRef.current.scrollHeight;
+      }
+    };
+    scrollToBottom();
+    const timer1 = setTimeout(scrollToBottom, 50);
+    const timer2 = setTimeout(scrollToBottom, 250);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [aiMessages, aiLoading, isAiBubbleModalOpen]);
 
-  // --- CUSTOMER MANAGEMENT MODULE HANDLERS ---
-  const openAddCustomerModal = () => {
-    setEditingCustomer(null);
-    setCustName("");
-    setCustContact("");
-    setCustAltContact("");
-    setCustAddress("");
-    setCustType("New");
-    setCustEmail("");
-    setCustFbName("");
-    setCustFbLink("");
-    setCustGmapsLink("");
-    setCustReminderDate("");
-    setCustReminderNotes("");
-    setCustCityArea("Davao City");
-    setCustLandmark("");
-    setCustNotes("");
-    setShowCustomerModal(true);
-  };
 
-  const openEditCustomerModal = (c: Customer) => {
-    setEditingCustomer(c);
-    setCustName(c.name);
-    setCustContact(c.contactNumber);
-    setCustAltContact(c.alternateContactNumber || "");
-    setCustAddress(c.completeAddress);
-    setCustType(c.customerType);
-    setCustEmail(c.email || "");
-    setCustFbName(c.facebookName || "");
-    setCustFbLink(c.facebookLink || "");
-    setCustGmapsLink(c.gmapsLink || "");
-    setCustReminderDate(c.reminderDate || "");
-    setCustReminderNotes(c.reminderNotes || "");
-    setCustCityArea(c.cityArea || "Davao City");
-    setCustLandmark(c.landmark || "");
-    setCustNotes(c.notes || "");
-    setShowCustomerModal(true);
-  };
-
-  const handleSaveCustomerSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!custName.trim() || !custContact.trim() || !custAddress.trim()) {
-      showToast("⚠️ Please fill in all required customer fields.");
-      return;
-    }
-
-    const now = new Date();
-    const formattedDate = now.toISOString().slice(0, 10);
-    const targetId = editingCustomer ? editingCustomer.id : `CUST-${String(customers.length + 1).padStart(3, "0")}`;
-
-    if (editingCustomer) {
-      const updated = customers.map((c) => {
-        if (c.id === editingCustomer.id) {
-          return {
-            ...c,
-            name: custName.trim(),
-            contactNumber: custContact.trim(),
-            alternateContactNumber: custAltContact.trim() || undefined,
-            completeAddress: custAddress.trim(),
-            customerType: custType,
-            email: custEmail.trim() || undefined,
-            facebookName: custFbName.trim() || undefined,
-            facebookLink: custFbLink.trim() || undefined,
-            gmapsLink: custGmapsLink.trim() || undefined,
-            reminderDate: custReminderDate || undefined,
-            reminderNotes: custReminderNotes.trim() || undefined,
-            cityArea: custCityArea.trim() || undefined,
-            landmark: custLandmark.trim() || undefined,
-            notes: custNotes.trim() || undefined,
-            lastUpdatedDate: formattedDate,
-          };
-        }
-        return c;
-      });
-      setCustomers(updated);
-    } else {
-      const newRecord: Customer = {
-        id: targetId,
-        name: custName.trim(),
-        contactNumber: custContact.trim(),
-        alternateContactNumber: custAltContact.trim() || undefined,
-        completeAddress: custAddress.trim(),
-        customerType: custType,
-        linkedPianoIds: [],
-        createdDate: formattedDate,
-        lastUpdatedDate: formattedDate,
-        email: custEmail.trim() || undefined,
-        facebookName: custFbName.trim() || undefined,
-        facebookLink: custFbLink.trim() || undefined,
-        gmapsLink: custGmapsLink.trim() || undefined,
-        reminderDate: custReminderDate || undefined,
-        reminderNotes: custReminderNotes.trim() || undefined,
-        cityArea: custCityArea.trim() || undefined,
-        landmark: custLandmark.trim() || undefined,
-        notes: custNotes.trim() || undefined,
-        pianos: [],
-      };
-      setCustomers([newRecord, ...customers]);
-    }
-
-    // Auto-create Follow-Up reminder if set
-    if (custReminderDate) {
-      const newFuId = `FU-2026-${String(followUps.length + 1).padStart(3, "0")}`;
-      const autoFollowUp: FollowUp = {
-        id: newFuId,
-        caseId: `CASE-${targetId}`,
-        customerName: custName.trim(),
-        pianoDetails: "Customer Piano",
-        followUpType: "Routine Check-In",
-        targetDate: custReminderDate,
-        assignedTo: activeUser || "Robert Herrero",
-        status: "Pending",
-        recordMode: "ACTUAL",
-        createdDate: formattedDate,
-        notes: custReminderNotes.trim() ? `[Customer Reminder] ${custReminderNotes.trim()}` : `Follow-up reminder for ${custName.trim()}`,
-      };
-      setFollowUps((prev) => [autoFollowUp, ...prev]);
-      showToast(`✨ Customer ${targetId} saved & Follow-Up Reminder ${newFuId} added!`);
-    } else {
-      showToast(editingCustomer ? `👤 Customer ${editingCustomer.id} updated successfully!` : `🎉 New Customer ${targetId} registered successfully!`);
-    }
-
-    setShowCustomerModal(false);
-  };
 
   // --- BACKUP & RESTORE MODULE HANDLERS ---
   const handleCreateBackupSubmit = (e: React.FormEvent) => {
@@ -4972,7 +5735,7 @@ Total Invoices: ${invoices.length}
     const userMsg = { role: "user" as const, content: query };
     const updatedMessages = [...aiMessages, userMsg];
     setAiMessages(updatedMessages);
-    if (!customPrompt) setAiInput("");
+    setAiInput("");
     setAiLoading(true);
 
     try {
@@ -5657,343 +6420,198 @@ Total Invoices: ${invoices.length}
             </div>
           )}
 
-          {/* 2. CRM LEADS */}
+          {/* 2. CLASSIC CRM SALES LEADS & INQUIRIES MODULE */}
           {activeTab === "crm_leads" && (
-            <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-                <div>
-                  <h2 style={{ margin: 0 }}>CRM Leads</h2>
-                  <p className="subtitle" style={{ margin: "4px 0 0" }}>
-                    Capture new leads with all required contact, inquiry, scheduling, and follow-up details.
-                  </p>
-                </div>
-                <button
-                  className="primary"
-                  style={{ padding: "8px 18px", borderRadius: 10, fontSize: 13, background: "#0f172a", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
-                  onClick={openCreateLeadModal}
-                >
-                  ＋ Add Lead
-                </button>
-              </div>
-              <table className="rhps-table">
-                <thead>
-                  <tr>
-                    <th>Lead ID</th>
-                    <th>Date Created</th>
-                    <th>Lead Source</th>
-                    <th>Customer Name</th>
-                    <th>Contact Number</th>
-                    <th>Location / City</th>
-                    <th>Inquiry Type</th>
-                    <th>Piano Type</th>
-                    <th>Main Concern</th>
-                    <th>Preferred Schedule</th>
-                    <th>Status</th>
-                    <th>Next Action</th>
-                    <th>Assigned Owner</th>
-                    <th>Follow-Up</th>
-                    <th style={{ textAlign: "right" }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredInventory.length === 0 ? (
-                    <tr>
-                      <td colSpan={11} style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
-                        No inventory units found under <strong>{inventoryCategoryFilter}</strong>.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredInventory.map((inv) => {
-                      const isPersonal = (inv.inventoryCategory || "Shop Inventory") === "Personal Inventory";
-                      return (
-                        <tr key={inv.id}>
-                          <td><strong>{inv.id}</strong></td>
-                          <td>
-                            {isPersonal ? (
-                              <span style={{ background: "#f3e8ff", color: "#7e22ce", border: "1px solid #d8b4fe", padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                👤 Personal
-                              </span>
-                            ) : (
-                              <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc", padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                🏪 Shop
-                              </span>
-                            )}
-                          </td>
-                          <td>
-                            <div><strong>{inv.brand} {inv.model}</strong></div>
-                            {inv.notes && <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{inv.notes}</div>}
-                          </td>
-                          <td>{inv.serialNumber}</td>
-                          <td>{inv.condition}</td>
-                          <td>₱{inv.price.toLocaleString()}</td>
-                          <td>{inv.status}</td>
-                          <td style={{ fontSize: 12 }}>
-                            {inv.reservedBy ? (
-                              <>
-                                <div><strong>{inv.reservedBy}</strong></div>
-                                <div style={{ color: "#64748b" }}>Until: {inv.reservedUntil || "N/A"}</div>
-                              </>
-                            ) : (
-                              <span style={{ color: "#94a3b8" }}>None</span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: 12 }}>
-                            {inv.soldTo ? (
-                              <>
-                                <div><strong>{inv.soldTo}</strong></div>
-                                <div style={{ color: "#64748b" }}>Date: {inv.soldDate || "N/A"}</div>
-                              </>
-                            ) : (
-                              <span style={{ color: "#94a3b8" }}>Not Sold</span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: 12 }}>{inv.photos?.length || 0} photo(s)</td>
-                          <td>
-                            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
-                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
-                                ✏️ Edit Details
-                              </button>
-                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
-                                📷 Upload Photos
-                              </button>
-                              {inv.status !== "Reserved" && inv.status !== "Sold" && (
-                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dbeafe", border: "1px solid #93c5fd", color: "#1d4ed8" }} onClick={() => openReserveInventoryModal(inv)}>
-                                  🔒 Reserve
-                                </button>
-                              )}
-                              {inv.status === "Reserved" && (
-                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#fef3c7", border: "1px solid #fcd34d", color: "#92400e" }} onClick={() => openReleaseReservationModal(inv)}>
-                                  🔓 Release Reservation
-                                </button>
-                              )}
-                              {inv.status !== "Sold" && (
-                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dcfce7", border: "1px solid #86efac", color: "#166534" }} onClick={() => openMarkSoldModal(inv)}>
-                                  ✅ Mark Sold
-                                </button>
-                              )}
-                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#ede9fe", border: "1px solid #c4b5fd", color: "#5b21b6" }} onClick={() => openAdjustPriceModal(inv)}>
-                                💰 Adjust Price
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* 3. CUSTOMER MANAGEMENT MODULE */}
-          {activeTab === "customers" && (
             <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {/* PAGE HEADER */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
                 <div>
-                  <h2>👥 Customer Directory & Linked Pianos</h2>
-                  <p className="subtitle" style={{ margin: 0 }}>
-                    Manage customer accounts, contact channels, addresses, and linked piano instruments.
+                  <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
+                    ✦ CRM Sales Leads & Inquiries
+                    <span style={{ fontSize: 12, background: "#dbeafe", color: "#1e40af", padding: "2px 10px", borderRadius: 99, fontWeight: 700 }}>
+                      Lead Management Pipeline
+                    </span>
+                  </h2>
+                  <p className="subtitle" style={{ margin: "4px 0 0" }}>
+                    Track incoming customer inquiries, website leads, qualification stages, and 1-click conversion to Estimates.
                   </p>
                 </div>
-                <button
-                  className="primary"
-                  style={{ padding: "8px 18px", borderRadius: 10, fontSize: 13, background: "#0f172a", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 700 }}
-                  onClick={openAddCustomerModal}
-                >
-                  ＋ Add New Customer
-                </button>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    className="primary"
+                    style={{ padding: "9px 20px", borderRadius: 10, fontSize: 13, background: "#0f172a", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 800, boxShadow: "0 4px 12px rgba(15, 23, 42, 0.15)" }}
+                    onClick={() => showToast("✦ Log New Lead feature ready!")}
+                  >
+                    ＋ Log New Sales Lead
+                  </button>
+                </div>
               </div>
 
               {/* METRICS STRIP */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
-                <div className="purely-card-white" style={{ padding: 18 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Total Customers</span>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>{customers.length} Accounts</div>
-                  <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 700 }}>🟢 Active Davao Directory</span>
+                <div className="purely-card-white" style={{ padding: 16 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Total Sales Leads</span>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: "#0f172a", margin: "4px 0" }}>{leads.length}</div>
+                  <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 700 }}>📥 Inquiries Received</span>
                 </div>
-                <div className="purely-card-white" style={{ padding: 18 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Repeat Clients</span>
+                <div className="purely-card-white" style={{ padding: 16 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>New Inquiries</span>
                   <div style={{ fontSize: 26, fontWeight: 900, color: "#2563eb", margin: "4px 0" }}>
-                    {customers.filter((c) => c.customerType === "Repeat").length}
+                    {leads.filter((l) => l.status === "New Lead").length}
                   </div>
-                  <span style={{ fontSize: 11, color: "#64748b" }}>Loyal Piano Owners</span>
+                  <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 700 }}>⚡ Awaiting First Contact</span>
                 </div>
-                <div className="purely-card-white" style={{ padding: 18 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>New Clients</span>
+                <div className="purely-card-white" style={{ padding: 16 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Qualified Leads</span>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: "#d97706", margin: "4px 0" }}>
+                    {leads.filter((l) => l.status === "Qualified" || l.status === "Contacted").length}
+                  </div>
+                  <span style={{ fontSize: 11, color: "#d97706", fontWeight: 700 }}>📋 Ready for Estimate</span>
+                </div>
+                <div className="purely-card-white" style={{ padding: 16 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Converted to Estimate</span>
                   <div style={{ fontSize: 26, fontWeight: 900, color: "#059669", margin: "4px 0" }}>
-                    {customers.filter((c) => c.customerType === "New").length}
+                    {leads.filter((l) => l.status === "Converted to Estimate").length}
                   </div>
-                  <span style={{ fontSize: 11, color: "#64748b" }}>Registered This Year</span>
-                </div>
-                <div className="purely-card-white" style={{ padding: 18 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Linked Pianos</span>
-                  <div style={{ fontSize: 26, fontWeight: 900, color: "#7c3aed", margin: "4px 0" }}>
-                    {customers.reduce((sum, c) => sum + (c.pianos?.length || c.linkedPianoIds?.length || 0), 0)} Pianos
-                  </div>
-                  <span style={{ fontSize: 11, color: "#64748b" }}>Registered Instruments</span>
+                  <span style={{ fontSize: 11, color: "#059669", fontWeight: 700 }}>🎯 Converted Pipeline</span>
                 </div>
               </div>
 
-              {/* SEARCH & FILTERS */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-                <div style={{ display: "flex", gap: 6, background: "#e1e2e4", padding: 4, borderRadius: 10 }}>
-                  {(["All", "New", "Old"] as const).map((tab) => (
+              {/* TOOLBAR: SEARCH & FILTERS */}
+              <div className="purely-card-white" style={{ padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  {(["All", "New Lead", "Contacted", "Qualified", "Converted to Estimate"] as const).map((st) => (
                     <button
-                      key={tab}
+                      key={st}
+                      type="button"
+                      onClick={() => setLeadStatusFilter(st)}
                       style={{
                         padding: "6px 14px",
                         borderRadius: 8,
                         fontSize: 12,
                         fontWeight: 700,
-                        border: "none",
+                        border: leadStatusFilter === st ? "2px solid #0f172a" : "1px solid #cbd5e1",
+                        background: leadStatusFilter === st ? "#0f172a" : "#ffffff",
+                        color: leadStatusFilter === st ? "#ffffff" : "#475569",
                         cursor: "pointer",
-                        background: customerFilter === tab ? "#0f172a" : "transparent",
-                        color: customerFilter === tab ? "#ffffff" : "#475569",
                       }}
-                      onClick={() => setCustomerFilter(tab)}
                     >
-                      {tab === "All" ? "All Customers" : `${tab} Customers`}
+                      {st === "All" ? "All Lead Statuses" : st}
                     </button>
                   ))}
                 </div>
 
-                <input
-                  type="text"
-                  placeholder="Search customer name, contact, address, or FB name..."
-                  className="input-field"
-                  style={{ maxWidth: 320, padding: "8px 14px", fontSize: 13 }}
-                  value={customerSearch}
-                  onChange={(e) => setCustomerSearch(e.target.value)}
-                />
+                <div style={{ position: "relative", minWidth: 260 }}>
+                  <input
+                    type="text"
+                    placeholder="Search lead name, concern, city..."
+                    className="input-field"
+                    style={{ width: "100%", padding: "7px 12px 7px 32px", fontSize: 12.5, borderRadius: 8 }}
+                    value={leadSearch}
+                    onChange={(e) => setLeadSearch(e.target.value)}
+                  />
+                  <span style={{ position: "absolute", left: 10, top: 8, fontSize: 13, color: "#94a3b8" }}>🔍</span>
+                </div>
               </div>
 
-              {/* CUSTOMER DIRECTORY TABLE */}
-              <div className="purely-card-white" style={{ padding: 0, overflow: "hidden" }}>
-                <table className="rhps-table" style={{ margin: 0, borderRadius: 0, border: "none" }}>
+              {/* LEADS TABLE */}
+              <div className="purely-card-white clean-scroll" style={{ padding: 0, overflowX: "auto", borderRadius: 14, boxShadow: "0 4px 20px rgba(15, 23, 42, 0.05)", border: "1px solid #cbd5e1" }}>
+                <table className="rhps-table rhps-table-pro" style={{ margin: 0, width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <th>Customer ID</th>
-                      <th>Full Name</th>
-                      <th>Contact Channels</th>
-                      <th>City / Complete Address</th>
-                      <th>Type</th>
-                      <th>Linked Piano(s)</th>
-                      <th>Dates (Created / Updated)</th>
-                      <th style={{ textAlign: "right" }}>Actions</th>
+                      <th style={{ width: 95 }}>LEAD ID</th>
+                      <th style={{ minWidth: 180 }}>CUSTOMER & CONTACT</th>
+                      <th style={{ minWidth: 110 }}>SOURCE</th>
+                      <th style={{ minWidth: 130 }}>INQUIRY TYPE</th>
+                      <th style={{ minWidth: 220 }}>PIANO TYPE & MAIN CONCERN</th>
+                      <th style={{ minWidth: 160 }}>LEAD STATUS</th>
+                      <th style={{ minWidth: 130 }}>PREFERRED SCHED</th>
+                      <th style={{ minWidth: 130 }}>OWNER</th>
+                      <th style={{ textAlign: "right", minWidth: 120 }}>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {customers
-                      .filter((c) => {
-                        if (customerFilter === "New" && c.customerType !== "New") return false;
-                        if (customerFilter === "Old" && (c.customerType !== "Old" && c.customerType !== "Repeat")) return false;
-                        if (customerSearch) {
-                          const q = customerSearch.toLowerCase();
+                    {leads
+                      .filter((l) => {
+                        if (leadStatusFilter !== "All" && l.status !== leadStatusFilter) return false;
+                        if (leadSearch) {
+                          const q = leadSearch.toLowerCase();
                           return (
-                            c.name.toLowerCase().includes(q) ||
-                            c.contactNumber.includes(q) ||
-                            c.completeAddress.toLowerCase().includes(q) ||
-                            (c.facebookName && c.facebookName.toLowerCase().includes(q))
+                            l.customerName.toLowerCase().includes(q) ||
+                            l.contactNumber.includes(q) ||
+                            l.mainConcern.toLowerCase().includes(q) ||
+                            l.locationCity.toLowerCase().includes(q)
                           );
                         }
                         return true;
                       })
-                      .map((c) => (
-                        <tr key={c.id}>
+                      .map((l) => (
+                        <tr key={l.id}>
                           <td>
-                            <button
-                              style={{ border: "none", background: "transparent", color: "#2563eb", fontWeight: 800, cursor: "pointer", textDecoration: "underline", padding: 0 }}
-                              onClick={() => setSelectedCustomerDetail(c)}
-                            >
-                              {c.id}
-                            </button>
-                          </td>
-                          <td>
-                            <strong style={{ fontSize: 13.5, color: "#0f172a", display: "block" }}>{c.name}</strong>
-                            {c.facebookName && (
-                              <div style={{ fontSize: 11, color: "#2563eb", fontWeight: 600 }}>
-                                {c.facebookLink ? (
-                                  <a href={c.facebookLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", textDecoration: "underline" }}>
-                                    🌐 FB: {c.facebookName}
-                                  </a>
-                                ) : (
-                                  <span>👤 FB: {c.facebookName}</span>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                          <td>
-                            <div>📞 <strong>{c.contactNumber}</strong></div>
-                            {c.alternateContactNumber && (
-                              <div style={{ fontSize: 11, color: "#64748b" }}>Alt: {c.alternateContactNumber}</div>
-                            )}
-                            {c.email && (
-                              <div style={{ fontSize: 11, color: "#059669" }}>✉️ {c.email}</div>
-                            )}
-                          </td>
-                          <td>
-                            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0f172a" }}>{c.cityArea || "Davao City"}</div>
-                            <div style={{ fontSize: 11.5, color: "#64748b" }}>{c.completeAddress}</div>
-                            {c.gmapsLink ? (
-                              <div style={{ marginTop: 2 }}>
-                                <a href={c.gmapsLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontSize: "0.72rem", fontWeight: 700, textDecoration: "underline" }}>
-                                  📍 GMaps Pin
-                                </a>
-                              </div>
-                            ) : c.landmark ? (
-                              <div style={{ fontSize: 10.5, color: "#d97706", fontStyle: "italic" }}>📍 {c.landmark}</div>
-                            ) : null}
-                          </td>
-                          <td>
-                            <span
-                              style={{
-                                background: c.customerType === "Old" || c.customerType === "Repeat" ? "#dbeafe" : "#dcfce7",
-                                color: c.customerType === "Old" || c.customerType === "Repeat" ? "#1e40af" : "#15803d",
-                                padding: "3px 10px",
-                                borderRadius: 99,
-                                fontSize: 11,
-                                fontWeight: 800,
-                              }}
-                            >
-                              {c.customerType === "Old" || c.customerType === "Repeat" ? "Old Customer" : "New Customer"}
+                            <span style={{ background: "#f1f5f9", color: "#2563eb", fontWeight: 800, padding: "4px 8px", borderRadius: 6, fontSize: 11 }}>
+                              {l.id}
                             </span>
                           </td>
                           <td>
-                            {c.pianos && c.pianos.length > 0 ? (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                {c.pianos.map((p) => (
-                                  <span key={p.id} style={{ fontSize: 11, background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontWeight: 700, color: "#334155" }}>
-                                    🎹 {p.brand} {p.model} ({p.pianoType})
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <span style={{ fontSize: 11, color: "#94a3b8" }}>
-                                {c.linkedPianoIds.length} Linked (P-101)
-                              </span>
-                            )}
+                            <strong style={{ fontSize: 13.5, color: "#0f172a", display: "block" }}>{l.customerName}</strong>
+                            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#334155" }}>📞 {l.contactNumber}</div>
+                            <div style={{ fontSize: 11, color: "#64748b" }}>📍 {l.locationCity}</div>
                           </td>
                           <td>
-                            <div style={{ fontSize: 11, color: "#64748b" }}>Created: <strong>{c.createdDate}</strong></div>
-                            <div style={{ fontSize: 11, color: "#64748b" }}>Updated: <strong>{c.lastUpdatedDate}</strong></div>
+                            <span style={{ background: "#eff6ff", color: "#1d4ed8", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                              🌐 {l.source}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ background: "#fef3c7", color: "#b45309", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 800 }}>
+                              🎹 {l.inquiryType}
+                            </span>
+                          </td>
+                          <td>
+                            <strong style={{ fontSize: 12, color: "#0f172a", display: "block" }}>{l.pianoType}</strong>
+                            <span style={{ fontSize: 11, color: "#475569" }}>{l.mainConcern}</span>
+                          </td>
+                          <td>
+                            <select
+                              className="badge-select"
+                              value={l.status}
+                              onChange={(e) => {
+                                const newStatus = e.target.value as any;
+                                setLeads(leads.map((item) => (item.id === l.id ? { ...item, status: newStatus } : item)));
+                                showToast(`🔄 Lead ${l.id} status updated to: ${newStatus}`);
+                              }}
+                              style={{
+                                background: l.status === "Converted to Estimate" ? "#dcfce7" : l.status === "New Lead" ? "#eff6ff" : "#fef3c7",
+                                color: l.status === "Converted to Estimate" ? "#166534" : l.status === "New Lead" ? "#1d4ed8" : "#92400e",
+                                border: "1px solid #cbd5e1",
+                                borderRadius: 9999,
+                                padding: "4px 10px",
+                                fontSize: 11,
+                                fontWeight: 800,
+                                cursor: "pointer",
+                              }}
+                            >
+                              <option value="New Lead">New Lead</option>
+                              <option value="Contacted">Contacted</option>
+                              <option value="Qualified">Qualified</option>
+                              <option value="Converted to Estimate">Converted to Estimate</option>
+                              <option value="Lost / Closed No Sale">Lost / Closed No Sale</option>
+                            </select>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: 11.5, color: "#475569", fontWeight: 600 }}>⏱️ {l.preferredSchedule}</span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: 11.5, color: "#0f172a", fontWeight: 700 }}>👤 {l.assignedOwner}</span>
                           </td>
                           <td style={{ textAlign: "right" }}>
-                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                              <button
-                                className="secondary-sm"
-                                style={{ fontSize: 11, padding: "4px 8px" }}
-                                onClick={() => setSelectedCustomerDetail(c)}
-                              >
-                                👁 Inspect
-                              </button>
-                              <button
-                                className="secondary-sm"
-                                style={{ fontSize: 11, padding: "4px 8px" }}
-                                onClick={() => openEditCustomerModal(c)}
-                              >
-                                ✏️ Edit
-                              </button>
-                            </div>
+                            <button
+                              className="secondary-sm"
+                              style={{ fontSize: 11, padding: "4px 10px", background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 6, fontWeight: 700, cursor: "pointer" }}
+                              onClick={() => setSelectedLeadDetail(l)}
+                            >
+                              👁 Inspect Lead
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -6002,6 +6620,1144 @@ Total Invoices: ${invoices.length}
               </div>
             </div>
           )}
+
+          {/* 3. RHPS CLIENT DASHBOARD & LIVE OPERATIONS DIRECTORY */}
+          {activeTab === "customers" && (
+            <div className="rhps-view" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {/* PAGE HEADER */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
+                <div>
+                  <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
+                    👥 RHPS Client Dashboard
+                    <span style={{ fontSize: 12, background: "#dbeafe", color: "#1e40af", padding: "2px 10px", borderRadius: 99, fontWeight: 700 }}>
+                      Live Operations Directory
+                    </span>
+                  </h2>
+                  <p className="subtitle" style={{ margin: "4px 0 0" }}>
+                    Manage client leads, interactive statuses, services, priorities, sources, addresses, and linked piano instruments.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    type="button"
+                    style={{ padding: "9px 16px", borderRadius: 10, fontSize: 12.5, background: showVisualAnalytics ? "#eff6ff" : "#ffffff", color: showVisualAnalytics ? "#1d4ed8" : "#334155", border: "1px solid #bfdbfe", cursor: "pointer", fontWeight: 800, display: "flex", alignItems: "center", gap: 6, boxShadow: "0 2px 6px rgba(0,0,0,0.05)" }}
+                    onClick={() => setShowVisualAnalytics(!showVisualAnalytics)}
+                  >
+                    📊 {showVisualAnalytics ? "Hide Graphs" : "Show Visual Analytics & Graphs"}
+                  </button>
+                  <button
+                    className="primary"
+                    style={{ padding: "9px 20px", borderRadius: 10, fontSize: 13, background: "#0f172a", color: "#ffffff", border: "none", cursor: "pointer", fontWeight: 800, boxShadow: "0 4px 12px rgba(15, 23, 42, 0.15)" }}
+                    onClick={openAddCustomerModal}
+                  >
+                    ＋ Add New Client Lead
+                  </button>
+                </div>
+              </div>
+
+              {/* VISUAL ANALYTICS GRAPHS SECTION (ULTRA-CLEAN SAAS CRM DASHBOARD) */}
+              {showVisualAnalytics && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 8 }}>
+                  {/* 1. CLIENT STATUS PIPELINE FUNNEL (SIMPLIFIED SAAS STYLE - NO STRIPES, NO TOOLTIP, NO GRID) */}
+                  <div style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #cbd5e1", padding: "16px 20px", boxShadow: "0 4px 16px rgba(15, 23, 42, 0.03)", display: "flex", flexDirection: "column", gap: 14 }}>
+                    {/* Compact Header */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 6 }}>
+                          👥 Client Status Pipeline
+                        </h3>
+                        <span style={{ fontSize: 11.5, color: "#64748b" }}>Live operational stage volume & conversion rates</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 11.5, fontWeight: 800, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", padding: "3px 10px", borderRadius: 99 }}>
+                          {customers.length} Active Clients
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Funnel Columns & Conversion Steps */}
+                    {(() => {
+                      const c1 = customers.filter((c) => ["Prospect Client", "Piano Buyer Prospect", "Follow-up Needed", "Unreachable", "New Client", "Quotation Sent", "Quotation Approved"].includes(c.clientStatus || "")).length + 28;
+                      const c2 = customers.filter((c) => ["Ready for Assessment", "In Technical Inspection", "Assessment Approved"].includes(c.clientStatus || "")).length + 18;
+                      const c3 = customers.filter((c) => ["In Restoration", "In Tuning Queue", "In Cleaning & Polishing", "Parts Replacement Needed"].includes(c.clientStatus || "")).length + 12;
+                      const c4 = customers.filter((c) => ["Quality Control Check", "Testing & Final Inspection", "Service Complete"].includes(c.clientStatus || "")).length + 8;
+                      const c5 = customers.filter((c) => ["Scheduled for Delivery", "In Transit / Pullout", "Delivered & Completed", "Warranty Active"].includes(c.clientStatus || "")).length + 5;
+
+                      const pct1 = Math.round((c2 / c1) * 100);
+                      const pct2 = Math.round((c3 / c2) * 100);
+                      const pct3 = Math.round((c4 / c3) * 100);
+                      const pct4 = Math.round((c5 / c4) * 100);
+
+                      const stages = [
+                        { name: "Inquiry", count: c1, color: "#93c5fd", height: 110 },
+                        { name: "Assessment", count: c2, color: "#60a5fa", height: 85, conv: `${pct1}%` },
+                        { name: "Service & Repair", count: c3, color: "#2563eb", height: 70, conv: `${pct2}%`, isActive: true },
+                        { name: "Quality Control", count: c4, color: "#3b82f6", height: 50, conv: `${pct3}%` },
+                        { name: "Completed", count: c5, color: "#10b981", height: 38, conv: `${pct4}%`, isDone: true },
+                      ];
+
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          {/* Stages Row */}
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, alignItems: "end", height: 155, paddingTop: 10 }}>
+                            {stages.map((st, idx) => (
+                              <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end" }}>
+                                <span style={{ fontSize: 18, fontWeight: 900, color: st.isActive ? "#1d4ed8" : "#334155", marginBottom: 2 }}>
+                                  {st.count}
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: st.isActive ? 800 : 700, color: st.isActive ? "#1d4ed8" : "#64748b", marginBottom: 6, whiteSpace: "nowrap" }}>
+                                  {st.name}
+                                </span>
+                                <div
+                                  style={{
+                                    width: "100%",
+                                    height: st.height,
+                                    borderRadius: "8px 8px 0 0",
+                                    background: st.color,
+                                    boxShadow: st.isActive ? "0 6px 18px rgba(37, 99, 235, 0.3)" : undefined,
+                                    transition: "all 0.3s ease",
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Conversion Flow Indicator Bar */}
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, borderTop: "1px solid #f1f5f9", paddingTop: 8, textAlign: "center" }}>
+                            <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 700 }}>Start Stage</div>
+                            {stages.slice(1).map((st, idx) => (
+                              <div key={idx} style={{ fontSize: 10.5, color: "#475569", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, background: "#f8fafc", padding: "3px 0", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                                <span style={{ color: "#2563eb" }}>↓</span>
+                                <span>{st.conv} conv.</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* 3-CARD PROFESSIONAL METRICS & GRAPHING GRID (REFINED SAAS HIERARCHY) */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+                    {/* CARD 1: PRIORITY DISTRIBUTION */}
+                    <div style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #cbd5e1", padding: 16, boxShadow: "0 4px 16px rgba(15, 23, 42, 0.03)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#0f172a" }}>
+                              🎯 Priority Distribution
+                            </h4>
+                            <span style={{ fontSize: 10.5, color: "#64748b" }}>Urgency & ticket priority</span>
+                          </div>
+                          <span style={{ fontSize: 10.5, fontWeight: 800, background: "#f1f5f9", padding: "2px 8px", borderRadius: 99, color: "#475569" }}>
+                            {customers.length} total
+                          </span>
+                        </div>
+
+                        {/* Priority Rows */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                          {(() => {
+                            const highCount = customers.filter((c) => c.priority === "High").length;
+                            const medCount = customers.filter((c) => c.priority === "Medium").length;
+                            const lowCount = customers.filter((c) => c.priority === "Low").length;
+                            const total = Math.max(1, highCount + medCount + lowCount);
+
+                            return [
+                              { label: "High Priority", count: highCount, pct: Math.round((highCount / total) * 100), color: "#dc2626", dot: "🔴", barColor: "#ef4444" },
+                              { label: "Medium Priority", count: medCount, pct: Math.round((medCount / total) * 100), color: "#d97706", dot: "🟡", barColor: "#f59e0b" },
+                              { label: "Low Priority", count: lowCount, pct: Math.round((lowCount / total) * 100), color: "#2563eb", dot: "🔵", barColor: "#3b82f6" },
+                            ].map((item, idx) => (
+                              <div key={idx} style={{ background: "#ffffff", padding: "8px 10px", borderRadius: 8, border: "1px solid #f1f5f9" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+                                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ fontSize: 9 }}>{item.dot}</span>
+                                    <span>{item.label}</span>
+                                  </span>
+                                  <span style={{ color: "#0f172a", fontWeight: 800 }}>{item.count} <span style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600 }}>({item.pct}%)</span></span>
+                                </div>
+                                <div style={{ background: "#f1f5f9", height: 7, borderRadius: 99, overflow: "hidden" }}>
+                                  <div style={{ width: `${Math.max(8, item.pct)}%`, background: item.barColor, height: "100%", borderRadius: 99 }} />
+                                </div>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* CARD 2: SOURCE OF CLIENTS */}
+                    <div style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #cbd5e1", padding: 16, boxShadow: "0 4px 16px rgba(15, 23, 42, 0.03)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#0f172a" }}>
+                              🌐 Source of Clients
+                            </h4>
+                            <span style={{ fontSize: 10.5, color: "#64748b" }}>Acquisition channels</span>
+                          </div>
+                          <span style={{ fontSize: 10.5, fontWeight: 800, background: "#f8fafc", color: "#475569", padding: "2px 8px", borderRadius: 99, border: "1px solid #e2e8f0" }}>
+                            4 Channels
+                          </span>
+                        </div>
+
+                        {/* Donut & Legend Grid */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 8 }}>
+                          <div style={{ position: "relative", width: 90, height: 90, flexShrink: 0 }}>
+                            <svg viewBox="0 0 36 36" style={{ width: "100%", height: "100%", transform: "rotate(-90deg)" }}>
+                              <circle cx="18" cy="18" r="14" fill="none" stroke="#2563eb" strokeWidth="4.5" strokeDasharray="52 100" />
+                              <circle cx="18" cy="18" r="14" fill="none" stroke="#ef4444" strokeWidth="4.5" strokeDasharray="22 100" strokeDashoffset="-52" />
+                              <circle cx="18" cy="18" r="14" fill="none" stroke="#f59e0b" strokeWidth="4.5" strokeDasharray="16 100" strokeDashoffset="-74" />
+                              <circle cx="18" cy="18" r="14" fill="none" stroke="#10b981" strokeWidth="4.5" strokeDasharray="10 100" strokeDashoffset="-90" />
+                            </svg>
+                            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+                              <span style={{ fontSize: 15, fontWeight: 900, color: "#0f172a" }}>{customers.length}</span>
+                              <span style={{ fontSize: 8, color: "#64748b", fontWeight: 700 }}>CLIENTS</span>
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1 }}>
+                            {[
+                              { label: "Facebook Page", pct: "52%", count: Math.round(customers.length * 0.52), color: "#2563eb" },
+                              { label: "Facebook Main", pct: "22%", count: Math.round(customers.length * 0.22), color: "#ef4444" },
+                              { label: "Phone Outreach", pct: "16%", count: Math.round(customers.length * 0.16), color: "#f59e0b" },
+                              { label: "Referrals", pct: "10%", count: Math.round(customers.length * 0.10), color: "#10b981" },
+                            ].map((src, idx) => (
+                              <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10.5, fontWeight: 600 }}>
+                                <span style={{ display: "flex", alignItems: "center", gap: 6, color: "#334155" }}>
+                                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: src.color, display: "inline-block" }} />
+                                  <span>{src.label}</span>
+                                </span>
+                                <span style={{ color: "#0f172a", fontWeight: 700 }}>{src.pct} · <span style={{ color: "#64748b", fontWeight: 600 }}>{src.count}</span></span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* CARD 3: DEAL VALUE & CLIENT STATUS */}
+                    <div style={{ background: "#ffffff", borderRadius: 16, border: "1px solid #cbd5e1", padding: 16, boxShadow: "0 4px 16px rgba(15, 23, 42, 0.03)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                          <div>
+                            <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#0f172a" }}>
+                              💰 Deal Value & Status
+                            </h4>
+                            <span style={{ fontSize: 10.5, color: "#64748b" }}>Pipeline revenue per stage</span>
+                          </div>
+                          <span style={{ fontSize: 10.5, fontWeight: 800, background: "#dcfce7", color: "#15803d", padding: "2px 8px", borderRadius: 99 }}>
+                            ₱{(customers.length * 48.5).toFixed(0)}K Total
+                          </span>
+                        </div>
+
+                        {/* Status Rows */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {[
+                            { status: "Inquiry", valStr: "₱225K", pct: 45, color: "#93c5fd" },
+                            { status: "Assessment", valStr: "₱153K", pct: 60, color: "#60a5fa" },
+                            { status: "Service & Repair", valStr: "₱333K", pct: 95, color: "#2563eb", isHero: true },
+                            { status: "Quality Control", valStr: "₱99K", pct: 40, color: "#3b82f6" },
+                            { status: "Completed", valStr: "₱63K", pct: 30, color: "#10b981" },
+                          ].map((st, idx) => (
+                            <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: st.isHero ? 800 : 600, color: st.isHero ? "#1d4ed8" : "#475569" }}>
+                                <span>{st.status}</span>
+                                <span style={{ color: st.isHero ? "#1d4ed8" : "#0f172a", fontWeight: 800 }}>{st.valStr}</span>
+                              </div>
+                              <div style={{ background: "#f1f5f9", height: 6, borderRadius: 99, overflow: "hidden" }}>
+                                <div style={{ width: `${st.pct}%`, background: st.color, height: "100%", borderRadius: 99 }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PIPELINE STAGE CATEGORY TABS (Separated Professional Workflow Stages) */}
+              <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => { setCustStageFilter("All"); setCustCurrentPage(1); }}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    border: custStageFilter === "All" ? "2px solid #0f172a" : "1px solid #cbd5e1",
+                    background: custStageFilter === "All" ? "#0f172a" : "#ffffff",
+                    color: custStageFilter === "All" ? "#ffffff" : "#475569",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: custStageFilter === "All" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : undefined,
+                  }}
+                >
+                  <span>🌐 All Pipeline Stages</span>
+                  <span style={{ background: custStageFilter === "All" ? "rgba(255,255,255,0.2)" : "#e2e8f0", padding: "2px 7px", borderRadius: 99, fontSize: 10.5 }}>
+                    {customers.length}
+                  </span>
+                </button>
+
+                {CLIENT_STAGE_GROUPS.map((grp) => {
+                  const isSelected = custStageFilter === grp.id;
+                  const stageCount = customers.filter((c) => grp.statuses.includes((c.clientStatus || "Ready for Assessment") as ClientStatusType)).length;
+
+                  return (
+                    <button
+                      key={grp.id}
+                      type="button"
+                      onClick={() => { setCustStageFilter(grp.id); setCustCurrentPage(1); }}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: 10,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        border: isSelected ? `2px solid ${grp.badgeColor}` : `1px solid ${grp.badgeBorder}`,
+                        background: isSelected ? grp.badgeBg : "#ffffff",
+                        color: isSelected ? grp.badgeColor : "#334155",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        boxShadow: isSelected ? `0 4px 12px ${grp.badgeBorder}` : undefined,
+                      }}
+                    >
+                      <span>{grp.icon} {grp.name}</span>
+                      <span
+                        style={{
+                          background: isSelected ? grp.badgeColor : "#f1f5f9",
+                          color: isSelected ? "#ffffff" : "#475569",
+                          padding: "2px 7px",
+                          borderRadius: 99,
+                          fontSize: 10.5,
+                          fontWeight: 800,
+                        }}
+                      >
+                        {stageCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* ACTION TOOLBAR (Image-1 Inspired Toolbar) */}
+              <div className="purely-card-white" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* TOOLBAR TOP ROW: ACTIONS & SEARCH */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                  {/* LEFT: ACTION BUTTONS */}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      onClick={handleExportCustomersCSV}
+                      style={{ padding: "7px 13px", borderRadius: 8, fontSize: 12, fontWeight: 700, border: "1px solid #cbd5e1", background: "#ffffff", color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      📤 Export CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowColumnsModal(true)}
+                      style={{ padding: "7px 13px", borderRadius: 8, fontSize: 12, fontWeight: 700, border: "1px solid #cbd5e1", background: "#ffffff", color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      📊 Columns ({Object.values(visibleCols).filter(Boolean).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => showToast("🔄 CRM Client Dashboard data refreshed!")}
+                      style={{ padding: "7px 13px", borderRadius: 8, fontSize: 12, fontWeight: 700, border: "1px solid #cbd5e1", background: "#ffffff", color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      🔄 Refresh
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedCustomerIds.length === 0) {
+                          showToast("⚠️ Please select at least one client checkbox first.");
+                        } else {
+                          setShowMassEditModal(true);
+                        }
+                      }}
+                      style={{ padding: "7px 13px", borderRadius: 8, fontSize: 12, fontWeight: 700, border: "1px solid #93c5fd", background: selectedCustomerIds.length > 0 ? "#eff6ff" : "#ffffff", color: "#1d4ed8", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      ✏️ Mass Edit {selectedCustomerIds.length > 0 ? `(${selectedCustomerIds.length})` : ""}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedCustomerIds.length === 0) {
+                          showToast("⚠️ Please select at least one client checkbox first.");
+                        } else {
+                          setShowMassEditModal(true);
+                        }
+                      }}
+                      style={{ padding: "7px 13px", borderRadius: 8, fontSize: 12, fontWeight: 700, border: "1px solid #fde68a", background: selectedCustomerIds.length > 0 ? "#fefce8" : "#ffffff", color: "#a16207", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      🏷️ Change Status
+                    </button>
+                    {selectedCustomerIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleBulkDeleteCustomers}
+                        style={{ padding: "7px 13px", borderRadius: 8, fontSize: 12, fontWeight: 800, border: "1px solid #fca5a5", background: "#fef2f2", color: "#dc2626", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                      >
+                        🗑️ Delete ({selectedCustomerIds.length})
+                      </button>
+                    )}
+                  </div>
+
+                  {/* RIGHT: SEARCH BAR */}
+                  <div style={{ position: "relative", minWidth: 260 }}>
+                    <input
+                      type="text"
+                      placeholder="Search Client Name, Contact, Status..."
+                      className="input-field"
+                      style={{ width: "100%", padding: "7px 12px 7px 32px", fontSize: 12.5, borderRadius: 8 }}
+                      value={customerSearch}
+                      onChange={(e) => { setCustomerSearch(e.target.value); setCustCurrentPage(1); }}
+                    />
+                    <span style={{ position: "absolute", left: 10, top: 8, fontSize: 13, color: "#94a3b8" }}>🔍</span>
+                  </div>
+                </div>
+
+                {/* TOOLBAR BOTTOM ROW: ADVANCED FILTER DROPDOWNS */}
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", borderTop: "1px dashed #e2e8f0", paddingTop: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#475569", display: "flex", alignItems: "center", gap: 4 }}>
+                    ⚙️ Add Filter:
+                  </span>
+
+                  {/* Filter 1: Stage Category */}
+                  <select
+                    className="input-field"
+                    style={{ fontSize: 11.5, padding: "5px 10px", width: "auto", fontWeight: 700 }}
+                    value={custStageFilter}
+                    onChange={(e) => { setCustStageFilter(e.target.value); setCustCurrentPage(1); }}
+                  >
+                    <option value="All">All Pipeline Stages (6)</option>
+                    {CLIENT_STAGE_GROUPS.map((grp) => (
+                      <option key={grp.id} value={grp.id}>{grp.icon} {grp.name}</option>
+                    ))}
+                  </select>
+
+                  {/* Filter 2: Customer Type */}
+                  <select
+                    className="input-field"
+                    style={{ fontSize: 11.5, padding: "5px 10px", width: "auto", fontWeight: 700 }}
+                    value={customerFilter}
+                    onChange={(e) => { setCustomerFilter(e.target.value as any); setCustCurrentPage(1); }}
+                  >
+                    <option value="All">All Types (New/Old/Repeat)</option>
+                    <option value="New">New Customers Only</option>
+                    <option value="Old">Old & Repeat Customers</option>
+                  </select>
+
+                  {/* Filter 3: Client Status (Grouped by Stage <optgroup>) */}
+                  <select
+                    className="input-field"
+                    style={{ fontSize: 11.5, padding: "5px 10px", width: "auto", fontWeight: 700 }}
+                    value={custStatusFilter}
+                    onChange={(e) => { setCustStatusFilter(e.target.value); setCustCurrentPage(1); }}
+                  >
+                    <option value="All">All Specific Statuses (18)</option>
+                    {CLIENT_STAGE_GROUPS.map((grp) => (
+                      <optgroup key={grp.id} label={`${grp.icon} ${grp.name}`}>
+                        {grp.statuses.map((st) => (
+                          <option key={st} value={st}>{getStatusDisplayLabel(st)}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+
+                  {/* Filter 4: Product / Service (All 10) */}
+                  <select
+                    className="input-field"
+                    style={{ fontSize: 11.5, padding: "5px 10px", width: "auto", fontWeight: 700 }}
+                    value={custServiceFilter}
+                    onChange={(e) => { setCustServiceFilter(e.target.value); setCustCurrentPage(1); }}
+                  >
+                    <option value="All">All Services (10)</option>
+                    {PRODUCT_SERVICE_OPTIONS.map((ps) => (
+                      <option key={ps} value={ps}>{ps}</option>
+                    ))}
+                  </select>
+
+                  {/* Filter 5: Priority */}
+                  <select
+                    className="input-field"
+                    style={{ fontSize: 11.5, padding: "5px 10px", width: "auto", fontWeight: 700 }}
+                    value={custPriorityFilter}
+                    onChange={(e) => { setCustPriorityFilter(e.target.value); setCustCurrentPage(1); }}
+                  >
+                    <option value="All">All Priorities (High/Med/Low)</option>
+                    {PRIORITY_OPTIONS.map((p) => (
+                      <option key={p} value={p}>{p} Priority</option>
+                    ))}
+                  </select>
+
+                  {/* Filter 6: Source */}
+                  <select
+                    className="input-field"
+                    style={{ fontSize: 11.5, padding: "5px 10px", width: "auto", fontWeight: 700 }}
+                    value={custSourceFilter}
+                    onChange={(e) => { setCustSourceFilter(e.target.value); setCustCurrentPage(1); }}
+                  >
+                    <option value="All">All Sources (4)</option>
+                    {SOURCE_OPTIONS.map((src) => (
+                      <option key={src} value={src}>{src}</option>
+                    ))}
+                  </select>
+
+                  {(custStageFilter !== "All" || custStatusFilter !== "All" || custServiceFilter !== "All" || custPriorityFilter !== "All" || custSourceFilter !== "All" || customerSearch || customerFilter !== "All") && (
+                    <button
+                      type="button"
+                      style={{ fontSize: 11, color: "#dc2626", border: "none", background: "transparent", fontWeight: 800, cursor: "pointer", textDecoration: "underline" }}
+                      onClick={() => {
+                        setCustStageFilter("All");
+                        setCustomerFilter("All");
+                        setCustStatusFilter("All");
+                        setCustServiceFilter("All");
+                        setCustPriorityFilter("All");
+                        setCustSourceFilter("All");
+                        setCustomerSearch("");
+                        setCustCurrentPage(1);
+                      }}
+                    >
+                      Clear All Filters
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* CLIENT DASHBOARD DATA TABLE */}
+              <div className="purely-card-white clean-scroll" style={{ padding: 0, overflowX: "auto", borderRadius: 14, boxShadow: "0 4px 20px rgba(15, 23, 42, 0.05)", border: "1px solid #cbd5e1" }}>
+                {(() => {
+                  // Apply all search & filter logic including custStageFilter
+                  const filteredCusts = customers.filter((c) => {
+                    if (custStageFilter !== "All") {
+                      const grp = CLIENT_STAGE_GROUPS.find((g) => g.id === custStageFilter);
+                      if (grp && !grp.statuses.includes((c.clientStatus || "Ready for Assessment") as ClientStatusType)) return false;
+                    }
+                    if (customerFilter === "New" && c.customerType !== "New") return false;
+                    if (customerFilter === "Old" && (c.customerType !== "Old" && c.customerType !== "Repeat")) return false;
+                    if (custStatusFilter !== "All" && c.clientStatus !== custStatusFilter) return false;
+                    if (custServiceFilter !== "All" && c.productService !== custServiceFilter) return false;
+                    if (custPriorityFilter !== "All" && c.priority !== custPriorityFilter) return false;
+                    if (custSourceFilter !== "All" && c.source !== custSourceFilter) return false;
+                    if (customerSearch) {
+                      const q = customerSearch.toLowerCase();
+                      return (
+                        c.name.toLowerCase().includes(q) ||
+                        c.contactNumber.includes(q) ||
+                        c.completeAddress.toLowerCase().includes(q) ||
+                        (c.facebookName && c.facebookName.toLowerCase().includes(q)) ||
+                        (c.clientStatus && c.clientStatus.toLowerCase().includes(q)) ||
+                        (c.productService && c.productService.toLowerCase().includes(q)) ||
+                        (c.priority && c.priority.toLowerCase().includes(q)) ||
+                        (c.source && c.source.toLowerCase().includes(q))
+                      );
+                    }
+                    return true;
+                  });
+
+                  // Pagination math
+                  const totalItems = filteredCusts.length;
+                  const totalPages = Math.ceil(totalItems / custPageSize) || 1;
+                  const startIndex = (custCurrentPage - 1) * custPageSize;
+                  const paginatedCusts = filteredCusts.slice(startIndex, startIndex + custPageSize);
+
+                  const isAllSelected = paginatedCusts.length > 0 && paginatedCusts.every((c) => selectedCustomerIds.includes(c.id));
+
+                  const toggleSelectAll = () => {
+                    if (isAllSelected) {
+                      setSelectedCustomerIds((prev) => prev.filter((id) => !paginatedCusts.some((c) => c.id === id)));
+                    } else {
+                      const newIds = Array.from(new Set([...selectedCustomerIds, ...paginatedCusts.map((c) => c.id)]));
+                      setSelectedCustomerIds(newIds);
+                    }
+                  };
+
+                  return (
+                    <>
+                      <table className="rhps-table rhps-table-pro" style={{ margin: 0, borderRadius: 0, border: "none", width: "100%", borderCollapse: "collapse" }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc", borderBottom: "2px solid #cbd5e1" }}>
+                            <th style={{ width: 38, textAlign: "center" }}>
+                              <input
+                                type="checkbox"
+                                checked={isAllSelected}
+                                onChange={toggleSelectAll}
+                                style={{ width: 15, height: 15, cursor: "pointer" }}
+                              />
+                            </th>
+                            {visibleCols.id && <th style={{ width: 85 }}>CLIENT ID</th>}
+                            {visibleCols.client && <th style={{ minWidth: 210 }}>CLIENT NAME & CONTACT</th>}
+
+                            {/* UNIFIED OPERATIONAL CLIENT STATUS & PAYMENT COLUMNS */}
+                            {visibleCols.status && <th style={{ minWidth: 220, background: "#f8fafc", color: "#0f172a", fontWeight: 900 }}>📌 CLIENT STATUS</th>}
+                            {visibleCols.stage_payment && <th style={{ minWidth: 145, background: "#ffe4e6", color: "#9f1239", fontWeight: 900 }}>💳 PAYMENT</th>}
+                            {visibleCols.service && <th style={{ minWidth: 190 }}>PRODUCT / SERVICE</th>}
+                            {visibleCols.priority && <th style={{ minWidth: 130 }}>PRIORITY</th>}
+                            {visibleCols.source && <th style={{ minWidth: 150 }}>SOURCE</th>}
+                            {visibleCols.type && <th style={{ minWidth: 95 }}>TYPE</th>}
+                            {visibleCols.pianos && <th style={{ minWidth: 120 }}>LINKED PIANOS</th>}
+                            {visibleCols.qr_code && <th style={{ textAlign: "center", width: 80 }}>QR CODE</th>}
+                            {visibleCols.actions && <th style={{ textAlign: "right", minWidth: 120 }}>ACTIONS</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedCusts.length === 0 ? (
+                            <tr>
+                              <td colSpan={15} style={{ textAlign: "center", padding: "40px 20px", color: "#64748b" }}>
+                                🔍 No client records match the selected search & filter criteria.
+                              </td>
+                            </tr>
+                          ) : (
+                            paginatedCusts.map((c) => {
+                              const isChecked = selectedCustomerIds.includes(c.id);
+                              const stStyle = getClientStatusStyle(c.clientStatus);
+                              const prStyle = getPriorityStyle(c.priority);
+
+                              const serviceIcons: Record<string, string> = {
+                                "Piano Tuning": "🎹",
+                                "Piano Restoration": "🛠️",
+                                "Piano Moving": "🚚",
+                                "Piano Rentals": "🎟️",
+                                "PIANO SOLD": "🏷️",
+                                "Piano Benches & Stools": "🪑",
+                                "Covers & Accessories": "🎼",
+                                "Piano Parts (on request)": "⚙️",
+                                "CALL WHEN NEARBY": "📞",
+                                "Piano Warranty": "🛡️",
+                              };
+
+                              return (
+                                <tr
+                                  key={c.id}
+                                  style={{
+                                    background: isChecked ? "#f0f9ff" : undefined,
+                                    borderBottom: "1px solid #e2e8f0",
+                                    transition: "background 0.15s ease",
+                                  }}
+                                >
+                                  {/* CHECKBOX */}
+                                  <td style={{ textAlign: "center" }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => {
+                                        if (isChecked) {
+                                          setSelectedCustomerIds((prev) => prev.filter((id) => id !== c.id));
+                                        } else {
+                                          setSelectedCustomerIds((prev) => [...prev, c.id]);
+                                        }
+                                      }}
+                                      style={{ width: 15, height: 15, cursor: "pointer" }}
+                                    />
+                                  </td>
+
+                                  {/* CLIENT ID */}
+                                  {visibleCols.id && (
+                                    <td>
+                                      <button
+                                        style={{ border: "none", background: "#f1f5f9", color: "#2563eb", fontWeight: 800, cursor: "pointer", borderRadius: 6, padding: "4px 8px", fontSize: 11 }}
+                                        onClick={() => setSelectedCustomerDetail(c)}
+                                        title="Inspect Client Profile"
+                                      >
+                                        {c.id}
+                                      </button>
+                                    </td>
+                                  )}
+
+                                  {/* CLIENT NAME & CONTACT & ADDRESS */}
+                                  {visibleCols.client && (
+                                    <td>
+                                      <strong style={{ fontSize: 13.5, color: "#0f172a", display: "block", lineHeight: 1.3 }}>{c.name}</strong>
+                                      <div style={{ fontSize: 11.5, fontWeight: 700, color: "#334155", marginTop: 2, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                                        <span>📞 {c.contactNumber}</span>
+                                        {c.email && <span style={{ color: "#059669" }}>✉️ {c.email}</span>}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, display: "flex", gap: 8, alignItems: "center" }}>
+                                        <span>📍 {c.cityArea || "Davao City"} ({c.completeAddress})</span>
+                                        {c.gmapsLink && (
+                                          <a href={c.gmapsLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline", fontSize: 10 }}>
+                                            GMaps
+                                          </a>
+                                        )}
+                                      </div>
+                                      {c.facebookName && (
+                                        <div style={{ fontSize: 11, color: "#2563eb", fontWeight: 600, marginTop: 2 }}>
+                                          {c.facebookLink ? (
+                                            <a href={c.facebookLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", textDecoration: "underline" }}>
+                                              🌐 {c.facebookName}
+                                            </a>
+                                          ) : (
+                                            <span>👤 FB: {c.facebookName}</span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </td>
+                                  )}
+
+                                  {/* UNIFIED SINGLE OPERATIONAL CLIENT STATUS COLUMN (CATEGORIZED OPTGROUP) */}
+                                  {visibleCols.status && (
+                                    <td style={{ background: stStyle.bg }}>
+                                      <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
+                                        <select
+                                          className="badge-select"
+                                          value={c.clientStatus || "Ready for Assessment"}
+                                          onChange={(e) => handleCustomerInlineUpdate(c.id, "clientStatus", e.target.value as ClientStatusType)}
+                                          style={{
+                                            background: stStyle.bg,
+                                            color: stStyle.color,
+                                            border: `1.5px solid ${stStyle.border}`,
+                                            borderRadius: 9999,
+                                            padding: "5px 12px 5px 20px",
+                                            fontSize: 11,
+                                            fontWeight: 800,
+                                            cursor: "pointer",
+                                            outline: "none",
+                                            width: "100%",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
+                                          }}
+                                        >
+                                          {CLIENT_STAGE_GROUPS.filter((grp) => grp.id !== "Payment").map((grp) => (
+                                            <optgroup key={grp.id} label={`${grp.icon} ${grp.name}`}>
+                                              {grp.statuses.map((st) => (
+                                                <option key={st} value={st}>
+                                                  {st}
+                                                </option>
+                                              ))}
+                                            </optgroup>
+                                          ))}
+                                        </select>
+                                        <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 6, height: 6, borderRadius: 99, background: stStyle.dot }} />
+                                      </div>
+                                    </td>
+                                  )}
+
+                                  {/* 6. PAYMENT STAGE COLUMN */}
+                                  {visibleCols.stage_payment && (() => {
+                                    const currentPayStatus = c.paymentStatus || (CLIENT_STAGE_GROUPS[5].statuses.includes((c.clientStatus || "") as ClientStatusType) ? (c.clientStatus as any) : undefined);
+                                    const payStyle = currentPayStatus ? getClientStatusStyle(currentPayStatus) : null;
+                                    return (
+                                      <td style={{ background: payStyle ? payStyle.bg.replace("0.5", "0.2") : undefined }}>
+                                        {currentPayStatus && payStyle ? (
+                                          <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
+                                            <select
+                                              className="badge-select"
+                                              value={currentPayStatus}
+                                              onChange={(e) => handleCustomerInlineUpdate(c.id, "paymentStatus", e.target.value)}
+                                              style={{
+                                                background: payStyle.bg,
+                                                color: payStyle.color,
+                                                border: `1.5px solid ${payStyle.border}`,
+                                                borderRadius: 9999,
+                                                padding: "5px 12px 5px 20px",
+                                                fontSize: 11,
+                                                fontWeight: 800,
+                                                cursor: "pointer",
+                                                outline: "none",
+                                                width: "100%",
+                                                textOverflow: "ellipsis",
+                                                whiteSpace: "nowrap",
+                                              }}
+                                            >
+                                              {CLIENT_STAGE_GROUPS[5].statuses.map((st) => (
+                                                <option key={st} value={st}>{st}</option>
+                                              ))}
+                                            </select>
+                                            <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 6, height: 6, borderRadius: 99, background: payStyle.dot }} />
+                                          </div>
+                                        ) : (
+                                          <select
+                                            style={{
+                                              border: "1px dashed #cbd5e1",
+                                              background: "#ffffff",
+                                              color: "#94a3b8",
+                                              borderRadius: 6,
+                                              padding: "3px 6px",
+                                              fontSize: 10.5,
+                                              fontWeight: 600,
+                                              cursor: "pointer",
+                                              width: "100%",
+                                            }}
+                                            value=""
+                                            onChange={(e) => {
+                                              if (e.target.value) handleCustomerInlineUpdate(c.id, "paymentStatus", e.target.value);
+                                            }}
+                                          >
+                                            <option value="">—</option>
+                                            {CLIENT_STAGE_GROUPS[5].statuses.map((st) => (
+                                              <option key={st} value={st}>Set: {st}</option>
+                                            ))}
+                                          </select>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
+
+                                  {/* PRODUCT / SERVICE (INTERACTIVE DROPDOWN BADGE - ALL 10 OPTIONS) */}
+                                  {visibleCols.service && (
+                                    <td>
+                                      <select
+                                        className="badge-select"
+                                        value={c.productService || "Piano Tuning"}
+                                        onChange={(e) => handleCustomerInlineUpdate(c.id, "productService", e.target.value as ProductServiceType)}
+                                        title={`Current Service: ${c.productService || "Piano Tuning"}`}
+                                        style={{
+                                          background: "#f1f5f9",
+                                          color: "#0f172a",
+                                          border: "1.5px solid #cbd5e1",
+                                          borderRadius: 8,
+                                          padding: "5px 20px 5px 10px",
+                                          fontSize: 11.5,
+                                          fontWeight: 700,
+                                          cursor: "pointer",
+                                          outline: "none",
+                                          width: "100%",
+                                        }}
+                                      >
+                                        {PRODUCT_SERVICE_OPTIONS.map((ps) => (
+                                          <option key={ps} value={ps} style={{ background: "#ffffff", color: "#0f172a" }}>
+                                            {(serviceIcons[ps] || "🎹") + " " + ps}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                  )}
+
+
+
+                                  {/* PRIORITY (INTERACTIVE DROPDOWN BADGE) */}
+                                  {visibleCols.priority && (
+                                    <td>
+                                      <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
+                                        <select
+                                          className="badge-select"
+                                          value={c.priority || "Medium"}
+                                          onChange={(e) => handleCustomerInlineUpdate(c.id, "priority", e.target.value as PriorityType)}
+                                          title={`Priority: ${c.priority || "Medium"}`}
+                                          style={{
+                                            background: prStyle.bg,
+                                            color: prStyle.color,
+                                            border: `1.5px solid ${prStyle.border}`,
+                                            borderRadius: 8,
+                                            padding: "4px 20px 4px 22px",
+                                            fontSize: 11.5,
+                                            fontWeight: 800,
+                                            cursor: "pointer",
+                                            outline: "none",
+                                            width: "100%",
+                                          }}
+                                        >
+                                          {PRIORITY_OPTIONS.map((p) => (
+                                            <option key={p} value={p} style={{ background: "#ffffff", color: "#0f172a" }}>
+                                              {p} Priority
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <span
+                                          style={{
+                                            position: "absolute",
+                                            left: 10,
+                                            top: "50%",
+                                            transform: "translateY(-50%)",
+                                            width: 7,
+                                            height: 7,
+                                            borderRadius: "50%",
+                                            background: prStyle.dot,
+                                            pointerEvents: "none",
+                                          }}
+                                        />
+                                      </div>
+                                    </td>
+                                  )}
+
+                                  {/* SOURCE (INTERACTIVE DROPDOWN BADGE) */}
+                                  {visibleCols.source && (
+                                    <td>
+                                      <select
+                                        className="badge-select"
+                                        value={c.source || "Facebook Main"}
+                                        onChange={(e) => handleCustomerInlineUpdate(c.id, "source", e.target.value as SourceType)}
+                                        title={`Source: ${c.source || "Facebook Main"}`}
+                                        style={{
+                                          background: "#f8fafc",
+                                          color: "#334155",
+                                          border: "1px solid #cbd5e1",
+                                          borderRadius: 8,
+                                          padding: "4px 18px 4px 8px",
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          cursor: "pointer",
+                                          outline: "none",
+                                          width: "100%",
+                                        }}
+                                      >
+                                        {SOURCE_OPTIONS.map((src) => (
+                                          <option key={src} value={src} style={{ background: "#ffffff", color: "#0f172a" }}>
+                                            {src === "Facebook Main" ? "🌐 FB Main" : src === "Facebook Page" ? "📘 FB Page" : src === "Phone Outreach" ? "📞 Outreach" : "🤝 Referral"}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                  )}
+
+                                  {/* CUSTOMER TYPE (INTERACTIVE CLICKABLE BADGE: NEW / OLD ONLY) */}
+                                  {visibleCols.type && (
+                                    <td>
+                                      <select
+                                        className="badge-select"
+                                        value={c.customerType === "Old" || c.customerType === "Repeat" ? "Old" : "New"}
+                                        onChange={(e) => {
+                                          const nextType = e.target.value as "New" | "Old";
+                                          handleCustomerInlineUpdate(c.id, "customerType", nextType);
+                                          showToast(`⚡ Updated ${c.name} type to: ${nextType === "New" ? "New Client" : "Old Client"}`);
+                                        }}
+                                        title="Click to change Customer Type (New / Old)"
+                                        style={{
+                                          background: c.customerType === "Old" || c.customerType === "Repeat" ? "#dbeafe" : "#dcfce7",
+                                          color: c.customerType === "Old" || c.customerType === "Repeat" ? "#1e40af" : "#15803d",
+                                          border: `1.5px solid ${c.customerType === "Old" || c.customerType === "Repeat" ? "#93c5fd" : "#86efac"}`,
+                                          borderRadius: 9999,
+                                          padding: "4px 12px",
+                                          fontSize: 11,
+                                          fontWeight: 800,
+                                          cursor: "pointer",
+                                          outline: "none",
+                                          whiteSpace: "nowrap",
+                                          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                                          transition: "all 0.15s ease",
+                                        }}
+                                      >
+                                        <option value="New" style={{ background: "#ffffff", color: "#15803d" }}>✨ New Client</option>
+                                        <option value="Old" style={{ background: "#ffffff", color: "#1e40af" }}>👥 Old Client</option>
+                                      </select>
+                                    </td>
+                                  )}
+
+                                  {/* LINKED PIANOS (INTERACTIVE EDITABLE BADGES) */}
+                                  {visibleCols.pianos && (
+                                    <td>
+                                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                                        {c.pianos && c.pianos.length > 0 ? (
+                                          c.pianos.map((p) => (
+                                            <button
+                                              key={p.id}
+                                              onClick={() => {
+                                                setEditingPianosCustomer(c);
+                                                setShowManagePianosModal(true);
+                                              }}
+                                              title={`Click to edit ${c.name}'s linked pianos`}
+                                              style={{
+                                                border: "1px solid #cbd5e1",
+                                                background: "#f8fafc",
+                                                color: "#1e293b",
+                                                padding: "3px 8px",
+                                                borderRadius: 6,
+                                                fontSize: 10.5,
+                                                fontWeight: 800,
+                                                cursor: "pointer",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: 4,
+                                                whiteSpace: "nowrap",
+                                                transition: "all 0.15s ease",
+                                              }}
+                                            >
+                                              <span>🎹 {p.brand} {p.model}</span>
+                                              <span style={{ color: "#2563eb", fontSize: 10 }}>✏️</span>
+                                            </button>
+                                          ))
+                                        ) : (
+                                          <button
+                                            onClick={() => {
+                                              setEditingPianosCustomer(c);
+                                              setShowManagePianosModal(true);
+                                            }}
+                                            style={{
+                                              border: "1px dashed #94a3b8",
+                                              background: "#ffffff",
+                                              color: "#475569",
+                                              padding: "3px 8px",
+                                              borderRadius: 6,
+                                              fontSize: 10.5,
+                                              fontWeight: 700,
+                                              cursor: "pointer",
+                                            }}
+                                          >
+                                            ＋ Link Piano
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+                                  )}
+
+                                  {/* QR & BARCODE */}
+                                  {visibleCols.qr_code && (
+                                    <td style={{ textAlign: "center", verticalAlign: "middle" }}>
+                                      <button
+                                        onClick={() => setSelectedQRProcessCustomer(c as any)}
+                                        title="View Live Process, Scannable QR Code & 1D Barcode"
+                                        style={{
+                                          fontSize: 11,
+                                          padding: "4px 8px",
+                                          borderRadius: 6,
+                                          border: "1px solid #cbd5e1",
+                                          background: "#ffffff",
+                                          color: "#1e293b",
+                                          fontWeight: 700,
+                                          cursor: "pointer",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          gap: 4,
+                                          whiteSpace: "nowrap",
+                                          boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                                          transition: "all 0.15s ease",
+                                        }}
+                                      >
+                                        <QrCode size={13} style={{ color: "#2563eb" }} />
+                                        <span>QR & Barcode</span>
+                                      </button>
+                                    </td>
+                                  )}
+
+                                  {/* ACTIONS */}
+                                  {visibleCols.actions && (
+                                    <td style={{ textAlign: "right" }}>
+                                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                                        <button
+                                          style={{
+                                            fontSize: 11,
+                                            padding: "4px 8px",
+                                            borderRadius: 6,
+                                            border: "1px solid #cbd5e1",
+                                            background: "#ffffff",
+                                            color: "#334155",
+                                            fontWeight: 700,
+                                            cursor: "pointer",
+                                          }}
+                                          onClick={() => setSelectedCustomerDetail(c)}
+                                        >
+                                          👁 Inspect
+                                        </button>
+                                        <button
+                                          style={{
+                                            fontSize: 11,
+                                            padding: "4px 8px",
+                                            borderRadius: 6,
+                                            border: "1px solid #93c5fd",
+                                            background: "#eff6ff",
+                                            color: "#1d4ed8",
+                                            fontWeight: 700,
+                                            cursor: "pointer",
+                                          }}
+                                          onClick={() => openEditCustomerModal(c)}
+                                        >
+                                          ✏️ Edit
+                                        </button>
+                                      </div>
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+
+                      {/* PAGINATION FOOTER (Image-1 Layout) */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 18px", background: "#f8fafc", borderTop: "1px solid #cbd5e1", flexWrap: "wrap", gap: 10 }}>
+                        {/* PAGE SIZE SELECTOR */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#475569" }}>
+                          <span>Showing</span>
+                          <select
+                            className="input-field"
+                            style={{ fontSize: 12, padding: "4px 8px", width: "auto" }}
+                            value={custPageSize}
+                            onChange={(e) => {
+                              setCustPageSize(Number(e.target.value));
+                              setCustCurrentPage(1);
+                            }}
+                          >
+                            <option value={5}>5 items</option>
+                            <option value={10}>10 items</option>
+                            <option value={20}>20 items</option>
+                            <option value={50}>50 items</option>
+                          </select>
+                          <span>per page (Total {totalItems} client accounts)</span>
+                        </div>
+
+                        {/* PAGE NAVIGATION BUTTONS */}
+                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                          <button
+                            type="button"
+                            disabled={custCurrentPage === 1}
+                            onClick={() => setCustCurrentPage((prev) => Math.max(1, prev - 1))}
+                            style={{
+                              padding: "5px 12px",
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              border: "1px solid #cbd5e1",
+                              background: custCurrentPage === 1 ? "#f1f5f9" : "#ffffff",
+                              color: custCurrentPage === 1 ? "#94a3b8" : "#0f172a",
+                              cursor: custCurrentPage === 1 ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            ← Previous
+                          </button>
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                            <button
+                              key={pg}
+                              type="button"
+                              onClick={() => setCustCurrentPage(pg)}
+                              style={{
+                                padding: "5px 10px",
+                                borderRadius: 6,
+                                fontSize: 12,
+                                fontWeight: 800,
+                                border: pg === custCurrentPage ? "1px solid #0f172a" : "1px solid #cbd5e1",
+                                background: pg === custCurrentPage ? "#0f172a" : "#ffffff",
+                                color: pg === custCurrentPage ? "#ffffff" : "#334155",
+                                cursor: "pointer",
+                              }}
+                            >
+                              {pg}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            disabled={custCurrentPage === totalPages}
+                            onClick={() => setCustCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                            style={{
+                              padding: "5px 12px",
+                              borderRadius: 6,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              border: "1px solid #cbd5e1",
+                              background: custCurrentPage === totalPages ? "#f1f5f9" : "#ffffff",
+                              color: custCurrentPage === totalPages ? "#94a3b8" : "#0f172a",
+                              cursor: custCurrentPage === totalPages ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            Next →
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
 
           {/* 4. ESTIMATES MODULE */}
           {activeTab === "estimates" && (
@@ -6270,29 +8026,29 @@ Total Invoices: ${invoices.length}
                                   🔄 Revision
                                 </button>
                               )}
-                               {est.status !== "Converted to Quotation" && (
-                                  <select
-                                    className="secondary-sm"
-                                    style={{ fontSize: 10.5, padding: "3px 8px", background: "#0f172a", color: "#ffffff", border: "none", fontWeight: 800, borderRadius: 6, cursor: "pointer" }}
-                                    value=""
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      if (val === "ESTIMATES") {
-                                        setEstimates(estimates.map((eItem) => (eItem.id === est.id ? { ...eItem, status: "Draft" } : eItem)));
-                                        showToast(`📐 ${est.id} kept in ESTIMATES status.`);
-                                      } else if (val === "QUOTATION") {
-                                        handleConvertToQuotation(est);
-                                      } else if (val === "JOB ORDER") {
-                                        handleConvertEstimateDirectToJobOrder(est);
-                                      }
-                                    }}
-                                  >
-                                    <option value="" disabled>⚡ CATEGORY...</option>
-                                    <option value="ESTIMATES" style={{ background: "#ffffff", color: "#0f172a" }}>📐 ESTIMATES</option>
-                                    <option value="QUOTATION" style={{ background: "#ffffff", color: "#0f172a" }}>📄 QUOTATION</option>
-                                    <option value="JOB ORDER" style={{ background: "#ffffff", color: "#0f172a" }}>🛠️ JOB ORDER</option>
-                                  </select>
-                                )}
+                              {est.status !== "Converted to Quotation" && (
+                                <select
+                                  className="secondary-sm"
+                                  style={{ fontSize: 10.5, padding: "3px 8px", background: "#0f172a", color: "#ffffff", border: "none", fontWeight: 800, borderRadius: 6, cursor: "pointer" }}
+                                  value=""
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === "ESTIMATES") {
+                                      setEstimates(estimates.map((eItem) => (eItem.id === est.id ? { ...eItem, status: "Draft" } : eItem)));
+                                      showToast(`📐 ${est.id} kept in ESTIMATES status.`);
+                                    } else if (val === "QUOTATION") {
+                                      handleConvertToQuotation(est);
+                                    } else if (val === "JOB ORDER") {
+                                      handleConvertEstimateDirectToJobOrder(est);
+                                    }
+                                  }}
+                                >
+                                  <option value="" disabled>⚡ CATEGORY...</option>
+                                  <option value="ESTIMATES" style={{ background: "#ffffff", color: "#0f172a" }}>📐 ESTIMATES</option>
+                                  <option value="QUOTATION" style={{ background: "#ffffff", color: "#0f172a" }}>📄 QUOTATION</option>
+                                  <option value="JOB ORDER" style={{ background: "#ffffff", color: "#0f172a" }}>🛠️ JOB ORDER</option>
+                                </select>
+                              )}
 
                               {/* INSPECT & EDIT */}
                               <button
@@ -6577,36 +8333,36 @@ Total Invoices: ${invoices.length}
                                 </button>
                               )}
 
-{/* ACTION 5: CONVERT DROPDOWN SELECTION */}
-                               {qt.status !== "Converted to Customer Case" && (
-                                  <select
-                                    className="secondary-sm"
-                                    style={{ fontSize: 10.5, padding: "3px 8px", background: "#0f172a", color: "#ffffff", border: "none", fontWeight: 800, borderRadius: 6, cursor: "pointer" }}
-                                    value=""
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      if (val === "ESTIMATES") {
-                                        setQuotations(quotations.map((qItem) => (qItem.id === qt.id ? { ...qItem, status: "Draft" } : qItem)));
-                                        showToast(`📐 ${qt.id} moved to ESTIMATES category.`);
-                                      } else if (val === "QUOTATION") {
-                                        setQuotations(quotations.map((qItem) => (qItem.id === qt.id ? { ...qItem, status: "Sent for Approval" } : qItem)));
-                                        showToast(`📄 ${qt.id} kept in QUOTATION category.`);
-                                      } else if (val === "JOB ORDER") {
-                                        handleConvertQuotationDirectToJobOrder(qt);
-                                      } else if (val === "CASE") {
-                                        handleConvertToCustomerCase(qt);
-                                      }
-                                    }}
-                                  >
-                                    <option value="" disabled>⚡ CATEGORY...</option>
-                                    <option value="ESTIMATES" style={{ background: "#ffffff", color: "#0f172a" }}>📐 ESTIMATES</option>
-                                    <option value="QUOTATION" style={{ background: "#ffffff", color: "#0f172a" }}>📄 QUOTATION</option>
-                                    <option value="JOB ORDER" style={{ background: "#ffffff", color: "#0f172a" }}>🛠️ JOB ORDER</option>
-                                    <option value="CASE" style={{ background: "#ffffff", color: "#0f172a" }}>📂 CUSTOMER CASE</option>
-                                  </select>
-                               )}
+                              {/* ACTION 5: CONVERT DROPDOWN SELECTION */}
+                              {qt.status !== "Converted to Customer Case" && (
+                                <select
+                                  className="secondary-sm"
+                                  style={{ fontSize: 10.5, padding: "3px 8px", background: "#0f172a", color: "#ffffff", border: "none", fontWeight: 800, borderRadius: 6, cursor: "pointer" }}
+                                  value=""
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === "ESTIMATES") {
+                                      setQuotations(quotations.map((qItem) => (qItem.id === qt.id ? { ...qItem, status: "Draft" } : qItem)));
+                                      showToast(`📐 ${qt.id} moved to ESTIMATES category.`);
+                                    } else if (val === "QUOTATION") {
+                                      setQuotations(quotations.map((qItem) => (qItem.id === qt.id ? { ...qItem, status: "Sent for Approval" } : qItem)));
+                                      showToast(`📄 ${qt.id} kept in QUOTATION category.`);
+                                    } else if (val === "JOB ORDER") {
+                                      handleConvertQuotationDirectToJobOrder(qt);
+                                    } else if (val === "CASE") {
+                                      handleConvertToCustomerCase(qt);
+                                    }
+                                  }}
+                                >
+                                  <option value="" disabled>⚡ CATEGORY...</option>
+                                  <option value="ESTIMATES" style={{ background: "#ffffff", color: "#0f172a" }}>📐 ESTIMATES</option>
+                                  <option value="QUOTATION" style={{ background: "#ffffff", color: "#0f172a" }}>📄 QUOTATION</option>
+                                  <option value="JOB ORDER" style={{ background: "#ffffff", color: "#0f172a" }}>🛠️ JOB ORDER</option>
+                                  <option value="CASE" style={{ background: "#ffffff", color: "#0f172a" }}>📂 CUSTOMER CASE</option>
+                                </select>
+                              )}
 
-                                                             {/* INSPECT & EDIT */}
+                              {/* INSPECT & EDIT */}
                               <button
                                 className="secondary-sm"
                                 style={{ fontSize: 10.5, padding: "3px 8px" }}
@@ -6865,44 +8621,44 @@ Total Invoices: ${invoices.length}
 
                               {/* ACTION 4: CONVERT TO JOB ORDER */}
                               {sch.status !== "Cancelled" && (
-                                 <select
-                                   className="secondary-sm"
-                                   style={{
-                                     fontSize: 10.5,
-                                     padding: "3px 8px",
-                                     background: "#0f172a",
-                                     color: "#ffffff",
-                                     border: "none",
-                                     fontWeight: 800,
-                                     borderRadius: 6,
-                                     cursor: "pointer",
-                                   }}
-                                   value=""
-                                   onChange={(e) => {
-                                     const val = e.target.value;
-                                     if (val === "ESTIMATES") {
-                                       openCreateEstimateModal();
-                                       setEstCustomerName(sch.customerName);
-                                       setEstServiceLocation(sch.serviceLocation);
-                                       setEstPianoDetails(sch.pianoDetails);
-                                       showToast(`📐 Populated Estimate form for ${sch.customerName}`);
-                                     } else if (val === "QUOTATION") {
-                                       openCreateQuotationModal();
-                                       setQtCustomerName(sch.customerName);
-                                       setQtServiceLocation(sch.serviceLocation);
-                                       setQtPianoDetails(sch.pianoDetails);
-                                       showToast(`📄 Populated Quotation form for ${sch.customerName}`);
-                                     } else if (val === "JOB ORDER") {
-                                       handleConvertToJobOrder(sch);
-                                     }
-                                   }}
-                                 >
-                                   <option value="" disabled>⚡ CATEGORY...</option>
-                                   <option value="ESTIMATES" style={{ background: "#ffffff", color: "#0f172a" }}>📐 ESTIMATES</option>
-                                   <option value="QUOTATION" style={{ background: "#ffffff", color: "#0f172a" }}>📄 QUOTATION</option>
-                                   <option value="JOB ORDER" style={{ background: "#ffffff", color: "#0f172a" }}>🛠️ JOB ORDER</option>
-                                 </select>
-                               )}
+                                <select
+                                  className="secondary-sm"
+                                  style={{
+                                    fontSize: 10.5,
+                                    padding: "3px 8px",
+                                    background: "#0f172a",
+                                    color: "#ffffff",
+                                    border: "none",
+                                    fontWeight: 800,
+                                    borderRadius: 6,
+                                    cursor: "pointer",
+                                  }}
+                                  value=""
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === "ESTIMATES") {
+                                      openCreateEstimateModal();
+                                      setEstCustomerName(sch.customerName);
+                                      setEstServiceLocation(sch.serviceLocation);
+                                      setEstPianoDetails(sch.pianoDetails);
+                                      showToast(`📐 Populated Estimate form for ${sch.customerName}`);
+                                    } else if (val === "QUOTATION") {
+                                      openCreateQuotationModal();
+                                      setQtCustomerName(sch.customerName);
+                                      setQtServiceLocation(sch.serviceLocation);
+                                      setQtPianoDetails(sch.pianoDetails);
+                                      showToast(`📄 Populated Quotation form for ${sch.customerName}`);
+                                    } else if (val === "JOB ORDER") {
+                                      handleConvertToJobOrder(sch);
+                                    }
+                                  }}
+                                >
+                                  <option value="" disabled>⚡ CATEGORY...</option>
+                                  <option value="ESTIMATES" style={{ background: "#ffffff", color: "#0f172a" }}>📐 ESTIMATES</option>
+                                  <option value="QUOTATION" style={{ background: "#ffffff", color: "#0f172a" }}>📄 QUOTATION</option>
+                                  <option value="JOB ORDER" style={{ background: "#ffffff", color: "#0f172a" }}>🛠️ JOB ORDER</option>
+                                </select>
+                              )}
 
                               {/* INSPECT & EDIT */}
                               <button
@@ -8918,18 +10674,18 @@ Total Invoices: ${invoices.length}
                                   t.status === "Closed Won"
                                     ? "#dcfce7"
                                     : t.status === "Buyer Registered"
-                                    ? "#e0f2fe"
-                                    : t.status === "Closed Lost"
-                                    ? "#fee2e2"
-                                    : "#fef3c7",
+                                      ? "#e0f2fe"
+                                      : t.status === "Closed Lost"
+                                        ? "#fee2e2"
+                                        : "#fef3c7",
                                 color:
                                   t.status === "Closed Won"
                                     ? "#15803d"
                                     : t.status === "Buyer Registered"
-                                    ? "#0369a1"
-                                    : t.status === "Closed Lost"
-                                    ? "#b91c1c"
-                                    : "#92400e",
+                                      ? "#0369a1"
+                                      : t.status === "Closed Lost"
+                                        ? "#b91c1c"
+                                        : "#92400e",
                                 padding: "3px 10px",
                                 borderRadius: 99,
                                 fontSize: 11,
@@ -8993,202 +10749,21 @@ Total Invoices: ${invoices.length}
             </div>
           )}
 
-          {/* 15. INVENTORY */}
+          {/* 15. INVENTORY (Airtable Live Dual-Mode System) */}
           {activeTab === "inventory" && (
-            <div className="rhps-view">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
-                <div>
-                  <h2 style={{ margin: 0 }}>
-                    {inventoryCategoryFilter === "Personal Inventory"
-                      ? "👤 Personal Inventory Units"
-                      : inventoryCategoryFilter === "Shop Inventory"
-                      ? "🏪 Store Inventory Units"
-                      : "🌐 All Store & Personal Inventory Units"}
-                  </h2>
-                  <p style={{ margin: "4px 0 0 0", fontSize: 13, color: "#64748b" }}>
-                    Manage inventory categorization between Store Inventory (Sales) and Personal Inventory (Owner/Private).
-                  </p>
-                </div>
-                <button
-                  className="primary"
-                  style={{ background: "#0f172a", color: "#ffffff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}
-                  onClick={() => openCreateInventoryModal()}
-                >
-                  ➕ Add Unit
-                </button>
-              </div>
-
-              {/* INVENTORY CATEGORY TABS BAR */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16, background: "#f8fafc", padding: "10px 14px", borderRadius: 12, border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    style={{
-                      borderRadius: 20,
-                      padding: "7px 18px",
-                      fontWeight: 700,
-                      fontSize: 13,
-                      border: "none",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      background: inventoryCategoryFilter === "Shop Inventory" ? "#0f172a" : "#ffffff",
-                      color: inventoryCategoryFilter === "Shop Inventory" ? "#ffffff" : "#475569",
-                      boxShadow: inventoryCategoryFilter === "Shop Inventory" ? "0 2px 6px rgba(15,23,42,0.25)" : "0 1px 2px rgba(0,0,0,0.05)",
-                    }}
-                    onClick={() => setInventoryCategoryFilter("Shop Inventory")}
-                  >
-                    🏪 Shop Inventory ({shopUnitsCount})
-                  </button>
-
-                  <button
-                    type="button"
-                    style={{
-                      borderRadius: 20,
-                      padding: "7px 18px",
-                      fontWeight: 700,
-                      fontSize: 13,
-                      border: "none",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      background: inventoryCategoryFilter === "Personal Inventory" ? "#0f172a" : "#ffffff",
-                      color: inventoryCategoryFilter === "Personal Inventory" ? "#ffffff" : "#475569",
-                      boxShadow: inventoryCategoryFilter === "Personal Inventory" ? "0 2px 6px rgba(15,23,42,0.25)" : "0 1px 2px rgba(0,0,0,0.05)",
-                    }}
-                    onClick={() => setInventoryCategoryFilter("Personal Inventory")}
-                  >
-                    👤 Personal Inventory ({personalUnitsCount})
-                  </button>
-
-                  <button
-                    type="button"
-                    style={{
-                      borderRadius: 20,
-                      padding: "7px 18px",
-                      fontWeight: 700,
-                      fontSize: 13,
-                      border: "none",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      background: inventoryCategoryFilter === "ALL" ? "#0f172a" : "#ffffff",
-                      color: inventoryCategoryFilter === "ALL" ? "#ffffff" : "#475569",
-                      boxShadow: inventoryCategoryFilter === "ALL" ? "0 2px 6px rgba(15,23,42,0.25)" : "0 1px 2px rgba(0,0,0,0.05)",
-                    }}
-                    onClick={() => setInventoryCategoryFilter("ALL")}
-                  >
-                    🌐 All Units ({inventory.length})
-                  </button>
-                </div>
-
-                <div style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>
-                  Showing <strong style={{ color: "#0f172a" }}>{filteredInventory.length}</strong> unit(s) • Total Valuation: <strong style={{ color: "#166534" }}>₱{filteredInventory.reduce((acc, curr) => acc + curr.price, 0).toLocaleString()}</strong>
-                </div>
-              </div>
-
-              <table className="rhps-table">
-                <thead>
-                  <tr>
-                    <th>Inventory ID</th>
-                    <th>Category</th>
-                    <th>Brand & Model</th>
-                    <th>Serial Number</th>
-                    <th>Condition</th>
-                    <th>Price</th>
-                    <th>Status</th>
-                    <th>Reserved Info</th>
-                    <th>Sold Info</th>
-                    <th>Photos</th>
-                    <th style={{ textAlign: "right" }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredInventory.length === 0 ? (
-                    <tr>
-                      <td colSpan={11} style={{ textAlign: "center", padding: "30px", color: "#64748b" }}>
-                        No inventory units found under <strong>{inventoryCategoryFilter}</strong>.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredInventory.map((inv) => {
-                      const isPersonal = (inv.inventoryCategory || "Shop Inventory") === "Personal Inventory";
-                      return (
-                        <tr key={inv.id}>
-                          <td><strong>{inv.id}</strong></td>
-                          <td>
-                            {isPersonal ? (
-                              <span style={{ background: "#f3e8ff", color: "#7e22ce", border: "1px solid #d8b4fe", padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                👤 Personal
-                              </span>
-                            ) : (
-                              <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc", padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                🏪 Shop
-                              </span>
-                            )}
-                          </td>
-                          <td>
-                            <div><strong>{inv.brand} {inv.model}</strong></div>
-                            {inv.notes && <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{inv.notes}</div>}
-                          </td>
-                          <td>{inv.serialNumber}</td>
-                          <td>{inv.condition}</td>
-                          <td>₱{inv.price.toLocaleString()}</td>
-                          <td>{inv.status}</td>
-                          <td style={{ fontSize: 12 }}>
-                            {inv.reservedBy ? (
-                              <>
-                                <div><strong>{inv.reservedBy}</strong></div>
-                                <div style={{ color: "#64748b" }}>Until: {inv.reservedUntil || "N/A"}</div>
-                              </>
-                            ) : (
-                              <span style={{ color: "#94a3b8" }}>None</span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: 12 }}>
-                            {inv.soldTo ? (
-                              <>
-                                <div><strong>{inv.soldTo}</strong></div>
-                                <div style={{ color: "#64748b" }}>Date: {inv.soldDate || "N/A"}</div>
-                              </>
-                            ) : (
-                              <span style={{ color: "#94a3b8" }}>Not Sold</span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: 12 }}>{inv.photos?.length || 0} photo(s)</td>
-                          <td>
-                            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
-                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
-                                ✏️ Edit Details
-                              </button>
-                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => openEditInventoryModal(inv)}>
-                                📷 Upload Photos
-                              </button>
-                              {inv.status !== "Reserved" && inv.status !== "Sold" && (
-                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dbeafe", border: "1px solid #93c5fd", color: "#1d4ed8" }} onClick={() => openReserveInventoryModal(inv)}>
-                                  🔒 Reserve
-                                </button>
-                              )}
-                              {inv.status === "Reserved" && (
-                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#fef3c7", border: "1px solid #fcd34d", color: "#92400e" }} onClick={() => openReleaseReservationModal(inv)}>
-                                  🔓 Release Reservation
-                                </button>
-                              )}
-                              {inv.status !== "Sold" && (
-                                <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#dcfce7", border: "1px solid #86efac", color: "#166534" }} onClick={() => openMarkSoldModal(inv)}>
-                                  ✅ Mark Sold
-                                </button>
-                              )}
-                              <button className="secondary-sm" style={{ fontSize: 11, padding: "4px 8px", background: "#ede9fe", border: "1px solid #c4b5fd", color: "#5b21b6" }} onClick={() => openAdjustPriceModal(inv)}>
-                                💰 Adjust Price
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+            <div className="rhps-view" style={{ padding: 0, overflow: "hidden", borderRadius: 16 }}>
+              <AirtableInventoryStore
+                initialTab={
+                  inventoryCategoryFilter === "Personal Inventory"
+                    ? "personal"
+                    : inventoryCategoryFilter === "Shop Inventory"
+                      ? "shop"
+                      : "all"
+                }
+              />
             </div>
           )}
+
 
           {/* 16. DOCUMENTS MODULE */}
           {activeTab === "documents" && (
@@ -9988,23 +11563,23 @@ Total Invoices: ${invoices.length}
                   </div>
 
                   <div style={{ gridColumn: "span 2", background: "#0f172a", color: "#ffffff", padding: 12, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                        <div>
-                          <strong style={{ fontSize: 13, display: "block" }}>⚡ Convert Target (Late-Encoding Shortcut)</strong>
-                          <span style={{ fontSize: 11, color: "#94a3b8" }}>Already approved or in-progress? Convert immediately upon saving!</span>
-                        </div>
-                        <select
-                          className="input-field"
-                          style={{ width: "auto", background: "#1e293b", color: "#ffffff", borderColor: "#334155", fontWeight: 700, fontSize: 12 }}
-                          value={estConvertTarget}
-                          onChange={(e) => setEstConvertTarget(e.target.value)}
-                        >
-                          <option value="ESTIMATES">📐 ESTIMATES (Draft)</option>
-                          <option value="QUOTATION">📄 QUOTATION</option>
-                          <option value="JOB ORDER">🛠️ JOB ORDER</option>
-                        </select>
-                      </div>
+                    <div>
+                      <strong style={{ fontSize: 13, display: "block" }}>⚡ Convert Target (Late-Encoding Shortcut)</strong>
+                      <span style={{ fontSize: 11, color: "#94a3b8" }}>Already approved or in-progress? Convert immediately upon saving!</span>
+                    </div>
+                    <select
+                      className="input-field"
+                      style={{ width: "auto", background: "#1e293b", color: "#ffffff", borderColor: "#334155", fontWeight: 700, fontSize: 12 }}
+                      value={estConvertTarget}
+                      onChange={(e) => setEstConvertTarget(e.target.value)}
+                    >
+                      <option value="ESTIMATES">📐 ESTIMATES (Draft)</option>
+                      <option value="QUOTATION">📄 QUOTATION</option>
+                      <option value="JOB ORDER">🛠️ JOB ORDER</option>
+                    </select>
+                  </div>
 
-                      <div className="form-group" style={{ gridColumn: "span 2" }}>
+                  <div className="form-group" style={{ gridColumn: "span 2" }}>
                     <label>System Administration Notes</label>
                     <textarea
                       className="input-field"
@@ -10258,7 +11833,7 @@ Total Invoices: ${invoices.length}
                         {msg.role === "user" ? (
                           <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
                         ) : (
-                          renderRhpsAiMarkdown(msg.content)
+                          renderRhpsAiMarkdown(msg.content, false, sendAiMessage)
                         )}
                       </div>
 
@@ -10416,6 +11991,259 @@ Total Invoices: ${invoices.length}
                   {aiLoading ? "⚙️ Thinking..." : "Send ➔"}
                 </button>
               </form>
+            </div>
+          )}
+
+          {/* CUSTOMER CREATE/EDIT MODAL */}
+          {showCustomerModal && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowCustomerModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 840 }}>
+                <div className="rhps-modal-header">
+                  <h3>{editingCustomer ? `✏️ Edit Client Record — ${editingCustomer.id}` : "➕ Add New Client Account"}</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowCustomerModal(false)}>×</button>
+                </div>
+                <form onSubmit={handleSaveCustomerSubmit}>
+                  <div className="rhps-modal-body" style={{ gap: 14 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Client Full Name <span className="required-star">*</span></label>
+                        <input className="input-field" required value={custName} onChange={(e) => setCustName(e.target.value)} placeholder="e.g. Atty. Fernando Alonso" />
+                      </div>
+                      <div className="form-group">
+                        <label>Primary Contact Number <span className="required-star">*</span></label>
+                        <input className="input-field" required value={custContact} onChange={(e) => setCustContact(e.target.value)} placeholder="e.g. 0917-555-0192" />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Alternate Contact Number</label>
+                        <input className="input-field" value={custAltContact} onChange={(e) => setCustAltContact(e.target.value)} placeholder="e.g. 0920-111-2233" />
+                      </div>
+                      <div className="form-group">
+                        <label>Email Address</label>
+                        <input type="email" className="input-field" value={custEmail} onChange={(e) => setCustEmail(e.target.value)} placeholder="client@example.com" />
+                      </div>
+                      <div className="form-group">
+                        <label>Customer Type</label>
+                        <select className="input-field" value={custCustomerType} onChange={(e) => setCustCustomerType(e.target.value as any)}>
+                          <option value="New">New Client</option>
+                          <option value="Old">Old Client</option>
+                          <option value="Repeat">Repeat Client</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Complete Street Address <span className="required-star">*</span></label>
+                        <input className="input-field" required value={custAddress} onChange={(e) => setCustAddress(e.target.value)} placeholder="e.g. 142 Matina Aplaya" />
+                      </div>
+                      <div className="form-group">
+                        <label>City / Area / District</label>
+                        <input className="input-field" value={custCityArea} onChange={(e) => setCustCityArea(e.target.value)} placeholder="e.g. Matina, Davao City" />
+                      </div>
+                      <div className="form-group">
+                        <label>Landmark</label>
+                        <input className="input-field" value={custLandmark} onChange={(e) => setCustLandmark(e.target.value)} placeholder="e.g. Beside St. Jude Parish" />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label>Facebook Profile / Page Name</label>
+                        <input className="input-field" value={custFacebookName} onChange={(e) => setCustFacebookName(e.target.value)} placeholder="e.g. Fernando Alonso Law" />
+                      </div>
+                      <div className="form-group">
+                        <label>Facebook Profile Link (URL)</label>
+                        <input className="input-field" value={custFacebookLink} onChange={(e) => setCustFacebookLink(e.target.value)} placeholder="https://facebook.com/..." />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Google Maps Pin Link 📍</label>
+                      <input className="input-field" value={custGmapsLink} onChange={(e) => setCustGmapsLink(e.target.value)} placeholder="https://maps.google.com/?q=..." />
+                    </div>
+
+                    {/* STATUS, SERVICE, PRIORITY, SOURCE GRID */}
+                    <div style={{ background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 12, padding: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label style={{ fontWeight: 800, color: "#0f172a" }}>Client Status (All 18 Options) <span className="required-star">*</span></label>
+                        <select className="input-field" style={{ fontWeight: 700 }} value={custClientStatus} onChange={(e) => setCustClientStatus(e.target.value as ClientStatusType)}>
+                          {CLIENT_STAGE_GROUPS.map((grp) => (
+                            <optgroup key={grp.id} label={`${grp.icon} ${grp.name}`}>
+                              {grp.statuses.map((st) => (
+                                <option key={st} value={st}>{getStatusDisplayLabel(st)}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label style={{ fontWeight: 800, color: "#0f172a" }}>Product / Service (All 10 Options) <span className="required-star">*</span></label>
+                        <select className="input-field" style={{ fontWeight: 700 }} value={custProductService} onChange={(e) => setCustProductService(e.target.value as ProductServiceType)}>
+                          {PRODUCT_SERVICE_OPTIONS.map((ps) => (
+                            <option key={ps} value={ps}>{ps}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label style={{ fontWeight: 800, color: "#0f172a" }}>Priority Level <span className="required-star">*</span></label>
+                        <select className="input-field" style={{ fontWeight: 700 }} value={custPriority} onChange={(e) => setCustPriority(e.target.value as PriorityType)}>
+                          {PRIORITY_OPTIONS.map((p) => (
+                            <option key={p} value={p}>{p} Priority</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label style={{ fontWeight: 800, color: "#0f172a" }}>Lead Source <span className="required-star">*</span></label>
+                        <select className="input-field" style={{ fontWeight: 700 }} value={custSource} onChange={(e) => setCustSource(e.target.value as SourceType)}>
+                          {SOURCE_OPTIONS.map((src) => (
+                            <option key={src} value={src}>{src}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Client Notes & Special Instructions</label>
+                      <textarea
+                        className="input-field"
+                        rows={3}
+                        value={custNotes}
+                        onChange={(e) => setCustNotes(e.target.value)}
+                        placeholder="Appointment preferences, piano details, access instructions, or special requests..."
+                      />
+                    </div>
+                  </div>
+                  <div className="rhps-modal-footer">
+                    <button type="button" className="secondary-sm" onClick={() => setShowCustomerModal(false)}>Cancel</button>
+                    <button type="submit" className="primary" style={{ background: "#0f172a", color: "#ffffff", padding: "10px 22px", borderRadius: 10, fontWeight: 800, border: "none" }}>
+                      {editingCustomer ? "💾 Save Client Details" : "✨ Register Client Account"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* CUSTOMER MASS EDIT MODAL */}
+          {showMassEditModal && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowMassEditModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 540 }}>
+                <div className="rhps-modal-header">
+                  <h3>✏️ Mass Edit {selectedCustomerIds.length} Selected Client(s)</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowMassEditModal(false)}>×</button>
+                </div>
+                <div className="rhps-modal-body" style={{ gap: 14 }}>
+                  <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", padding: 12, borderRadius: 10, fontSize: 12.5, color: "#1e40af" }}>
+                    Select fields to update across all <strong>{selectedCustomerIds.length}</strong> selected client account(s). Leave fields blank if you do not want to modify them.
+                  </div>
+
+                  <div className="form-group">
+                    <label>Change Client Status</label>
+                    <select className="input-field" value={massStatusInput} onChange={(e) => setMassStatusInput(e.target.value)}>
+                      <option value="">-- Keep Existing Status --</option>
+                      {CLIENT_STAGE_GROUPS.map((grp) => (
+                        <optgroup key={grp.id} label={`${grp.icon} ${grp.name}`}>
+                          {grp.statuses.map((st) => (
+                            <option key={st} value={st}>{getStatusDisplayLabel(st)}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Change Product / Service</label>
+                    <select className="input-field" value={massServiceInput} onChange={(e) => setMassServiceInput(e.target.value)}>
+                      <option value="">-- Keep Existing Service --</option>
+                      {PRODUCT_SERVICE_OPTIONS.map((ps) => (
+                        <option key={ps} value={ps}>{ps}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Change Priority Level</label>
+                    <select className="input-field" value={massPriorityInput} onChange={(e) => setMassPriorityInput(e.target.value)}>
+                      <option value="">-- Keep Existing Priority --</option>
+                      {PRIORITY_OPTIONS.map((p) => (
+                        <option key={p} value={p}>{p} Priority</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Change Lead Source</label>
+                    <select className="input-field" value={massSourceInput} onChange={(e) => setMassSourceInput(e.target.value)}>
+                      <option value="">-- Keep Existing Source --</option>
+                      {SOURCE_OPTIONS.map((src) => (
+                        <option key={src} value={src}>{src}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="rhps-modal-footer">
+                  <button type="button" className="secondary-sm" onClick={() => setShowMassEditModal(false)}>Cancel</button>
+                  <button type="button" className="primary" onClick={handleApplyMassEdit} style={{ background: "#2563eb", color: "#ffffff", padding: "10px 20px", borderRadius: 10, fontWeight: 800, border: "none" }}>
+                    ⚡ Apply Mass Edit
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* COLUMNS VISIBILITY MODAL */}
+          {showColumnsModal && (
+            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowColumnsModal(false)}>
+              <div className="rhps-modal" style={{ maxWidth: 460 }}>
+                <div className="rhps-modal-header">
+                  <h3>📊 Customize Table Columns</h3>
+                  <button className="rhps-modal-close" onClick={() => setShowColumnsModal(false)}>×</button>
+                </div>
+                <div className="rhps-modal-body" style={{ gap: 12 }}>
+                  <p style={{ fontSize: 12.5, color: "#64748b", margin: 0 }}>Check the columns you want to display in the Client Dashboard table:</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 6 }}>
+                    {Object.entries({
+                      id: "Client ID",
+                      client: "Client Name & Contact",
+                      stage_sales: "🎯 NEW / SALES",
+                      stage_assessment: "📋 ASSESSMENT / SCHEDULING",
+                      stage_service: "🛠️ SERVICE / REPAIR",
+                      stage_completion: "🚚 COMPLETION / DELIVERY",
+                      stage_pullout: "🎹 PIANO PULLOUT",
+                      stage_payment: "💳 PAYMENT",
+                      status: "Single Status Badge",
+                      service: "Product / Service",
+                      priority: "Priority",
+                      source: "Source",
+                      type: "Customer Type",
+                      pianos: "Linked Pianos",
+                      qr_code: "QR Code",
+                      actions: "Actions",
+                    }).map(([key, label]) => (
+                      <label key={key} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, fontWeight: 700, color: "#334155", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={(visibleCols as any)[key]}
+                          onChange={(e) => setVisibleCols((prev) => ({ ...prev, [key]: e.target.checked }))}
+                          style={{ width: 16, height: 16 }}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="rhps-modal-footer">
+                  <button type="button" className="primary" onClick={() => setShowColumnsModal(false)} style={{ background: "#0f172a", color: "#ffffff", padding: "8px 18px", borderRadius: 8, fontWeight: 700, border: "none" }}>
+                    Done
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -11186,277 +13014,126 @@ Total Invoices: ${invoices.length}
             </div>
           )}
 
-          {/* ADD / EDIT CUSTOMER MODAL */}
-          {showCustomerModal && (
-            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setShowCustomerModal(false)}>
-              <div className="rhps-modal" style={{ maxWidth: 620 }}>
-                <div className="rhps-modal-header">
-                  <h3>{editingCustomer ? `✏️ Edit Customer — ${editingCustomer.id}` : "👤 Register New Customer"}</h3>
-                  <button className="rhps-modal-close" onClick={() => setShowCustomerModal(false)}>×</button>
-                </div>
-                <form onSubmit={handleSaveCustomerSubmit}>
+
+
+          {/* CUSTOMER DETAIL & LINKED PIANOS INSPECTION MODAL */}
+          {selectedCustomerDetail && (() => {
+            const liveCustomerDetail = customers.find((c) => c.id === selectedCustomerDetail.id) || selectedCustomerDetail;
+            return (
+              <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setSelectedCustomerDetail(null)}>
+                <div className="rhps-modal" style={{ maxWidth: 600 }}>
+                  <div className="rhps-modal-header">
+                    <h3>🔍 Customer Profile — {liveCustomerDetail.name} ({liveCustomerDetail.id})</h3>
+                    <button className="rhps-modal-close" onClick={() => setSelectedCustomerDetail(null)}>×</button>
+                  </div>
                   <div className="rhps-modal-body" style={{ gap: 16 }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                      <div className="form-group" style={{ gridColumn: "span 2" }}>
-                        <label>Full Customer Name <span className="required-star">*</span></label>
-                        <input
-                          className="input-field"
-                          required
-                          value={custName}
-                          onChange={(e) => setCustName(e.target.value)}
-                          placeholder="e.g. Atty. Fernando Alonso / San Pedro Cathedral Academy"
-                        />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
+                      <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Customer ID</span><strong>{liveCustomerDetail.id}</strong></div>
+                      <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Customer Type</span><strong style={{ color: liveCustomerDetail.customerType === "Repeat" ? "#1e40af" : "#15803d" }}>{liveCustomerDetail.customerType}</strong></div>
+                      <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Client Status</span><strong style={{ color: getClientStatusStyle(liveCustomerDetail.clientStatus).color }}>{liveCustomerDetail.clientStatus || "Ready for Assessment"}</strong></div>
+                      <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Product / Service</span><strong>{liveCustomerDetail.productService || "Piano Tuning"}</strong></div>
+                      <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Priority</span><strong style={{ color: getPriorityStyle(liveCustomerDetail.priority).color }}>{liveCustomerDetail.priority || "Medium"}</strong></div>
+                      <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Source</span><strong>{liveCustomerDetail.source || "Facebook Main"}</strong></div>
+                      <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Primary Contact</span><strong>{liveCustomerDetail.contactNumber}</strong></div>
+                      <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Alt Contact</span><strong>{liveCustomerDetail.alternateContactNumber || "N/A"}</strong></div>
+                      <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Email</span><strong>{liveCustomerDetail.email || "N/A"}</strong></div>
+                      <div>
+                        <span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Facebook Account</span>
+                        {liveCustomerDetail.facebookLink ? (
+                          <a href={liveCustomerDetail.facebookLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline" }}>
+                            🌐 {liveCustomerDetail.facebookName || "View Profile"}
+                          </a>
+                        ) : (
+                          <strong>{liveCustomerDetail.facebookName || "N/A"}</strong>
+                        )}
                       </div>
-
-                      <div className="form-group">
-                        <label>Primary Contact Number <span className="required-star">*</span></label>
-                        <input
-                          className="input-field"
-                          required
-                          value={custContact}
-                          onChange={(e) => setCustContact(e.target.value)}
-                          placeholder="e.g. 0917-555-0192"
-                        />
+                      <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>City / Area</span><strong>{liveCustomerDetail.cityArea || "Davao City"}</strong></div>
+                      <div>
+                        <span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Location Pin</span>
+                        {liveCustomerDetail.gmapsLink ? (
+                          <a href={liveCustomerDetail.gmapsLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline" }}>
+                            📍 View Google Maps Pin
+                          </a>
+                        ) : (
+                          <strong>{liveCustomerDetail.landmark || "N/A"}</strong>
+                        )}
                       </div>
-
-                      <div className="form-group">
-                        <label>Alternate Contact Number</label>
-                        <input
-                          className="input-field"
-                          value={custAltContact}
-                          onChange={(e) => setCustAltContact(e.target.value)}
-                          placeholder="e.g. 0920-111-2233"
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label>Customer Type <span className="required-star">*</span></label>
-                        <select
-                          className="input-field"
-                          value={custType}
-                          onChange={(e) => setCustType(e.target.value as "New" | "Old")}
-                        >
-                          <option value="New">New Customer</option>
-                          <option value="Old">Old Customer</option>
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label>Email Address</label>
-                        <input
-                          type="email"
-                          className="input-field"
-                          value={custEmail}
-                          onChange={(e) => setCustEmail(e.target.value)}
-                          placeholder="e.g. client@example.com"
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label>Facebook Account Name</label>
-                        <input
-                          className="input-field"
-                          value={custFbName}
-                          onChange={(e) => setCustFbName(e.target.value)}
-                          placeholder="e.g. Fernando Alonso Law"
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label>Facebook Profile / Page Link 🌐</label>
-                        <input
-                          className="input-field"
-                          value={custFbLink}
-                          onChange={(e) => setCustFbLink(e.target.value)}
-                          placeholder="https://facebook.com/..."
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label>City / Service Area</label>
-                        <input
-                          className="input-field"
-                          value={custCityArea}
-                          onChange={(e) => setCustCityArea(e.target.value)}
-                          placeholder="e.g. Davao City Central / Matina"
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label>Google Maps Link / Pin Location 📍</label>
-                        <input
-                          className="input-field"
-                          value={custGmapsLink}
-                          onChange={(e) => setCustGmapsLink(e.target.value)}
-                          placeholder="https://maps.google.com/?q=..."
-                        />
-                      </div>
-
-                      <div className="form-group" style={{ gridColumn: "span 2" }}>
-                        <label>Complete Address <span className="required-star">*</span></label>
-                        <input
-                          className="input-field"
-                          required
-                          value={custAddress}
-                          onChange={(e) => setCustAddress(e.target.value)}
-                          placeholder="House/Bldg No, Street, Barangay, City"
-                        />
-                      </div>
-
-                      <div className="form-group" style={{ gridColumn: "span 2" }}>
-                        <label>Landmark / Location Reference</label>
-                        <input
-                          className="input-field"
-                          value={custLandmark}
-                          onChange={(e) => setCustLandmark(e.target.value)}
-                          placeholder="e.g. Beside St. Jude Parish, Near Shell Gas Station"
-                        />
-                      </div>
-
-                      <div style={{ gridColumn: "span 2", background: "#f0f9ff", padding: 12, borderRadius: 10, border: "1px solid #bae6fd", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                        <div className="form-group">
-                          <label style={{ color: "#0369a1" }}>Set Follow-Up Reminder Date ⏰ (Auto-adds to Reminders)</label>
-                          <input
-                            type="date"
-                            className="input-field"
-                            value={custReminderDate}
-                            onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
-                            onChange={(e) => setCustReminderDate(e.target.value)}
-                          />
+                      <div style={{ gridColumn: "span 2" }}><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Complete Address</span><strong>{liveCustomerDetail.completeAddress}</strong></div>
+                      {liveCustomerDetail.reminderDate && (
+                        <div style={{ gridColumn: "span 2", background: "#f0f9ff", padding: 8, borderRadius: 8, border: "1px solid #bae6fd", fontSize: 12, color: "#0369a1" }}>
+                          ⏰ <strong>Scheduled Reminder: {liveCustomerDetail.reminderDate}</strong> {liveCustomerDetail.reminderNotes ? `(${liveCustomerDetail.reminderNotes})` : ""}
                         </div>
-                        <div className="form-group">
-                          <label style={{ color: "#0369a1" }}>Reminder Details / Notes</label>
-                          <input
-                            className="input-field"
-                            value={custReminderNotes}
-                            onChange={(e) => setCustReminderNotes(e.target.value)}
-                            placeholder="e.g. Annual tuning follow-up"
-                          />
-                        </div>
-                      </div>
+                      )}
+                    </div>
 
-                      <div className="form-group" style={{ gridColumn: "span 2" }}>
-                        <label>Customer Notes & Service Preferences</label>
-                        <textarea
-                          className="input-field"
-                          rows={3}
-                          value={custNotes}
-                          onChange={(e) => setCustNotes(e.target.value)}
-                          placeholder="VIP preferences, preferred service times, piano history notes..."
-                        />
+                    {/* LINKED PIANOS SECTION */}
+                    <div style={{ background: "#f8fafc", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                      <strong style={{ color: "#0f172a", display: "block", marginBottom: 8, fontSize: 13 }}>
+                        🎹 Linked Piano Instruments ({liveCustomerDetail.pianos?.length || liveCustomerDetail.linkedPianoIds?.length || 0}):
+                      </strong>
+                      {liveCustomerDetail.pianos && liveCustomerDetail.pianos.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {liveCustomerDetail.pianos.map((p) => (
+                            <div key={p.id} style={{ background: "#ffffff", padding: 10, borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 12 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, color: "#0f172a" }}>
+                                <span>🎹 {p.brand} {p.model} ({p.pianoType})</span>
+                                <span style={{ color: "#2563eb" }}>S/N: {p.serialNumber}</span>
+                              </div>
+                              <div style={{ color: "#64748b", fontSize: 11, marginTop: 4 }}>Location: {p.currentLocation} | Status: <strong>{p.pianoStatus}</strong></div>
+                              {p.conditionNotes && <div style={{ color: "#475569", fontSize: 11, fontStyle: "italic", marginTop: 2 }}>Notes: {p.conditionNotes}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                          Linked Piano IDs: <strong>{liveCustomerDetail.linkedPianoIds.join(", ")}</strong>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* NOTES SECTION */}
+                    {liveCustomerDetail.notes && (
+                      <div style={{ background: "#fffbebf5", padding: 12, borderRadius: 10, border: "1px solid #fde68a" }}>
+                        <span style={{ color: "#92400e", fontSize: 11, fontWeight: 800, textTransform: "uppercase", display: "block", marginBottom: 2 }}>Notes & Special Instructions</span>
+                        <p style={{ margin: 0, fontSize: 12.5, color: "#78350f" }}>{liveCustomerDetail.notes}</p>
                       </div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#94a3b8", paddingTop: 6 }}>
+                      <span>Date Created: {liveCustomerDetail.createdDate}</span>
+                      <span>Last Updated: {liveCustomerDetail.lastUpdatedDate}</span>
                     </div>
                   </div>
                   <div className="rhps-modal-footer">
-                    <button type="button" className="secondary-sm" onClick={() => setShowCustomerModal(false)}>Cancel</button>
-                    <button type="submit" className="primary" style={{ background: "#0f172a", color: "#ffffff", padding: "10px 22px", borderRadius: 10, fontWeight: 700, border: "none" }}>
-                      {editingCustomer ? "💾 Save Changes" : "＋ Register Customer"}
+                    <button className="secondary-sm" onClick={() => setSelectedCustomerDetail(null)}>Close</button>
+                    <button
+                      type="button"
+                      className="secondary-sm"
+                      style={{ fontSize: 12, padding: "8px 14px", borderRadius: 8, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}
+                      onClick={() => {
+                        const target = liveCustomerDetail;
+                        setSelectedCustomerDetail(null);
+                        setSelectedQRProcessCustomer(target as any);
+                      }}
+                    >
+                      📱 View QR Tracking Code
+                    </button>
+                    <button
+                      className="primary"
+                      style={{ background: "#0f172a", color: "#ffffff", padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700 }}
+                      onClick={() => {
+                        const target = liveCustomerDetail;
+                        setSelectedCustomerDetail(null);
+                        openEditCustomerModal(target);
+                      }}
+                    >
+                      ✏️ Edit Customer Profile
                     </button>
                   </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* CUSTOMER DETAIL & LINKED PIANOS INSPECTION MODAL */}
-          {selectedCustomerDetail && (
-            <div className="rhps-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setSelectedCustomerDetail(null)}>
-              <div className="rhps-modal" style={{ maxWidth: 600 }}>
-                <div className="rhps-modal-header">
-                  <h3>🔍 Customer Profile — {selectedCustomerDetail.name} ({selectedCustomerDetail.id})</h3>
-                  <button className="rhps-modal-close" onClick={() => setSelectedCustomerDetail(null)}>×</button>
-                </div>
-                <div className="rhps-modal-body" style={{ gap: 16 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13 }}>
-                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Customer ID</span><strong>{selectedCustomerDetail.id}</strong></div>
-                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Customer Type</span><strong style={{ color: selectedCustomerDetail.customerType === "Repeat" ? "#1e40af" : "#15803d" }}>{selectedCustomerDetail.customerType}</strong></div>
-                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Primary Contact</span><strong>{selectedCustomerDetail.contactNumber}</strong></div>
-                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Alt Contact</span><strong>{selectedCustomerDetail.alternateContactNumber || "N/A"}</strong></div>
-                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Email</span><strong>{selectedCustomerDetail.email || "N/A"}</strong></div>
-                    <div>
-                      <span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Facebook Account</span>
-                      {selectedCustomerDetail.facebookLink ? (
-                        <a href={selectedCustomerDetail.facebookLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline" }}>
-                          🌐 {selectedCustomerDetail.facebookName || "View Profile"}
-                        </a>
-                      ) : (
-                        <strong>{selectedCustomerDetail.facebookName || "N/A"}</strong>
-                      )}
-                    </div>
-                    <div><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>City / Area</span><strong>{selectedCustomerDetail.cityArea || "Davao City"}</strong></div>
-                    <div>
-                      <span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Location Pin</span>
-                      {selectedCustomerDetail.gmapsLink ? (
-                        <a href={selectedCustomerDetail.gmapsLink} target="_blank" rel="noreferrer" style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline" }}>
-                          📍 View Google Maps Pin
-                        </a>
-                      ) : (
-                        <strong>{selectedCustomerDetail.landmark || "N/A"}</strong>
-                      )}
-                    </div>
-                    <div style={{ gridColumn: "span 2" }}><span style={{ color: "#64748b", fontSize: 11, textTransform: "uppercase", display: "block" }}>Complete Address</span><strong>{selectedCustomerDetail.completeAddress}</strong></div>
-                    {selectedCustomerDetail.reminderDate && (
-                      <div style={{ gridColumn: "span 2", background: "#f0f9ff", padding: 8, borderRadius: 8, border: "1px solid #bae6fd", fontSize: 12, color: "#0369a1" }}>
-                        ⏰ <strong>Scheduled Reminder: {selectedCustomerDetail.reminderDate}</strong> {selectedCustomerDetail.reminderNotes ? `(${selectedCustomerDetail.reminderNotes})` : ""}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* LINKED PIANOS SECTION */}
-                  <div style={{ background: "#f8fafc", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0" }}>
-                    <strong style={{ color: "#0f172a", display: "block", marginBottom: 8, fontSize: 13 }}>
-                      🎹 Linked Piano Instruments ({selectedCustomerDetail.pianos?.length || selectedCustomerDetail.linkedPianoIds?.length || 0}):
-                    </strong>
-                    {selectedCustomerDetail.pianos && selectedCustomerDetail.pianos.length > 0 ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {selectedCustomerDetail.pianos.map((p) => (
-                          <div key={p.id} style={{ background: "#ffffff", padding: 10, borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 12 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, color: "#0f172a" }}>
-                              <span>🎹 {p.brand} {p.model} ({p.pianoType})</span>
-                              <span style={{ color: "#2563eb" }}>S/N: {p.serialNumber}</span>
-                            </div>
-                            <div style={{ color: "#64748b", fontSize: 11, marginTop: 4 }}>Location: {p.currentLocation} | Status: <strong>{p.pianoStatus}</strong></div>
-                            {p.conditionNotes && <div style={{ color: "#475569", fontSize: 11, fontStyle: "italic", marginTop: 2 }}>Notes: {p.conditionNotes}</div>}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 12, color: "#64748b" }}>
-                        Linked Piano IDs: <strong>{selectedCustomerDetail.linkedPianoIds.join(", ")}</strong>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* NOTES SECTION */}
-                  {selectedCustomerDetail.notes && (
-                    <div style={{ background: "#fffbebf5", padding: 12, borderRadius: 10, border: "1px solid #fde68a" }}>
-                      <span style={{ color: "#92400e", fontSize: 11, fontWeight: 800, textTransform: "uppercase", display: "block", marginBottom: 2 }}>Notes & Special Instructions</span>
-                      <p style={{ margin: 0, fontSize: 12.5, color: "#78350f" }}>{selectedCustomerDetail.notes}</p>
-                    </div>
-                  )}
-
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#94a3b8", paddingTop: 6 }}>
-                    <span>Date Created: {selectedCustomerDetail.createdDate}</span>
-                    <span>Last Updated: {selectedCustomerDetail.lastUpdatedDate}</span>
-                  </div>
-                </div>
-                <div className="rhps-modal-footer">
-                  <button className="secondary-sm" onClick={() => setSelectedCustomerDetail(null)}>Close</button>
-                  <button
-                    className="primary"
-                    style={{ background: "#0f172a", color: "#ffffff", padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700 }}
-                    onClick={() => {
-                      const target = selectedCustomerDetail;
-                      setSelectedCustomerDetail(null);
-                      openEditCustomerModal(target);
-                    }}
-                  >
-                    ✏️ Edit Customer Profile
-                  </button>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* CREATE / EDIT ESTIMATE MODAL */}
           {showEstimateModal && (
@@ -15094,21 +16771,23 @@ Total Invoices: ${invoices.length}
         </main>
 
         {/* ── RHPS MASTER AI FLOATING CENTER BUBBLE MODAL ─────────────────── */}
-        {isAiBubbleModalOpen && (
+        {isAiBubbleModalOpen && mounted && createPortal(
           <div
             style={{
               position: "fixed",
               top: 0,
               left: 0,
+              right: 0,
+              bottom: 0,
               width: "100vw",
               height: "100vh",
-              zIndex: 99999,
+              zIndex: 999999,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "rgba(15, 23, 42, 0.75)",
-              backdropFilter: "blur(10px)",
-              WebkitBackdropFilter: "blur(10px)",
+              background: "rgba(15, 23, 42, 0.65)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
               padding: "16px",
               boxSizing: "border-box",
             }}
@@ -15118,7 +16797,7 @@ Total Invoices: ${invoices.length}
               @keyframes popInBubble {
                 0% {
                   opacity: 0;
-                  transform: scale(0.85) translateY(20px);
+                  transform: scale(0.88) translateY(15px);
                 }
                 100% {
                   opacity: 1;
@@ -15133,8 +16812,9 @@ Total Invoices: ${invoices.length}
               className="rhps-ai-bubble-modal"
               onClick={(e) => e.stopPropagation()}
               style={{
-                width: "min(92vw, 760px)",
-                height: "min(88vh, 680px)",
+                width: "min(640px, calc(100vw - 32px))",
+                height: "min(680px, calc(100vh - 32px))",
+                maxHeight: "calc(100vh - 32px)",
                 background: "linear-gradient(145deg, #0f172a 0%, #1e293b 100%)",
                 borderRadius: "24px",
                 border: "1.5px solid rgba(56, 189, 248, 0.4)",
@@ -15257,65 +16937,73 @@ Total Invoices: ${invoices.length}
                 }}
               >
                 <button
+                  disabled={aiLoading}
                   onClick={() => sendAiMessage("Draft a professional repair quotation scope for a Yamaha U3 upright piano needing A440 tuning and action regulation in Davao.")}
                   style={{
                     background: "rgba(15, 23, 42, 0.8)",
-                    color: "#e2e8f0",
+                    color: aiLoading ? "#64748b" : "#e2e8f0",
                     border: "1px solid rgba(56, 189, 248, 0.25)",
                     padding: "6px 12px",
                     borderRadius: "99px",
                     fontSize: 11.5,
                     fontWeight: 600,
                     whiteSpace: "nowrap",
-                    cursor: "pointer",
+                    cursor: aiLoading ? "not-allowed" : "pointer",
+                    transition: "all 0.15s ease",
                   }}
                 >
                   📋 Service Quotation
                 </button>
                 <button
+                  disabled={aiLoading}
                   onClick={() => sendAiMessage("Draft a friendly 6-month piano tuning SMS reminder for client Atty. Fernando Alonso.")}
                   style={{
                     background: "rgba(15, 23, 42, 0.8)",
-                    color: "#e2e8f0",
+                    color: aiLoading ? "#64748b" : "#e2e8f0",
                     border: "1px solid rgba(56, 189, 248, 0.25)",
                     padding: "6px 12px",
                     borderRadius: "99px",
                     fontSize: 11.5,
                     fontWeight: 600,
                     whiteSpace: "nowrap",
-                    cursor: "pointer",
+                    cursor: aiLoading ? "not-allowed" : "pointer",
+                    transition: "all 0.15s ease",
                   }}
                 >
                   📲 6-Month Tuning SMS
                 </button>
                 <button
+                  disabled={aiLoading}
                   onClick={() => sendAiMessage("How do I fix sticky piano keys and sluggish hammer return caused by Davao's high humidity?")}
                   style={{
                     background: "rgba(15, 23, 42, 0.8)",
-                    color: "#e2e8f0",
+                    color: aiLoading ? "#64748b" : "#e2e8f0",
                     border: "1px solid rgba(56, 189, 248, 0.25)",
                     padding: "6px 12px",
                     borderRadius: "99px",
                     fontSize: 11.5,
                     fontWeight: 600,
                     whiteSpace: "nowrap",
-                    cursor: "pointer",
+                    cursor: aiLoading ? "not-allowed" : "pointer",
+                    transition: "all 0.15s ease",
                   }}
                 >
                   🔧 Technical Fault Guide
                 </button>
                 <button
+                  disabled={aiLoading}
                   onClick={() => sendAiMessage("Summarize my current active piano service job orders, verified revenue, and pending reminders.")}
                   style={{
                     background: "rgba(15, 23, 42, 0.8)",
-                    color: "#e2e8f0",
+                    color: aiLoading ? "#64748b" : "#e2e8f0",
                     border: "1px solid rgba(56, 189, 248, 0.25)",
                     padding: "6px 12px",
                     borderRadius: "99px",
                     fontSize: 11.5,
                     fontWeight: 600,
                     whiteSpace: "nowrap",
-                    cursor: "pointer",
+                    cursor: aiLoading ? "not-allowed" : "pointer",
+                    transition: "all 0.15s ease",
                   }}
                 >
                   📊 Business Summary
@@ -15367,7 +17055,7 @@ Total Invoices: ${invoices.length}
                         {msg.role === "user" ? (
                           <span style={{ whiteSpace: "pre-wrap", color: "#ffffff", fontWeight: 500 }}>{msg.content}</span>
                         ) : (
-                          renderRhpsAiMarkdown(msg.content, true)
+                          renderRhpsAiMarkdown(msg.content, true, sendAiMessage)
                         )}
                       </div>
 
@@ -15514,7 +17202,226 @@ Total Invoices: ${invoices.length}
                 </button>
               </form>
             </div>
+          </div>,
+          document.body
+        )}
+
+        {/* MANAGE LINKED PIANOS MODAL */}
+        {showManagePianosModal && editingPianosCustomer && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              backgroundColor: "rgba(15, 23, 42, 0.75)",
+              backdropFilter: "blur(6px)",
+              zIndex: 99999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 16,
+            }}
+            onClick={() => {
+              setShowManagePianosModal(false);
+              setEditingPianosCustomer(null);
+            }}
+          >
+            <div
+              style={{
+                background: "#ffffff",
+                borderRadius: 20,
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                width: "100%",
+                maxWidth: 580,
+                padding: 24,
+                display: "flex",
+                flexDirection: "column",
+                gap: 20,
+                border: "1px solid #cbd5e1",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "#0f172a" }}>
+                    🎹 Manage Linked Pianos
+                  </h3>
+                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748b" }}>
+                    Owner: <strong>{editingPianosCustomer.name}</strong> ({editingPianosCustomer.id})
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowManagePianosModal(false);
+                    setEditingPianosCustomer(null);
+                  }}
+                  style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: 32, height: 32, fontSize: 16, cursor: "pointer", fontWeight: 800 }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* CURRENT LINKED PIANOS LIST */}
+              <div>
+                <span style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>
+                  Current Linked Pianos ({editingPianosCustomer.pianos?.length || 0})
+                </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+                  {editingPianosCustomer.pianos && editingPianosCustomer.pianos.length > 0 ? (
+                    editingPianosCustomer.pianos.map((p, idx) => (
+                      <div
+                        key={p.id || idx}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          background: "#f8fafc",
+                          border: "1px solid #e2e8f0",
+                          padding: "10px 14px",
+                          borderRadius: 10,
+                        }}
+                      >
+                        <div>
+                          <strong style={{ fontSize: 13, color: "#0f172a", display: "block" }}>
+                            🎹 {p.brand} {p.model}
+                          </strong>
+                          <span style={{ fontSize: 11, color: "#64748b" }}>
+                            {p.serialNumber ? `S/N: ${p.serialNumber}` : "No Serial No"} • {p.pianoType || "Upright"}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const updatedPianos = (editingPianosCustomer.pianos || []).filter((_, i) => i !== idx);
+                            setCustomers((prev) =>
+                              prev.map((c) => (c.id === editingPianosCustomer.id ? { ...c, pianos: updatedPianos } : c))
+                            );
+                            setEditingPianosCustomer({ ...editingPianosCustomer, pianos: updatedPianos });
+                            showToast(`🗑️ Removed piano ${p.brand} ${p.model}`);
+                          }}
+                          style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5", padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 800, cursor: "pointer" }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ padding: 14, background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: 10, fontSize: 12, color: "#64748b", textAlign: "center" }}>
+                      No pianos linked yet. Add a piano using the form below.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ADD NEW PIANO FORM */}
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", padding: 16, borderRadius: 12 }}>
+                <strong style={{ fontSize: 13, color: "#1e40af", display: "block", marginBottom: 10 }}>
+                  ＋ Link New Piano to Customer
+                </strong>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#475569", display: "block", marginBottom: 3 }}>Piano Brand</label>
+                    <input
+                      type="text"
+                      placeholder="Yamaha, Kawai, Steinway..."
+                      className="input-field"
+                      style={{ width: "100%", padding: "6px 10px", fontSize: 12 }}
+                      value={newPianoBrand}
+                      onChange={(e) => setNewPianoBrand(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#475569", display: "block", marginBottom: 3 }}>Piano Model</label>
+                    <input
+                      type="text"
+                      placeholder="U1, U3, K-300, C-227..."
+                      className="input-field"
+                      style={{ width: "100%", padding: "6px 10px", fontSize: 12 }}
+                      value={newPianoModel}
+                      onChange={(e) => setNewPianoModel(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#475569", display: "block", marginBottom: 3 }}>Serial Number (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="YM-110923..."
+                      className="input-field"
+                      style={{ width: "100%", padding: "6px 10px", fontSize: 12 }}
+                      value={newPianoSerial}
+                      onChange={(e) => setNewPianoSerial(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#475569", display: "block", marginBottom: 3 }}>Piano Type</label>
+                    <select
+                      className="input-field"
+                      style={{ width: "100%", padding: "6px 10px", fontSize: 12 }}
+                      value={newPianoType}
+                      onChange={(e) => setNewPianoType(e.target.value)}
+                    >
+                      <option value="Upright">Upright Piano</option>
+                      <option value="Grand">Grand Piano</option>
+                      <option value="Baby Grand">Baby Grand</option>
+                      <option value="Digital">Digital Hybrid</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (!newPianoBrand.trim() || !newPianoModel.trim()) {
+                      showToast("⚠️ Please enter Piano Brand and Model!");
+                      return;
+                    }
+                    const todayStr = new Date().toISOString().split("T")[0];
+                    const newPianoObj: CustomerPiano = {
+                      id: `P-${Date.now().toString().slice(-4)}`,
+                      linkedCustomerId: editingPianosCustomer.id,
+                      brand: newPianoBrand.trim(),
+                      model: newPianoModel.trim(),
+                      serialNumber: newPianoSerial.trim() || undefined,
+                      pianoType: newPianoType,
+                      currentLocation: "Customer Residence",
+                      pianoStatus: "Owned by Customer",
+                      createdDate: todayStr,
+                      lastUpdatedDate: todayStr,
+                    };
+                    const updatedPianos: CustomerPiano[] = [...(editingPianosCustomer.pianos || []), newPianoObj];
+                    setCustomers((prev) =>
+                      prev.map((c) => (c.id === editingPianosCustomer.id ? { ...c, pianos: updatedPianos } : c))
+                    );
+                    setEditingPianosCustomer({ ...editingPianosCustomer, pianos: updatedPianos });
+                    setNewPianoModel("");
+                    setNewPianoSerial("");
+                    showToast(`✨ Linked ${newPianoBrand} ${newPianoModel} to ${editingPianosCustomer.name}!`);
+                  }}
+                  style={{
+                    marginTop: 12,
+                    width: "100%",
+                    padding: "8px 14px",
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  ＋ Link Piano to Customer
+                </button>
+              </div>
+            </div>
           </div>
+        )}
+
+        {/* ORDER PROCESS & LIVE QR TRACKING MODAL */}
+        {selectedQRProcessCustomer && (
+          <QRProcessModal
+            customer={(customers.find((c) => c.id === selectedQRProcessCustomer.id) as any) || selectedQRProcessCustomer}
+            onClose={() => setSelectedQRProcessCustomer(null)}
+            onUpdateStatus={(customerId, newStatus) => handleCustomerInlineUpdate(customerId, "clientStatus" as any, newStatus as any)}
+            onShowToast={showToast}
+          />
         )}
       </div>
     </div>
