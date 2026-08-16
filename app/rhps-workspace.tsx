@@ -2660,12 +2660,12 @@ export default function RhpsWorkspace({
     contact: true,
     location: true,
     stage_sales: false,
-    stage_assessment: false,
-    stage_service: false,
-    stage_completion: false,
-    stage_pullout: false,
+    stage_assessment: true,
+    stage_service: true,
+    stage_completion: true,
+    stage_pullout: true,
     stage_payment: true,
-    status: true,
+    status: false,
     service: true,
     priority: true,
     source: true,
@@ -7196,9 +7196,14 @@ Total Invoices: ${invoices.length}
                             {visibleCols.id && <th style={{ width: 85 }}>CLIENT ID</th>}
                             {visibleCols.client && <th style={{ minWidth: 210 }}>CLIENT NAME & CONTACT</th>}
 
-                            {/* UNIFIED OPERATIONAL CLIENT STATUS & PAYMENT COLUMNS */}
+                            {/* MULTI-COLUMN PIPELINE STAGES & PAYMENT COLUMNS */}
+                            {visibleCols.stage_sales && <th style={{ minWidth: 170, background: "#eff6ff", color: "#1d4ed8", fontWeight: 900 }}>🎯 NEW / SALES</th>}
+                            {visibleCols.stage_assessment && <th style={{ minWidth: 180, background: "#fef3c7", color: "#b45309", fontWeight: 900 }}>📋 ASSESSMENT / SCHEDULING</th>}
+                            {visibleCols.stage_service && <th style={{ minWidth: 160, background: "#f3e8ff", color: "#6b21a8", fontWeight: 900 }}>🛠️ SERVICE / REPAIR</th>}
+                            {visibleCols.stage_pullout && <th style={{ minWidth: 150, background: "#ffedd5", color: "#c2410c", fontWeight: 900 }}>🎹 PIANO PULLOUT</th>}
+                            {visibleCols.stage_completion && <th style={{ minWidth: 170, background: "#dcfce7", color: "#15803d", fontWeight: 900 }}>🚚 COMPLETION / DELIVERY</th>}
+                            {visibleCols.stage_payment && <th style={{ minWidth: 145, background: "#ffe4e6", color: "#be123c", fontWeight: 900 }}>💳 PAYMENT</th>}
                             {visibleCols.status && <th style={{ minWidth: 220, background: "#f8fafc", color: "#0f172a", fontWeight: 900 }}>📌 CLIENT STATUS</th>}
-                            {visibleCols.stage_payment && <th style={{ minWidth: 145, background: "#ffe4e6", color: "#9f1239", fontWeight: 900 }}>💳 PAYMENT</th>}
                             {visibleCols.service && <th style={{ minWidth: 190 }}>PRODUCT / SERVICE</th>}
                             {visibleCols.priority && <th style={{ minWidth: 130 }}>PRIORITY</th>}
                             {visibleCols.source && <th style={{ minWidth: 150 }}>SOURCE</th>}
@@ -7302,7 +7307,322 @@ Total Invoices: ${invoices.length}
                                     </td>
                                   )}
 
-                                  {/* UNIFIED SINGLE OPERATIONAL CLIENT STATUS COLUMN (CATEGORIZED OPTGROUP) */}
+                                  {/* 1. SALES STAGE COLUMN */}
+                                  {visibleCols.stage_sales && (() => {
+                                    const grp = CLIENT_STAGE_GROUPS[0];
+                                    const isActive = grp.statuses.includes(c.clientStatus as any);
+                                    const stStyle = isActive ? getClientStatusStyle(c.clientStatus) : null;
+                                    return (
+                                      <td style={{ background: stStyle ? stStyle.bg : undefined }}>
+                                        {isActive && stStyle ? (
+                                          <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
+                                            <select
+                                              className="badge-select"
+                                              value={c.clientStatus}
+                                              onChange={(e) => handleCustomerInlineUpdate(c.id, "clientStatus", e.target.value as ClientStatusType)}
+                                              style={{
+                                                background: stStyle.bg,
+                                                color: stStyle.color,
+                                                border: `1.5px solid ${stStyle.border}`,
+                                                borderRadius: 9999,
+                                                padding: "5px 12px 5px 20px",
+                                                fontSize: 11,
+                                                fontWeight: 800,
+                                                cursor: "pointer",
+                                                outline: "none",
+                                                width: "100%",
+                                                textOverflow: "ellipsis",
+                                                whiteSpace: "nowrap",
+                                              }}
+                                            >
+                                              {grp.statuses.map((st) => (
+                                                <option key={st} value={st}>{st}</option>
+                                              ))}
+                                            </select>
+                                            <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 6, height: 6, borderRadius: 99, background: stStyle.dot }} />
+                                          </div>
+                                        ) : (
+                                          <select
+                                            style={{
+                                              border: "1px dashed #cbd5e1",
+                                              background: "transparent",
+                                              color: "#94a3b8",
+                                              borderRadius: 6,
+                                              padding: "3px 6px",
+                                              fontSize: 11,
+                                              fontWeight: 600,
+                                              cursor: "pointer",
+                                              width: "100%",
+                                              textAlign: "center",
+                                            }}
+                                            value=""
+                                            onChange={(e) => {
+                                              if (e.target.value) handleCustomerInlineUpdate(c.id, "clientStatus", e.target.value as ClientStatusType);
+                                            }}
+                                          >
+                                            <option value="">—</option>
+                                            {grp.statuses.map((st) => (
+                                              <option key={st} value={st}>{st}</option>
+                                            ))}
+                                          </select>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
+
+                                  {/* 2. ASSESSMENT STAGE COLUMN */}
+                                  {visibleCols.stage_assessment && (() => {
+                                    const grp = CLIENT_STAGE_GROUPS[1];
+                                    const isActive = grp.statuses.includes(c.clientStatus as any);
+                                    const stStyle = isActive ? getClientStatusStyle(c.clientStatus) : null;
+                                    return (
+                                      <td style={{ background: stStyle ? stStyle.bg : undefined }}>
+                                        {isActive && stStyle ? (
+                                          <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
+                                            <select
+                                              className="badge-select"
+                                              value={c.clientStatus}
+                                              onChange={(e) => handleCustomerInlineUpdate(c.id, "clientStatus", e.target.value as ClientStatusType)}
+                                              style={{
+                                                background: stStyle.bg,
+                                                color: stStyle.color,
+                                                border: `1.5px solid ${stStyle.border}`,
+                                                borderRadius: 9999,
+                                                padding: "5px 12px 5px 20px",
+                                                fontSize: 11,
+                                                fontWeight: 800,
+                                                cursor: "pointer",
+                                                outline: "none",
+                                                width: "100%",
+                                                textOverflow: "ellipsis",
+                                                whiteSpace: "nowrap",
+                                              }}
+                                            >
+                                              {grp.statuses.map((st) => (
+                                                <option key={st} value={st}>{st}</option>
+                                              ))}
+                                            </select>
+                                            <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 6, height: 6, borderRadius: 99, background: stStyle.dot }} />
+                                          </div>
+                                        ) : (
+                                          <select
+                                            style={{
+                                              border: "1px dashed #cbd5e1",
+                                              background: "transparent",
+                                              color: "#94a3b8",
+                                              borderRadius: 6,
+                                              padding: "3px 6px",
+                                              fontSize: 11,
+                                              fontWeight: 600,
+                                              cursor: "pointer",
+                                              width: "100%",
+                                              textAlign: "center",
+                                            }}
+                                            value=""
+                                            onChange={(e) => {
+                                              if (e.target.value) handleCustomerInlineUpdate(c.id, "clientStatus", e.target.value as ClientStatusType);
+                                            }}
+                                          >
+                                            <option value="">—</option>
+                                            {grp.statuses.map((st) => (
+                                              <option key={st} value={st}>{st}</option>
+                                            ))}
+                                          </select>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
+
+                                  {/* 3. SERVICE STAGE COLUMN */}
+                                  {visibleCols.stage_service && (() => {
+                                    const grp = CLIENT_STAGE_GROUPS[2];
+                                    const isActive = grp.statuses.includes(c.clientStatus as any);
+                                    const stStyle = isActive ? getClientStatusStyle(c.clientStatus) : null;
+                                    return (
+                                      <td style={{ background: stStyle ? stStyle.bg : undefined }}>
+                                        {isActive && stStyle ? (
+                                          <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
+                                            <select
+                                              className="badge-select"
+                                              value={c.clientStatus}
+                                              onChange={(e) => handleCustomerInlineUpdate(c.id, "clientStatus", e.target.value as ClientStatusType)}
+                                              style={{
+                                                background: stStyle.bg,
+                                                color: stStyle.color,
+                                                border: `1.5px solid ${stStyle.border}`,
+                                                borderRadius: 9999,
+                                                padding: "5px 12px 5px 20px",
+                                                fontSize: 11,
+                                                fontWeight: 800,
+                                                cursor: "pointer",
+                                                outline: "none",
+                                                width: "100%",
+                                                textOverflow: "ellipsis",
+                                                whiteSpace: "nowrap",
+                                              }}
+                                            >
+                                              {grp.statuses.map((st) => (
+                                                <option key={st} value={st}>{st}</option>
+                                              ))}
+                                            </select>
+                                            <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 6, height: 6, borderRadius: 99, background: stStyle.dot }} />
+                                          </div>
+                                        ) : (
+                                          <select
+                                            style={{
+                                              border: "1px dashed #cbd5e1",
+                                              background: "transparent",
+                                              color: "#94a3b8",
+                                              borderRadius: 6,
+                                              padding: "3px 6px",
+                                              fontSize: 11,
+                                              fontWeight: 600,
+                                              cursor: "pointer",
+                                              width: "100%",
+                                              textAlign: "center",
+                                            }}
+                                            value=""
+                                            onChange={(e) => {
+                                              if (e.target.value) handleCustomerInlineUpdate(c.id, "clientStatus", e.target.value as ClientStatusType);
+                                            }}
+                                          >
+                                            <option value="">—</option>
+                                            {grp.statuses.map((st) => (
+                                              <option key={st} value={st}>{st}</option>
+                                            ))}
+                                          </select>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
+
+                                  {/* 4. PIANO PULLOUT STAGE COLUMN */}
+                                  {visibleCols.stage_pullout && (() => {
+                                    const grp = CLIENT_STAGE_GROUPS[3];
+                                    const isActive = grp.statuses.includes(c.clientStatus as any);
+                                    const stStyle = isActive ? getClientStatusStyle(c.clientStatus) : null;
+                                    return (
+                                      <td style={{ background: stStyle ? stStyle.bg : undefined }}>
+                                        {isActive && stStyle ? (
+                                          <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
+                                            <select
+                                              className="badge-select"
+                                              value={c.clientStatus}
+                                              onChange={(e) => handleCustomerInlineUpdate(c.id, "clientStatus", e.target.value as ClientStatusType)}
+                                              style={{
+                                                background: stStyle.bg,
+                                                color: stStyle.color,
+                                                border: `1.5px solid ${stStyle.border}`,
+                                                borderRadius: 9999,
+                                                padding: "5px 12px 5px 20px",
+                                                fontSize: 11,
+                                                fontWeight: 800,
+                                                cursor: "pointer",
+                                                outline: "none",
+                                                width: "100%",
+                                                textOverflow: "ellipsis",
+                                                whiteSpace: "nowrap",
+                                              }}
+                                            >
+                                              {grp.statuses.map((st) => (
+                                                <option key={st} value={st}>{st}</option>
+                                              ))}
+                                            </select>
+                                            <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 6, height: 6, borderRadius: 99, background: stStyle.dot }} />
+                                          </div>
+                                        ) : (
+                                          <select
+                                            style={{
+                                              border: "1px dashed #cbd5e1",
+                                              background: "transparent",
+                                              color: "#94a3b8",
+                                              borderRadius: 6,
+                                              padding: "3px 6px",
+                                              fontSize: 11,
+                                              fontWeight: 600,
+                                              cursor: "pointer",
+                                              width: "100%",
+                                              textAlign: "center",
+                                            }}
+                                            value=""
+                                            onChange={(e) => {
+                                              if (e.target.value) handleCustomerInlineUpdate(c.id, "clientStatus", e.target.value as ClientStatusType);
+                                            }}
+                                          >
+                                            <option value="">—</option>
+                                            {grp.statuses.map((st) => (
+                                              <option key={st} value={st}>{st}</option>
+                                            ))}
+                                          </select>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
+
+                                  {/* 5. COMPLETION STAGE COLUMN */}
+                                  {visibleCols.stage_completion && (() => {
+                                    const grp = CLIENT_STAGE_GROUPS[4];
+                                    const isActive = grp.statuses.includes(c.clientStatus as any);
+                                    const stStyle = isActive ? getClientStatusStyle(c.clientStatus) : null;
+                                    return (
+                                      <td style={{ background: stStyle ? stStyle.bg : undefined }}>
+                                        {isActive && stStyle ? (
+                                          <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
+                                            <select
+                                              className="badge-select"
+                                              value={c.clientStatus}
+                                              onChange={(e) => handleCustomerInlineUpdate(c.id, "clientStatus", e.target.value as ClientStatusType)}
+                                              style={{
+                                                background: stStyle.bg,
+                                                color: stStyle.color,
+                                                border: `1.5px solid ${stStyle.border}`,
+                                                borderRadius: 9999,
+                                                padding: "5px 12px 5px 20px",
+                                                fontSize: 11,
+                                                fontWeight: 800,
+                                                cursor: "pointer",
+                                                outline: "none",
+                                                width: "100%",
+                                                textOverflow: "ellipsis",
+                                                whiteSpace: "nowrap",
+                                              }}
+                                            >
+                                              {grp.statuses.map((st) => (
+                                                <option key={st} value={st}>{st}</option>
+                                              ))}
+                                            </select>
+                                            <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", width: 6, height: 6, borderRadius: 99, background: stStyle.dot }} />
+                                          </div>
+                                        ) : (
+                                          <select
+                                            style={{
+                                              border: "1px dashed #cbd5e1",
+                                              background: "transparent",
+                                              color: "#94a3b8",
+                                              borderRadius: 6,
+                                              padding: "3px 6px",
+                                              fontSize: 11,
+                                              fontWeight: 600,
+                                              cursor: "pointer",
+                                              width: "100%",
+                                              textAlign: "center",
+                                            }}
+                                            value=""
+                                            onChange={(e) => {
+                                              if (e.target.value) handleCustomerInlineUpdate(c.id, "clientStatus", e.target.value as ClientStatusType);
+                                            }}
+                                          >
+                                            <option value="">—</option>
+                                            {grp.statuses.map((st) => (
+                                              <option key={st} value={st}>{st}</option>
+                                            ))}
+                                          </select>
+                                        )}
+                                      </td>
+                                    );
+                                  })()}
+
+                                  {/* UNIFIED SINGLE OPERATIONAL CLIENT STATUS COLUMN (OPTIONAL SWITCHABLE IN COLUMNS MODAL) */}
                                   {visibleCols.status && (
                                     <td style={{ background: stStyle.bg }}>
                                       <div style={{ position: "relative", display: "inline-block", width: "100%" }}>
@@ -7377,14 +7697,15 @@ Total Invoices: ${invoices.length}
                                           <select
                                             style={{
                                               border: "1px dashed #cbd5e1",
-                                              background: "#ffffff",
+                                              background: "transparent",
                                               color: "#94a3b8",
                                               borderRadius: 6,
                                               padding: "3px 6px",
-                                              fontSize: 10.5,
+                                              fontSize: 11,
                                               fontWeight: 600,
                                               cursor: "pointer",
                                               width: "100%",
+                                              textAlign: "center",
                                             }}
                                             value=""
                                             onChange={(e) => {
@@ -7393,7 +7714,7 @@ Total Invoices: ${invoices.length}
                                           >
                                             <option value="">—</option>
                                             {CLIENT_STAGE_GROUPS[5].statuses.map((st) => (
-                                              <option key={st} value={st}>Set: {st}</option>
+                                              <option key={st} value={st}>{st}</option>
                                             ))}
                                           </select>
                                         )}
@@ -12214,8 +12535,8 @@ Total Invoices: ${invoices.length}
                       stage_sales: "🎯 NEW / SALES",
                       stage_assessment: "📋 ASSESSMENT / SCHEDULING",
                       stage_service: "🛠️ SERVICE / REPAIR",
-                      stage_completion: "🚚 COMPLETION / DELIVERY",
                       stage_pullout: "🎹 PIANO PULLOUT",
+                      stage_completion: "🚚 COMPLETION / DELIVERY",
                       stage_payment: "💳 PAYMENT",
                       status: "Single Status Badge",
                       service: "Product / Service",
